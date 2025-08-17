@@ -39,8 +39,20 @@ export default function Home() {
                 Find by Location
               </Link>
             </div>
-          </div>
-        </div>
+
+            {/* Register button */}
+<div className="flex justify-center mt-10">
+  <Link
+    href="/auth"
+    className="bg-pink-600 text-white px-8 py-3 rounded-lg font-semibold shadow-md hover:bg-pink-700"
+  >
+    Register
+  </Link>
+</div>
+{/* DEBUG */}
+<div style={{border:'3px dashed red', padding:12, textAlign:'center', marginTop:12}}>
+  DEBUG BLOCK — IF YOU SEE THIS, THE RIGHT FILE IS RENDERING
+</div>
       </section>
 
       {/* Stats Section */}
@@ -163,3 +175,13 @@ export default function Home() {
     </div>
   );
 }
+{/* 🔹 Register Button */}
+<div className="flex justify-center my-10">
+  <Link
+    href="/auth"
+    className="px-8 py-3 bg-pink-600 text-white font-semibold rounded-md shadow-md hover:bg-pink-700 transition"
+  >
+    Register
+  </Link>
+</div>
+
