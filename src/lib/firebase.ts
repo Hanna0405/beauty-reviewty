@@ -5,12 +5,13 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-  apiKey: 'ВСТАВЬ_СВОЙ',
-  authDomain: 'ВСТАВЬ_СВОЙ',
-  projectId: 'ВСТАВЬ_СВОЙ',
-  storageBucket: 'ВСТАВЬ_СВОЙ',
-  messagingSenderId: 'ВСТАВЬ_СВОЙ',
-  appId: 'ВСТАВЬ_СВОЙ',
+  apiKey: 'AIzaSyA0BcaNagg0p6DjJdNrrKfyQIUToq96Xw',         
+  authDomain: 'beauty-reviewty.firebaseapp.com',             
+  projectId: 'beauty-reviewty',                              
+  storageBucket: 'beauty-reviewty.firebasestorage.app',      
+  messagingSenderId: '506141876880',                         
+  appId: '1:506141876880:web:22c2abffc42fa133eaeE15',        
+  measurementId: 'G-MTZFM6ZXRK',                             
 };
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);

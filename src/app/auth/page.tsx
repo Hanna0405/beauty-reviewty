@@ -140,12 +140,14 @@ export default function AuthPage() {
           </button>
 
           {err && (
-            <div className="rounded-md bg-red-50 text-red-700 px-3 py-2 text-sm">
-              {err}
-            </div>
-          )}
+  <div className="rounded-md bg-red-50 text-red-700 px-3 py-2 text-sm">
+    {typeof err === 'string' ? err : JSON.stringify(err)}
+  </div>
+)}    
         </div>
       </div>
     </div>
   );
 }
+
+
