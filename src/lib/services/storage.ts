@@ -15,13 +15,11 @@ export async function upload(file: File, path: string): Promise<string> {
 
 export async function removeByUrl(url: string): Promise<void> {
   try {
-    // Extract the path from the URL
     const urlObj = new URL(url);
     const pathMatch = urlObj.pathname.match(/\/o\/(.+?)\?/);
     if (!pathMatch) {
       throw new Error('Invalid storage URL');
     }
-    
     const path = decodeURIComponent(pathMatch[1]);
     const storageRef = ref(storage, path);
     await deleteObject(storageRef);

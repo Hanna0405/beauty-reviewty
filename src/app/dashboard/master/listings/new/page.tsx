@@ -24,7 +24,7 @@ function Content() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Create New Listing</h1>
         <p className="text-gray-600">
-          Create a new service listing to attract clients and grow your business.
+          Add a new service listing to attract clients and grow your business.
         </p>
       </div>
 

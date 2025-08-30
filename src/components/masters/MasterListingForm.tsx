@@ -2,37 +2,17 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { upload, removeByUrl } from '@/lib/services/storage';
 import { create, update } from '@/lib/services/firestoreMasters';
+import { useAuth } from '@/components/auth/AuthProvider';
 import type { Master, GeoPoint } from '@/types';
 import { SERVICES } from '@/data/services';
 import CityAutocomplete from '../CityAutocomplete';
+import LanguagesField from '../LanguagesField';
 import Portal from '../ui/Portal';
 import { useToast } from '../ui/Toast';
-
-// Predefined languages list
-const LANGUAGES = [
-  "English",
-  "French", 
-  "Russian",
-  "Ukrainian",
-  "Polish",
-  "Portuguese",
-  "Spanish",
-  "Italian",
-  "German",
-  "Mandarin Chinese",
-  "Cantonese",
-  "Punjabi",
-  "Hindi",
-  "Tagalog (Filipino)",
-  "Korean",
-  "Japanese",
-  "Vietnamese",
-  "Arabic",
-  "Persian (Farsi)",
-  "Turkish"
-];
+import { geocodeCity } from '@/lib/geocode';
 
 interface MasterListingFormProps {
   mode: 'create' | 'edit';
@@ -75,11 +55,13 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
   const [serviceInput, setServiceInput] = useState('');
   const [showServiceSuggestions, setShowServiceSuggestions] = useState(false);
   const [filteredServices, setFilteredServices] = useState<string[]>([]);
-  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  
+  // City autocomplete state
+  const [cityText, setCityText] = useState<string>("");
+  const [location, setLocation] = useState<{lat: number; lng: number} | null>(null);
 
   const serviceInputRef = useRef<HTMLInputElement>(null);
-  const languageDropdownRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize form with existing data
@@ -97,6 +79,10 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
         photos: initialData.photos || [],
         status: initialData.status || 'active'
       });
+      
+      // Initialize city autocomplete state
+      setCityText(initialData.city || '');
+      setLocation(initialData.location ? { lat: initialData.location.lat, lng: initialData.location.lng } : null);
     }
   }, [initialData]);
 
@@ -133,21 +119,21 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
   };
 
   // Handle language selection
-  const handleLanguageToggle = (language: string) => {
+  const handleLanguageChange = (languages: string[]) => {
     setFormData(prev => ({
       ...prev,
-      languages: prev.languages.includes(language)
-        ? prev.languages.filter(l => l !== language)
-        : [...prev.languages, language]
+      languages
     }));
   };
 
-  // Handle city selection
-  const handleCitySelect = (city: string, lat: number, lng: number) => {
+  // Handle city selection from autocomplete
+  const handleCitySelect = (city: { label: string; lat: number; lng: number }) => {
+    setCityText(city.label);
+    setLocation({ lat: city.lat, lng: city.lng });
     setFormData(prev => ({
       ...prev,
-      city,
-      location: { lat, lng }
+      city: city.label,
+      location: { lat: city.lat, lng: city.lng }
     }));
   };
 
@@ -159,7 +145,7 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
     try {
       const uploadPromises = Array.from(files).map(async (file) => {
         const filename = `${Date.now()}-${file.name}`;
-        const path = `masters/${uid}/${listingId || 'new'}/${filename}`;
+        const path = `masters/${uid}/${listingId || 'temp'}/${filename}`;
         return await upload(file, path);
       });
 
@@ -168,10 +154,10 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
         ...prev,
         photos: [...prev.photos, ...urls]
       }));
-          } catch (error) {
-        console.error('Error uploading photos:', error);
-        showToast('Failed to upload photos. Please try again.', 'error');
-      } finally {
+    } catch (error) {
+      console.error('Error uploading photos:', error);
+      showToast('Failed to upload photos. Please try again.', 'error');
+    } finally {
       setUploadingPhotos(false);
     }
   };
@@ -202,8 +188,8 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
       newErrors.title = 'Title is required';
     }
 
-    if (!formData.city.trim() && !formData.location) {
-      newErrors.city = 'City or location is required';
+    if (!cityText.trim()) {
+      newErrors.city = 'City is required';
     }
 
     if (formData.services.length === 0) {
@@ -226,11 +212,24 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
 
     setLoading(true);
     try {
+      // If location is null but cityText exists, try to geocode
+      let finalLocation = location;
+      if (!location && cityText.trim()) {
+        const geocodedLocation = await geocodeCity(cityText.trim());
+        if (geocodedLocation) {
+          finalLocation = geocodedLocation;
+        } else {
+          showToast('City not found — please pick from suggestions', 'error');
+          setLoading(false);
+          return;
+        }
+      }
+
       const data = {
         title: formData.title.trim(),
         about: formData.about.trim(),
-        city: formData.city.trim(),
-        location: formData.location,
+        city: cityText.trim(),
+        location: finalLocation ? { lat: finalLocation.lat, lng: finalLocation.lng } : null,
         services: formData.services,
         languages: formData.languages,
         priceFrom: formData.priceFrom ? Number(formData.priceFrom) : undefined,
@@ -257,7 +256,7 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6 overflow-visible">
       {/* Title */}
       <div>
         <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
@@ -299,10 +298,10 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
           City/Location *
         </label>
         <CityAutocomplete
-          value={formData.city}
+          value={cityText}
+          onChange={setCityText}
           onSelect={handleCitySelect}
-          placeholder="Enter your city"
-          className={errors.city ? 'border-red-300' : ''}
+          placeholder="Start typing a city..."
         />
         {errors.city && <p className="mt-1 text-sm text-red-600">{errors.city}</p>}
       </div>
@@ -374,70 +373,11 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
       </div>
 
       {/* Languages */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Languages You Speak
-        </label>
-        <div className="relative" ref={languageDropdownRef}>
-          <button
-            type="button"
-            onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-left focus:outline-none focus:ring-2 focus:ring-pink-500"
-          >
-            {formData.languages.length > 0 
-              ? `${formData.languages.length} language(s) selected`
-              : 'Select languages'
-            }
-          </button>
-          
-          {showLanguageDropdown && languageDropdownRef.current && (
-            <Portal>
-              <div
-                className="fixed z-[9999] bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto"
-                style={{
-                  top: languageDropdownRef.current.getBoundingClientRect().bottom + window.scrollY + 4,
-                  left: languageDropdownRef.current.getBoundingClientRect().left + window.scrollX,
-                  width: languageDropdownRef.current.getBoundingClientRect().width,
-                }}
-              >
-                <div className="p-2">
-                  {LANGUAGES.map((language) => (
-                    <label key={language} className="flex items-center px-2 py-1 hover:bg-gray-50">
-                      <input
-                        type="checkbox"
-                        checked={formData.languages.includes(language)}
-                        onChange={() => handleLanguageToggle(language)}
-                        className="mr-2"
-                      />
-                      <span className="text-sm">{language}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </Portal>
-          )}
-        </div>
-        
-        {formData.languages.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {formData.languages.map((language) => (
-              <span
-                key={language}
-                className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm bg-purple-100 text-purple-800"
-              >
-                {language}
-                <button
-                  type="button"
-                  onClick={() => handleLanguageToggle(language)}
-                  className="text-purple-600 hover:text-purple-800"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
+      <LanguagesField
+        value={formData.languages}
+        onChange={handleLanguageChange}
+        label="Languages You Speak"
+      />
 
       {/* Price Range */}
       <div className="grid grid-cols-2 gap-4">
@@ -504,11 +444,18 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {formData.photos.map((photo, index) => (
                 <div key={index} className="relative group">
-                  <img
-                    src={photo}
-                    alt={`Photo ${index + 1}`}
-                    className="w-full h-32 object-cover rounded-lg"
-                  />
+                  <div className="relative w-full h-32">
+                    <Image
+                      src={photo}
+                      alt={`Photo ${index + 1}`}
+                      fill
+                      className="object-cover rounded-lg"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = '/placeholder.jpg';
+                      }}
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={() => handlePhotoRemove(photo)}

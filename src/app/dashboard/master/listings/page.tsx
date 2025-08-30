@@ -41,6 +41,7 @@ function Content() {
       setListings(data);
     } catch (error) {
       console.error('Error loading listings:', error);
+      showToast('Failed to load listings', 'error');
     } finally {
       setLoading(false);
     }
