@@ -116,12 +116,12 @@ return (
 <div className="mb-6 flex items-center justify-between gap-3">
 <h1 className="text-2xl font-semibold shrink-0">My profile</h1>
 <div className="min-w-0 flex-1" />
-<Link
-href="/dashboard/profile/new"
-className="shrink-0 rounded-md bg-pink-600 px-4 py-2 text-white hover:bg-pink-700"
->
-+ Add profile
-</Link>
+ <Link
+ href="/dashboard/master/profile"
+ className="shrink-0 rounded-md bg-pink-600 px-4 py-2 text-white hover:bg-pink-700"
+ >
+ + Add profile
+ </Link>
 </div>
 
 {/* List */}
@@ -137,9 +137,9 @@ className="shrink-0 rounded-md bg-pink-600 px-4 py-2 text-white hover:bg-pink-70
 ) : rows.length === 0 ? (
 <div className="rounded-lg border p-6 text-gray-600">
 You have no profiles yet.
-<Link href="/dashboard/profile/new" className="ml-2 text-pink-600 underline">
-Create one
-</Link>
+ <Link href="/dashboard/master/profile" className="ml-2 text-pink-600 underline">
+ Create one
+ </Link>
 .
 </div>
 ) : (
@@ -169,12 +169,12 @@ sizes="64px"
 
 {/* действия */}
 <div className="flex gap-2">
-<Link
-href={`/dashboard/profile/${p.id}/edit`}
-className="inline-flex items-center justify-center rounded-md border px-3 py-2 text-sm hover:bg-gray-50"
->
-Edit
-</Link>
+ <Link
+ href="/dashboard/master/profile"
+ className="inline-flex items-center justify-center rounded-md border px-3 py-2 text-sm hover:bg-gray-50"
+ >
+ Edit
+ </Link>
 
 {/* ←← ВОТ ТА ССЫЛКА VIEW */}
 <Link

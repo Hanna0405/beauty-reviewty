@@ -5,11 +5,11 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, limit } from 'firebase/firestore';
-import type { Master } from '@/types';
+import type { MasterWithExtras } from '@/types';
 import SocialBar from '@/components/SocialBar';
 
 export default function HomePage() {
- const [masters, setMasters] = useState<Master[]>([]);
+   const [masters, setMasters] = useState<MasterWithExtras[]>([]);
  const [loading, setLoading] = useState(true);
 
  // Загружаем немного анкет для главной
@@ -19,18 +19,26 @@ export default function HomePage() {
  try {
  const snap = await getDocs(query(collection(db, 'profiles'), limit(50)));
  if (!alive) return;
- const list: Master[] = snap.docs.map(d => {
+ const list: MasterWithExtras[] = snap.docs.map(d => {
  const x = d.data() as any;
  return {
  id: d.id,
+ uid: d.id, // Use document ID as uid
+ title: x.name ?? x.displayName ?? '',
  name: x.name ?? x.displayName ?? '',
  displayName: x.displayName ?? x.name ?? '',
  city: x.city ?? '',
+ about: x.bio ?? '',
  bio: x.bio ?? '',
  services: Array.isArray(x.services) ? x.services : [],
+ languages: Array.isArray(x.languages) ? x.languages : [],
+ photos: Array.isArray(x.photoUrls) ? x.photoUrls : (x.photoUrl ? [x.photoUrl] : []),
+ photoUrls: Array.isArray(x.photoUrls) ? x.photoUrls : (x.photoUrl ? [x.photoUrl] : []),
+ status: 'active' as const,
  ratingAvg: typeof x.ratingAvg === 'number' ? x.ratingAvg : undefined,
  reviewsCount: typeof x.reviewsCount === 'number' ? x.reviewsCount : undefined,
- photoUrls: Array.isArray(x.photoUrls) ? x.photoUrls : (x.photoUrl ? [x.photoUrl] : []),
+ createdAt: x.createdAt,
+ updatedAt: x.updatedAt,
  };
  });
  setMasters(list);
@@ -167,13 +175,19 @@ function StatCard({
  );
 }
 
-function MasterCard({ m }: { m: Master }) {
- const photo =
- (m.photoUrls && m.photoUrls[0]) ? m.photoUrls[0] : '/placeholder.jpg';
+function MasterCard({ m }: { m: MasterWithExtras }) {
+ const [imageError, setImageError] = useState(false);
+ 
+ const photo = imageError ? '/placeholder.jpg' : 
+   (m.photoUrls && m.photoUrls[0]) ? m.photoUrls[0] : '/placeholder.jpg';
 
  const rating = typeof m.ratingAvg === 'number' ? m.ratingAvg : undefined;
  const reviews = typeof m.reviewsCount === 'number' ? m.reviewsCount : 0;
  const services = (m.services ?? []).slice(0, 2);
+
+ const handleImageError = () => {
+   setImageError(true);
+ };
 
  return (
  <div className="section overflow-hidden">
@@ -184,6 +198,7 @@ function MasterCard({ m }: { m: Master }) {
  fill
  className="object-cover"
  sizes="(max-width:768px) 100vw, 33vw"
+ onError={handleImageError}
  />
  </div>
 

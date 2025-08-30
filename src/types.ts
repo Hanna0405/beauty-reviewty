@@ -1,17 +1,59 @@
-// роли пользователей
-export type UserRole = 'client' | 'master' | 'admin';
+export type GeoPoint = { lat: number; lng: number };
 
-// базовый документ пользователя
-export type UserDoc = {
- uid: string;
- role: UserRole;
- displayName?: string;
- photoURL?: string;
- email?: string;
- phone?: string;
- city?: string;
- createdAt: any;
- updatedAt: any;
+export type UserProfile = {
+  uid: string;
+  role: "master" | "client";
+  name: string;
+  phone?: string;
+  avatar?: string;
+  createdAt: any;
+};
+
+export type Master = {
+  id: string;
+  uid: string;
+  title: string;
+  about?: string;
+  city?: string;
+  location?: GeoPoint | null;
+  services: string[];
+  languages: string[];
+  priceFrom?: number;
+  priceTo?: number;
+  photos: string[];
+  status: "active" | "hidden";
+  ratingAvg?: number;
+  ratingCount?: number;
+  createdAt: any;
+  updatedAt: any;
+};
+
+export type MasterWithExtras = Master & {
+  distanceKm?: number;
+  reviewsCount?: number;
+  // Legacy properties for backward compatibility
+  uid?: string;
+  profileId?: string;
+  mainServices?: string[];
+  priceRange?: { min?: number; max?: number };
+  priceMin?: number;
+  priceMax?: number;
+  photo?: string;
+  photoUrls?: string[];
+  rating?: number;
+  displayName?: string;
+  name?: string;
+  bio?: string;
+  lat?: number;
+  lng?: number;
+};
+
+export type SearchFiltersValue = {
+  q: string;
+  city: string;
+  service: string;
+  price: "all" | "low" | "mid" | "high";
+  languages: string[];
 };
 
 // анкета мастера (мастер может иметь несколько)
