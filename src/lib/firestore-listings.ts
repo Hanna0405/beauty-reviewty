@@ -57,3 +57,11 @@ export async function deleteListingCascade(listingId: string) {
   
   await deleteDoc(listingRef);
 }
+
+// Export compatibility functions
+export const listenAllMasters = (callback: (docs: any[]) => void) => {
+  // Placeholder for compatibility - returns a no-op unsubscribe function
+  return () => {};
+};
+export const createListingInBoth = createListing; // Alias for compatibility
+export const patchListingPhotos = updateListing; // Alias for compatibility

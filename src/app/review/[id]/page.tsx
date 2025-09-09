@@ -47,7 +47,8 @@ export default function ReviewPage() {
  try {
  let photoURLs: string[] = [];
  if (files.length) {
- photoURLs = await uploadFilesAndGetURLs(files, `reviews/${uid}`);
+ const result = await uploadFilesAndGetURLs(`reviews/${uid}`, files);
+ photoURLs = result.urls;
  }
 
  await addDoc(collection(db, 'reviews'), {

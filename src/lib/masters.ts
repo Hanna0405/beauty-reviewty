@@ -1,4 +1,5 @@
 import type { Master } from "@/types"; // adjust path if your types live elsewhere
+export type { Master };
 import { db } from "@/lib/firebase";
 import { collection, getDocs, limit, query, where } from "firebase/firestore";
 

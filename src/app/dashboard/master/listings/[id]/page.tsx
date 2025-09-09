@@ -48,7 +48,7 @@ function Content() {
       }
 
       // Verify ownership
-      if (data.ownerUid !== user?.uid) {
+      if (data.ownerId !== user?.uid) {
         setError('You do not have permission to edit this listing');
         return;
       }

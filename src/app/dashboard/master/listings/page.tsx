@@ -40,7 +40,7 @@ export default function MyListingsPage() {
  async function onDelete(row: Row) {
  if (!confirm("Delete this listing? This cannot be undone.")) return;
  try {
- await deleteListingCascade(row.id, row.photos || []);
+  await deleteListingCascade(row.id);
  alert("Listing deleted.");
  } catch (e:any) {
  alert("Delete failed: " + (e?.message || String(e)));

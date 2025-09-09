@@ -22,7 +22,17 @@ const CITY_SUGGESTIONS = [
  'Surrey','Halifax','Victoria','Saskatoon','Regina','Barrie','Bradford'
 ];
 
-export default function MasterProfileForm({ initialUser }: { initialUser?: any }) {
+export default function OnboardingPage() {
+  // TODO: mount your real onboarding component here, e.g. <Onboarding />
+  return (
+    <div style={{ padding: 16 }}>
+      <h1>Onboarding</h1>
+      <p>Welcome! Complete your profile to continue.</p>
+    </div>
+  );
+}
+
+function MasterProfileForm({ initialUser }: { initialUser?: any }) {
  const [displayName, setDisplayName] = useState(initialUser?.displayName ?? '');
  const [city, setCity] = useState(initialUser?.city ?? '');
  const [about, setAbout] = useState(initialUser?.about ?? '');

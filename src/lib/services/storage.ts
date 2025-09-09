@@ -1,5 +1,5 @@
 import { getDownloadURL, ref, uploadBytes, uploadBytesResumable } from "firebase/storage";
-import { storage } from "@/lib/firebase";
+import { storage, getStorageSafe } from "@/lib/firebase";
 
 export interface UploadProgress {
   fileIndex: number;
@@ -113,3 +113,6 @@ export async function uploadMultiple(
 
   return { urls: results, errors };
 }
+
+// Export compatibility function
+export const uploadFilesAndGetURLs = uploadMultiple;

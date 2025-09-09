@@ -1,5 +1,5 @@
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject, UploadTask, getStorage } from "firebase/storage";
-import { storage } from "./firebase";
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject, UploadTask } from "firebase/storage";
+import { storage, getStorageSafe } from "./firebase";
 
 /**
  * Upload a single file to Firebase Storage with proper metadata
@@ -116,10 +116,13 @@ export async function deleteByUrl(url: string): Promise<void> {
     const u = new URL(url);
     const encoded = u.pathname.split("/o/")[1] || "";
     const path = decodeURIComponent(encoded);
-    const storage = getStorage();
+    const storage = getStorageSafe();
     const objRef = ref(storage, path);
     await deleteObject(objRef);
   } catch (e) {
     console.error("deleteByUrl failed:", e);
   }
 }
+
+// Export compatibility function
+export const uploadFilesAndGetURLs = uploadFiles;

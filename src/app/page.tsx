@@ -21,21 +21,22 @@ export default function HomePage() {
  const list: MasterWithExtras[] = mastersList.map(m => ({
  id: m.id,
  uid: m.id, // Use document ID as uid
- title: m.displayName ?? '',
- name: m.displayName ?? '',
- displayName: m.displayName ?? '',
+ ownerId: m.id, // Add missing ownerId property
+ title: (m as any).name ?? (m as any).displayName ?? '',
+ name: (m as any).name ?? (m as any).displayName ?? '',
+ displayName: (m as any).name ?? (m as any).displayName ?? '',
  city: m.city ?? '',
- about: m.bio ?? '',
- bio: m.bio ?? '',
+ about: m.about ?? '',
+ bio: m.about ?? '',
  services: Array.isArray(m.services) ? m.services : [],
  languages: Array.isArray(m.languages) ? m.languages : [],
- photos: Array.isArray(m.photoUrls) ? m.photoUrls : (m.photoUrl ? [m.photoUrl] : []),
- photoUrls: Array.isArray(m.photoUrls) ? m.photoUrls : (m.photoUrl ? [m.photoUrl] : []),
+ photos: Array.isArray(m.photos) ? m.photos : [],
+ photoUrls: Array.isArray(m.photos) ? m.photos : [],
  status: 'active' as const,
- ratingAvg: typeof m.rating === 'number' ? m.rating : undefined,
- reviewsCount: typeof m.reviewsCount === 'number' ? m.reviewsCount : undefined,
- createdAt: m.createdAt,
- updatedAt: m.updatedAt,
+ ratingAvg: typeof (m as any).rating === 'number' ? (m as any).rating : undefined,
+ reviewsCount: typeof (m as any).reviewsCount === 'number' ? (m as any).reviewsCount : undefined,
+ createdAt: (m as any).createdAt,
+ updatedAt: (m as any).updatedAt,
  }));
  setMasters(list);
  } finally {

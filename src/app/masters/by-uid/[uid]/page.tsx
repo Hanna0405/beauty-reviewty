@@ -32,6 +32,7 @@ export default async function PublicMasterPage({ params }: { params: { uid: stri
   const masterForCard = {
     id: params.uid,
     uid: params.uid,
+    ownerId: params.uid, // Add missing ownerId property
     title: master.displayName,
     displayName: master.displayName,
     name: master.displayName,
@@ -40,7 +41,7 @@ export default async function PublicMasterPage({ params }: { params: { uid: stri
     languages: master.languages,
     photos: master.avatarUrl ? [master.avatarUrl] : [],
     photoUrls: master.avatarUrl ? [master.avatarUrl] : [],
-    photo: master.avatarUrl,
+    photo: master.avatarUrl || undefined,
     rating: undefined,
     ratingAvg: undefined,
     reviewsCount: undefined,
