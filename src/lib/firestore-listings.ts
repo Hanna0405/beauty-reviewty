@@ -24,6 +24,7 @@ export async function createListing(listingRef: ReturnType<typeof doc>, userUid:
   });
   
   await setDoc(listingRef, payload, { merge: false });
+  return listingRef.id;
 }
 
 export async function updateListing(listingRef: ReturnType<typeof doc>, userUid: string, data: any) {

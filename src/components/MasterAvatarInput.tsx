@@ -15,11 +15,6 @@ export default function MasterAvatarInput({ uid, onUploaded, currentUrl }: Props
   const [preview, setPreview] = useState<string | null>(null);
 
   async function handleFile(file: File) {
-    if (!storage) {
-      if (process.env.NODE_ENV !== "production") console.warn("Firebase Storage is not initialized (missing env).");
-      return;
-    }
-
     setIsUploading(true);
     try {
       // Convert any format → normalized format

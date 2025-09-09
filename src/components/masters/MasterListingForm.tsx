@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { auth, storage as storageInstance } from "@/lib/firebase";
-import { uploadFilesAndGetURLs } from "@/lib/storage-helpers";
+import { auth, storage as storageInstance, db } from "@/lib/firebase";
+import { uploadFilesAndGetURLs } from "@/lib/services/storage";
 import { createListingInBoth, patchListingPhotos } from "@/lib/firestore-listings";
+import { addDoc, collection, serverTimestamp, doc } from "firebase/firestore";
 import { stripUndefined, toNumberOrNull } from "@/lib/object-helpers";
 import { getApp } from "firebase/app";
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -38,7 +39,7 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
     setValue,
     watch,
     reset
-  } = useForm<ListingFormData>({
+  } = useForm({
     resolver: zodResolver(listingFormSchema),
     defaultValues: {
       title: '',
@@ -47,10 +48,10 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
       services: [],
       languages: [],
       priceFrom: undefined,
-      priceTo: undefined,
-      photos: [],
       status: 'active' as const,
-      isPublished: false
+      isPublished: false,
+      priceTo: undefined,
+      photos: []
     }
   });
 
@@ -208,8 +209,8 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
       setProgress(0);
 
       // 1) Create listing doc (in both collections)
-      id = await createListingInBoth(stripUndefined({
-        uid: u.uid, 
+      const listingRef = doc(db, "listings", "");
+      id = await createListingInBoth(listingRef, u.uid, stripUndefined({
         title,
         description: description || null,
         city, 
@@ -225,11 +226,15 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
       let urls: string[] = [];
       if (files?.length) {
         const candid = files.filter(f => (f.size || 0) <= 8 * 1024 * 1024);
-        urls = await uploadFilesAndGetURLs(`listings/${id}`, candid, setProgress);
+        const result = await uploadFilesAndGetURLs(`listings/${id}`, candid);
+        urls = result.urls;
       }
 
       // 3) Patch photos (if any)
-      if (id && urls.length) await patchListingPhotos(id, urls);
+      if (id && urls.length) {
+        const updateRef = doc(db, "listings", id);
+        await patchListingPhotos(updateRef, u.uid, { photos: urls });
+      }
 
       alert(urls.length ? "Listing created with photos!" : "Listing created (no photos uploaded).");
 
@@ -351,12 +356,13 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
                 
                 {/* Service autocomplete */}
                 <ServiceAutocomplete
-                  onSelect={(service) => {
-                    if (service.trim() && !field.value?.includes(service.trim())) {
-                      const newServices = [...(field.value || []), service.trim()];
-                      setValue('services', newServices, { shouldDirty: true, shouldValidate: false });
-                    }
-                  }}
+                  value={field.value || []}
+                  onChange={(newServices) => setValue('services', newServices, { shouldDirty: true, shouldValidate: false })}
+                  options={[
+                    "Nails", "Haircut", "Makeup", "Brows & Lashes", "Massage", "Facial", "Waxing", 
+                    "Manicure", "Pedicure", "Hair Color", "Hair Styling", "Eyebrow Shaping", 
+                    "Eyelash Extensions", "Skin Care", "Body Treatment"
+                  ]}
                   placeholder="Type to search services..."
                 />
                 
@@ -509,7 +515,7 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
                     </div>
                   ))}
                 </div>
-              ) : null
+              ) : <div></div>
             )}
           />
         </div>

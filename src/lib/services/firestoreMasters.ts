@@ -7,7 +7,8 @@ import {
   updateDoc, 
   deleteDoc, 
   query as fsQuery, 
-  where, 
+  where,
+  getFirestore, 
   orderBy, 
   serverTimestamp,
   limit,
@@ -427,7 +428,7 @@ export async function upsert(uid: string, data: Partial<Master>): Promise<void> 
   };
   
   export async function saveMasterProfile(uid: string, data: MasterProfilePayload): Promise<void> {
-    const db = getFirestore(app);
+    // Use the shared db instance
     const ref = doc(db, 'masters', uid); // one profile per master
     const payload: any = {
       name: data.name,

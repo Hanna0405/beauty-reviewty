@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { uploadFilesAndGetURLs } from "@/lib/storage-helpers";
+import { uploadFilesAndGetURLs } from "@/lib/services/storage";
 
 type PhotoData = {
  url: string;
@@ -39,13 +39,11 @@ export default function PhotoPicker({ max = 10, onPhotosChange, currentPhotos = 
   // Upload immediately
   setUploading(true);
   try {
-   const urls = await uploadFilesAndGetURLs(
+   const result = await uploadFilesAndGetURLs(
     `listings/${Date.now()}`,
-    picked,
-    (index, percent) => {
-     setUploadProgress(prev => ({ ...prev, [index]: percent }));
-    }
+    picked
    );
+   const urls = result.urls;
 
    // Get image dimensions and create photo data
    const newPhotos: PhotoData[] = await Promise.all(

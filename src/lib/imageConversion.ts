@@ -46,7 +46,7 @@ export async function convertToUploadableImage(file: File): Promise<ConvertedIma
   // Fast path: pass-through for common types
   if (READABLE.has(file.type) && file.size <= 8*1024*1024) {
     const ext = file.type.split("/")[1] as "jpg"|"png"|"webp";
-    return { blob: file, ext: ext === "jpeg" ? "jpg" : (ext as any), contentType: file.type };
+    return { blob: file, ext: ext, contentType: file.type };
   }
 
   let blob: Blob = file;
@@ -71,7 +71,7 @@ export async function convertToUploadableImage(file: File): Promise<ConvertedIma
     // Last resort: if original was readable, pass through; otherwise friendly error
     if (READABLE.has(file.type)) {
       const ext = file.type.split("/")[1] as "jpg"|"png"|"webp";
-      return { blob: file, ext: ext === "jpeg" ? "jpg" : (ext as any), contentType: file.type };
+      return { blob: file, ext: ext, contentType: file.type };
     }
     throw new Error("This image format isn't supported by your browser. Please pick another file.");
   }

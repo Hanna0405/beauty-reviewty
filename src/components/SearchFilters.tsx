@@ -174,7 +174,19 @@ export default function SearchFilters({ value, onChange, className }: Props) {
         </label>
         <div data-testid="filter-service">
           <ServiceAutocomplete
-            onSelect={handleServiceSelect}
+            value={selectedService ? [selectedService] : []}
+            onChange={(services) => {
+              if (services.length > 0) {
+                handleServiceSelect(services[0]);
+              } else {
+                handleServiceSelect("");
+              }
+            }}
+            options={[
+              "Nails", "Haircut", "Makeup", "Brows & Lashes", "Massage", "Facial", "Waxing", 
+              "Manicure", "Pedicure", "Hair Color", "Hair Styling", "Eyebrow Shaping", 
+              "Eyelash Extensions", "Skin Care", "Body Treatment"
+            ]}
             placeholder="Type to search services..."
           />
           {selectedService && (

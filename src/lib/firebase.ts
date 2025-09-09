@@ -43,3 +43,4 @@ export const signInWithPhoneNumber = async (auth: any, phone: string, verifier: 
     confirm: async (code: string) => ({ user: null })
   };
 };
+export const firebaseStatus = () => ({ ready: true, missing: [] }); // Placeholder for compatibility

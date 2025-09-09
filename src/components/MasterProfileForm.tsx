@@ -12,6 +12,10 @@ import ServiceAutocomplete from "@/components/ServiceAutocomplete";
 import LanguagesField from "@/components/LanguagesField";
 import { useToast } from "@/components/ui/Toast";
 
+const SERVICE_OPTIONS = [
+  "Nails", "Haircut", "Makeup", "Brows & Lashes", "Massage", "Facial", "Waxing", "Manicure", "Pedicure", "Hair Color", "Hair Styling", "Eyebrow Shaping", "Eyelash Extensions", "Skin Care", "Body Treatment"
+];
+
 type Props = {
   initialUser?: Partial<{
     name: string;
@@ -170,10 +174,11 @@ export default function MasterProfileForm({ initialUser }: Props) {
             render={({ field, fieldState }) => (
               <>
                 <CityAutocomplete
-                  control={control}
-                  name="city"
-                  country="ca"
+                  value={field.value?.label || ""}
+                  onChange={(val) => field.onChange({ label: val })}
+                  placeholder="Enter your city..."
                   required
+                  error={fieldState.error?.message}
                 />
                 {fieldState.error && (
                   <p className="mt-1 text-sm text-red-600">{fieldState.error.message}</p>
@@ -220,7 +225,9 @@ export default function MasterProfileForm({ initialUser }: Props) {
                   
                   {/* Service autocomplete */}
                   <ServiceAutocomplete
-                    onSelect={handleAddService}
+                    value={watchedServices || []}
+                    onChange={(newServices) => setValue('services', newServices)}
+                    options={SERVICE_OPTIONS}
                     placeholder="Type to search services..."
                   />
                   

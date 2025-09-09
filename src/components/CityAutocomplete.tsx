@@ -5,7 +5,7 @@ import { useGoogleMaps } from "@/providers/GoogleMapsProvider";
 interface CityAutocompleteProps {
   value: string;
   onChange: (val: string) => void;
-  placeholder?: string;
+ placeholder?: string;
   required?: boolean;
   error?: string;
 }
@@ -25,7 +25,7 @@ export default function CityAutocomplete({
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteServiceRef = useRef<google.maps.places.AutocompleteService | null>(null);
   const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<google.maps.places.AutocompletePrediction[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [isLoading, setIsLoading] = useState(false);
@@ -40,6 +40,28 @@ export default function CityAutocomplete({
     }
   }, [isLoaded]);
 
+  // Resolve place details with proper fields
+  const resolvePlaceDetails = useCallback(
+    (prediction: google.maps.places.AutocompletePrediction) =>
+      new Promise<google.maps.places.PlaceResult | null>((resolve) => {
+        if (!placesServiceRef.current || !prediction.place_id) return resolve(null);
+
+        const detailReq: google.maps.places.PlaceDetailsRequest = {
+          placeId: prediction.place_id,
+          fields: ["name", "address_components", "geometry"],
+        };
+
+        placesServiceRef.current.getDetails(detailReq, (place, status) => {
+          if (status !== window.google.maps.places.PlacesServiceStatus.OK) {
+            resolve(null);
+          } else {
+            resolve(place || null);
+          }
+        });
+      }),
+    []
+  );
+
   // Debounced search function
   const searchPlaces = useCallback((query: string) => {
     if (!query.trim() || !autocompleteServiceRef.current) {
@@ -49,33 +71,24 @@ export default function CityAutocomplete({
     }
 
     setIsLoading(true);
-    autocompleteServiceRef.current.getPlacePredictions(
-      {
-        input: query,
-        types: ["(cities)"],
-        fields: ["address_components", "name"]
-      },
-      (predictions, status) => {
-        setIsLoading(false);
-        if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
-          const cityNames = predictions
-            .map(prediction => {
-              // Extract city name from address components
-              const components = prediction.structured_formatting?.main_text || prediction.description;
-              return components.split(",")[0].trim(); // Get first part before comma
-            })
-            .filter((name, index, arr) => arr.indexOf(name) === index) // Remove duplicates
-            .slice(0, 8); // Limit to 8 suggestions
-          
-          setSuggestions(cityNames);
-          setIsOpen(cityNames.length > 0);
-          setSelectedIndex(-1);
-        } else {
-          setSuggestions([]);
-          setIsOpen(false);
-        }
+    
+    // VALID AutocompletionRequest (no `fields` here!)
+    const request: google.maps.places.AutocompletionRequest = {
+      input: query,
+      types: ["(cities)"],
+    };
+
+    autocompleteServiceRef.current.getPlacePredictions(request, (predictions, status) => {
+      setIsLoading(false);
+      if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
+        setSuggestions(predictions.slice(0, 8)); // Limit to 8 suggestions
+        setIsOpen(predictions.length > 0);
+        setSelectedIndex(-1);
+      } else {
+        setSuggestions([]);
+        setIsOpen(false);
       }
-    );
+    });
   }, []);
 
   // Handle input change with debouncing
@@ -95,13 +108,15 @@ export default function CityAutocomplete({
   };
 
   // Handle suggestion selection
-  const selectSuggestion = (suggestion: string) => {
-    onChange(suggestion);
+  const selectSuggestion = useCallback(async (prediction: google.maps.places.AutocompletePrediction) => {
+    const place = await resolvePlaceDetails(prediction);
+    const cityName = place?.name ?? prediction.structured_formatting?.main_text ?? prediction.description;
+    onChange(cityName);
     setSuggestions([]);
     setIsOpen(false);
     setSelectedIndex(-1);
     inputRef.current?.blur();
-  };
+  }, [resolvePlaceDetails, onChange]);
 
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -148,13 +163,13 @@ export default function CityAutocomplete({
   };
 
   // Cleanup debounce on unmount
-  useEffect(() => {
+ useEffect(() => {
     return () => {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
       }
     };
-  }, []);
+ }, []);
 
   if (mapsError) {
     return (
@@ -174,10 +189,10 @@ export default function CityAutocomplete({
     );
   }
 
-  return (
+ return (
     <div className="relative">
-      <input
-        ref={inputRef}
+ <input
+ ref={inputRef}
         value={value}
         onChange={handleInputChange}
         onFocus={handleFocus}
@@ -202,22 +217,22 @@ export default function CityAutocomplete({
       {/* Suggestions dropdown */}
       {isOpen && suggestions.length > 0 && (
         <div className="absolute z-50 w-full mt-1 bg-white border border-pink-200 rounded-lg shadow-lg max-h-60 overflow-auto">
-          {suggestions.map((suggestion, index) => (
+          {suggestions.map((prediction, index) => (
             <button
-              key={suggestion}
+              key={prediction.place_id}
               type="button"
               className={`w-full px-4 py-3 text-left hover:bg-pink-50 transition-colors ${
                 index === selectedIndex ? 'bg-pink-100' : ''
               } ${index === 0 ? 'rounded-t-lg' : ''} ${
                 index === suggestions.length - 1 ? 'rounded-b-lg' : 'border-b border-pink-100'
               }`}
-              onClick={() => selectSuggestion(suggestion)}
+              onClick={() => selectSuggestion(prediction)}
             >
-              {suggestion}
+              {prediction.structured_formatting?.main_text || prediction.description}
             </button>
           ))}
         </div>
       )}
     </div>
-  );
+ );
 }

@@ -64,7 +64,8 @@ export default function MasterForm() {
  // загрузка фото (если выбраны)
  let photoUrls: string[] = [];
  if (files.length) {
- photoUrls = await uploadFilesAndGetURLs(files, `profiles/${uid}`);
+ const result = await uploadFilesAndGetURLs(`profiles/${uid}`, files);
+ photoUrls = result.urls;
  }
 
  const priceNum = price.trim() === '' ? null : Number(price.trim());
