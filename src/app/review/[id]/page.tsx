@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { addDoc, collection, doc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
-import { uploadFilesAndGetURLs } from '@/lib/auth-helpers';
+import { uploadFilesAndGetURLs } from '@/lib/services/storage';
 
 export default function ReviewPage() {
  // id — это id анкеты мастера (profile/master)

@@ -45,8 +45,18 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Dev-only warning for missing auth
+  if (process.env.NODE_ENV !== "production" && !auth) {
+    console.warn("[Auth] Firebase auth is not initialized. Rendering as signed-out.");
+  }
+
   // Fetch user profile from Firestore
   const fetchUserProfile = async (uid: string): Promise<UserProfile | null> => {
+    if (!db) {
+      if (process.env.NODE_ENV !== "production") console.warn("Firestore is not initialized (missing env).");
+      return null;
+    }
+    
     try {
       const userDoc = await getDoc(doc(db, 'users', uid));
       if (userDoc.exists()) {
@@ -61,6 +71,10 @@ export default function AuthProvider({ children }: AuthProviderProps) {
 
   // Create user profile in Firestore
   const createUserProfile = async (uid: string, name: string, role: "master" | "client"): Promise<void> => {
+    if (!db) {
+      throw new Error("Firestore is not initialized. Check Firebase env variables.");
+    }
+    
     try {
       const userProfile: Omit<UserProfile, 'createdAt'> = {
         uid,
@@ -89,6 +103,10 @@ export default function AuthProvider({ children }: AuthProviderProps) {
 
   // Signup with email and password
   const signup = async (email: string, password: string, name: string, role: "master" | "client"): Promise<void> => {
+    if (!auth) {
+      throw new Error("Auth not initialized. Check Firebase env variables.");
+    }
+    
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const { user: newUser } = userCredential;
@@ -104,6 +122,10 @@ export default function AuthProvider({ children }: AuthProviderProps) {
 
   // Login with email and password
   const login = async (email: string, password: string): Promise<void> => {
+    if (!auth) {
+      throw new Error("Auth not initialized. Check Firebase env variables.");
+    }
+    
     try {
       await signInWithEmailAndPassword(auth, email, password);
       // Profile will be fetched by the auth state listener
@@ -115,6 +137,10 @@ export default function AuthProvider({ children }: AuthProviderProps) {
 
   // Login with Google
   const loginWithGoogle = async (): Promise<void> => {
+    if (!auth) {
+      throw new Error("Auth not initialized. Check Firebase env variables.");
+    }
+    
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
@@ -139,6 +165,10 @@ export default function AuthProvider({ children }: AuthProviderProps) {
 
   // Logout
   const logout = async (): Promise<void> => {
+    if (!auth) {
+      throw new Error("Auth not initialized. Check Firebase env variables.");
+    }
+    
     try {
       await signOut(auth);
       setUser(null);
@@ -151,8 +181,14 @@ export default function AuthProvider({ children }: AuthProviderProps) {
 
   // Auth state listener
   useEffect(() => {
+    if (!auth) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+    
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
+      setUser(currentUser ?? null);
       
       if (currentUser) {
         const userProfile = await fetchUserProfile(currentUser.uid);

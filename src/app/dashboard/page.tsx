@@ -34,6 +34,10 @@ const [loading, setLoading] = useState(true);
 
 // следим за авторизацией
 useEffect(() => {
+if (!auth) {
+  setUid(null);
+  return;
+}
 const unsub = onAuthStateChanged(auth, (u) => setUid(u?.uid ?? null));
 return () => unsub();
 }, []);
@@ -47,7 +51,7 @@ return;
 }
 setLoading(true);
 
-const q = query(collection(db, 'profiles'), where('ownerId', '==', uid));
+const q = query(collection(db, 'profiles'), where('uid', '==', uid));
 const unsub = onSnapshot(
 q,
 (snap: QuerySnapshot<DocumentData>) => {

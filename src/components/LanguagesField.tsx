@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useAnchoredPopup } from '@/lib/useAnchoredPopup';
 import Portal from './ui/Portal';
 
 const LANGS = [
@@ -18,10 +19,9 @@ interface LanguagesFieldProps {
 export default function LanguagesField({ value, onChange, label, className = '' }: LanguagesFieldProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
-  const [containerRect, setContainerRect] = useState<DOMRect | null>(null);
   
-  const containerRef = useRef<HTMLDivElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const rect = useAnchoredPopup(buttonRef.current);
 
   const toggle = (lang: string) => {
     onChange(value.includes(lang) ? value.filter(l => l !== lang) : [...value, lang]);
@@ -60,7 +60,7 @@ export default function LanguagesField({ value, onChange, label, className = '' 
   // Handle click outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (buttonRef.current && !buttonRef.current.contains(event.target as Node)) {
         setIsOpen(false);
         setSelectedIndex(-1);
       }
@@ -72,47 +72,11 @@ export default function LanguagesField({ value, onChange, label, className = '' 
     }
   }, [isOpen]);
 
-  // Update container rect for portal positioning
-  useEffect(() => {
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setContainerRect(rect);
-    }
-  }, [isOpen]);
-
-  // Calculate dropdown position with overflow handling
-  const getDropdownPosition = useCallback(() => {
-    if (!containerRect) return {};
-    
-    const viewportHeight = window.innerHeight;
-    const dropdownHeight = Math.min(240, LANGS.length * 40 + 16); // Approximate height
-    const spaceBelow = viewportHeight - containerRect.bottom;
-    const spaceAbove = containerRect.top;
-    
-    let top = containerRect.bottom + window.scrollY + 4;
-    let maxHeight = dropdownHeight;
-    
-    // If not enough space below, show above
-    if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
-      top = containerRect.top + window.scrollY - dropdownHeight - 4;
-      maxHeight = Math.min(dropdownHeight, spaceAbove - 8);
-    } else {
-      maxHeight = Math.min(dropdownHeight, spaceBelow - 8);
-    }
-    
-    return {
-      top,
-      left: containerRect.left + window.scrollX,
-      width: containerRect.width,
-      maxHeight,
-    };
-  }, [containerRect]);
-
   return (
-    <div className={`${className} overflow-visible`}>
+    <div className={className}>
       {label && <div className="text-sm font-medium mb-2">{label}</div>}
 
-      <div className="relative overflow-visible" ref={containerRef}>
+      <div className="relative">
         {/* Selected languages display */}
         <div className="flex flex-wrap gap-2 mb-3">
           {value.map(lang => (
@@ -123,7 +87,7 @@ export default function LanguagesField({ value, onChange, label, className = '' 
               {lang}
               <button
                 type="button"
-                onClick={() => toggle(lang)}
+                onMouseDown={() => toggle(lang)}
                 className="text-purple-600 hover:text-purple-800"
               >
                 ×
@@ -134,6 +98,7 @@ export default function LanguagesField({ value, onChange, label, className = '' 
 
         {/* Dropdown trigger button */}
         <button
+          ref={buttonRef}
           type="button"
           onClick={handleToggle}
           onKeyDown={handleKeyDown}
@@ -149,12 +114,17 @@ export default function LanguagesField({ value, onChange, label, className = '' 
         </button>
 
         {/* Dropdown via Portal */}
-        {isOpen && containerRect && (
+        {isOpen && rect && (
           <Portal>
             <div
-              ref={dropdownRef}
-              className="fixed z-[9999] bg-white border border-gray-300 rounded-md shadow-lg overflow-y-auto"
-              style={getDropdownPosition()}
+              className="bg-white border shadow-lg rounded-md max-h-60 overflow-auto"
+              style={{ 
+                position: "fixed", 
+                top: rect.bottom + 4, 
+                left: rect.left, 
+                width: rect.width, 
+                zIndex: 9999 
+              }}
             >
               <div className="p-2">
                 {LANGS.map((language, index) => (
@@ -163,12 +133,11 @@ export default function LanguagesField({ value, onChange, label, className = '' 
                     className={`flex items-center px-2 py-1 hover:bg-gray-50 cursor-pointer ${
                       index === selectedIndex ? 'bg-pink-50 text-pink-700' : ''
                     }`}
-                    onClick={() => toggle(language)}
                   >
                     <input
                       type="checkbox"
                       checked={value.includes(language)}
-                      onChange={() => toggle(language)}
+                      onMouseDown={() => toggle(language)}
                       className="mr-2"
                     />
                     <span className="text-sm">{language}</span>

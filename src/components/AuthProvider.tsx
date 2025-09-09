@@ -9,7 +9,14 @@ const AuthCtx = createContext<Ctx>({ user: null, loading: true });
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  useEffect(() => onAuthStateChanged(auth, (u) => { setUser(u); setLoading(false); }), []);
+  useEffect(() => {
+    if (!auth) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+    return onAuthStateChanged(auth, (u) => { setUser(u); setLoading(false); });
+  }, []);
   return <AuthCtx.Provider value={{ user, loading }}>{children}</AuthCtx.Provider>;
 }
 export const useAuth = () => useContext(AuthCtx);

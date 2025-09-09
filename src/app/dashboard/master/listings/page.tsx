@@ -1,226 +1,136 @@
-'use client';
+"use client";
+import { useEffect, useRef, useState } from "react";
+import { useAuthUser } from "@/lib/useAuthUser";
+import { listenMyListingsSafe } from "@/lib/listen-my-listings";
+import { deleteListingCascade } from "@/lib/firestore-listings";
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/components/auth/AuthProvider';
-import { RequireRole } from '@/components/auth/guards';
-import { listByOwner, remove } from '@/lib/services/firestoreMasters';
-import type { Master } from '@/types';
-import { useToast } from '@/components/ui/Toast';
+type Row = { id:string; title?:string; city?:string | {name: string; lat?: number; lng?: number}; status?:string; photos?:string[] };
 
-export default function MasterListingsPage() {
-  return (
-    <RequireRole role="master">
-      <Content />
-    </RequireRole>
-  );
-}
+export default function MyListingsPage() {
+ const { user, loading:authLoading } = useAuthUser();
+ const [rows, setRows] = useState<Row[]>([]);
+ const [loading, setLoading] = useState(true);
+ const [err, setErr] = useState<string | null>(null);
+ const offRef = useRef<null | (()=>void)>(null);
 
-function Content() {
-  const { user } = useAuth();
-  const router = useRouter();
-  const { showToast } = useToast();
-  const [listings, setListings] = useState<Master[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
+ // Guard: never keep spinner forever
+ useEffect(() => {
+ const t = setTimeout(() => { if (loading) setLoading(false); }, 8000);
+ return () => clearTimeout(t);
+ }, [loading]);
 
-  useEffect(() => {
-    if (user) {
-      loadListings();
-    }
-  }, [user]);
+ useEffect(() => {
+ if (authLoading) return;
+ if (!user) { setRows([]); setLoading(false); setErr(null); return; }
+ setLoading(true); setErr(null);
+ try {
+ offRef.current?.();
+ offRef.current = listenMyListingsSafe(
+ user.uid,
+ (r)=>{ setRows(r); setLoading(false); },
+ (e)=>{ setErr(e?.message || String(e)); setLoading(false); }
+ );
+ } catch (e:any) {
+ setErr(e?.message || String(e));
+ setLoading(false);
+ }
+ return () => { try { offRef.current?.(); } catch {} };
+ }, [authLoading, user?.uid]);
 
-  const loadListings = async () => {
-    if (!user) return;
-    
-    try {
-      setLoading(true);
-      const data = await listByOwner(user.uid);
-      setListings(data);
-    } catch (error) {
-      console.error('Error loading listings:', error);
-      showToast('Failed to load listings', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
+ async function onDelete(row: Row) {
+ if (!confirm("Delete this listing? This cannot be undone.")) return;
+ try {
+ await deleteListingCascade(row.id, row.photos || []);
+ alert("Listing deleted.");
+ } catch (e:any) {
+ alert("Delete failed: " + (e?.message || String(e)));
+ }
+ }
 
-  const handleDelete = async (id: string) => {
-    try {
-      setDeletingId(id);
-      await remove(id);
-      setListings(listings.filter(listing => listing.id !== id));
-      setShowDeleteModal(null);
-      showToast('Listing deleted successfully!', 'success');
-    } catch (error) {
-      console.error('Error deleting listing:', error);
-      showToast('Failed to delete listing. Please try again.', 'error');
-    } finally {
-      setDeletingId(null);
-    }
-  };
+ return (
+ <div className="max-w-5xl mx-auto p-4 hl-soft">
+ <div className="flex items-center justify-between mb-4">
+ <h1 className="text-xl font-semibold">My Listings</h1>
+ <a href="/dashboard/master/listings/new" className="btn btn-primary">+ Listing</a>
+ </div>
 
-  const getStatusBadge = (status: string) => {
-    if (status === 'active') {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-          Active
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-        Hidden
-      </span>
-    );
-  };
+ {loading && <p>Loading...</p>}
 
-  if (loading) {
-    return (
-      <div className="max-w-6xl mx-auto p-6">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-600"></div>
-        </div>
-      </div>
-    );
-  }
+ {!loading && err && (
+ <div className="p-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-sm">
+ Could not load listings. {err}
+ <div className="mt-2">
+ <button className="btn btn-primary" onClick={()=>location.reload()}>Try again</button>
+ </div>
+ </div>
+ )}
 
-  return (
-    <div className="max-w-6xl mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Listings</h1>
-          <p className="text-gray-600 mt-1">Manage your service listings and portfolios</p>
-        </div>
-        <Link
-          href="/dashboard/master/listings/new"
-          className="inline-flex items-center px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700 transition-colors"
-        >
-          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
-          Create Listing
-        </Link>
-      </div>
+ {!loading && !err && rows.length === 0 && (
+ <p>No listings yet. Click <span className="font-medium">"+ Listing"</span> to create one.</p>
+ )}
 
-      {listings.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No listings yet</h3>
-          <p className="text-gray-600 mb-6">Create your first listing to start attracting clients</p>
-          <Link
-            href="/dashboard/master/listings/new"
-            className="inline-flex items-center px-4 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700 transition-colors"
-          >
-            Create Your First Listing
-          </Link>
-        </div>
-      ) : (
-        <div className="grid gap-6">
-          {listings.map((listing) => (
-            <div key={listing.id} className="bg-white rounded-lg border p-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-lg font-semibold text-gray-900">{listing.title}</h3>
-                    {getStatusBadge(listing.status)}
-                  </div>
-                  
-                  {listing.city && (
-                    <p className="text-gray-600 mb-3">
-                      <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      {listing.city}
-                    </p>
-                  )}
-
-                  {listing.services.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {listing.services.slice(0, 3).map((service, index) => (
-                        <span
-                          key={index}
-                          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-                        >
-                          {service}
-                        </span>
-                      ))}
-                      {listing.services.length > 3 && (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          +{listing.services.length - 3} more
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {listing.priceFrom && listing.priceTo && (
-                    <p className="text-sm text-gray-600">
-                      ${listing.priceFrom} - ${listing.priceTo}
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2 ml-4">
-                  <Link
-                    href={`/dashboard/master/listings/${listing.id}`}
-                    className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                  >
-                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    Edit
-                  </Link>
-                  
-                  <button
-                    onClick={() => setShowDeleteModal(listing.id)}
-                    className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-md hover:bg-red-50 transition-colors"
-                  >
-                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Delete Listing</h3>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to delete this listing? This action cannot be undone.
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setShowDeleteModal(null)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
-                disabled={deletingId === showDeleteModal}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDelete(showDeleteModal)}
-                className="px-4 py-2 text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors disabled:opacity-50"
-                disabled={deletingId === showDeleteModal}
-              >
-                {deletingId === showDeleteModal ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+ {!loading && !err && rows.length > 0 && (
+ <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+ {rows.map((it) => (
+ <li key={it.id} className="bg-white rounded-xl border-2 border-pink-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+ <div className="aspect-video bg-gradient-to-br from-pink-50 to-pink-100 flex items-center justify-center relative">
+ {(it.photos && it.photos.length) ? (
+ <img 
+  src={it.photos[0]} 
+  alt={it.title || "Listing photo"}
+  className="w-full h-full object-cover" 
+ />
+ ) : (
+ <div className="text-center">
+  <div className="text-4xl mb-2">📸</div>
+  <span className="text-sm text-pink-400">No photo</span>
+ </div>
+ )}
+ <div className="absolute top-2 right-2">
+  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+   it.status === "active" 
+    ? "bg-green-100 text-green-800" 
+    : "bg-gray-100 text-gray-800"
+  }`}>
+   {it.status || "active"}
+  </span>
+ </div>
+ </div>
+ <div className="p-4">
+ <div className="flex items-start justify-between mb-2">
+  <h3 className="font-semibold text-gray-800 truncate flex-1">{it.title || "Untitled"}</h3>
+ </div>
+ <div className="text-sm text-gray-600 mb-2">
+  📍 {typeof it.city === "string" ? it.city : it.city?.name || "No location"}
+ </div>
+ <div className="text-xs text-gray-500 mb-4">
+  📷 {(it.photos || []).length} photos
+ </div>
+ <div className="flex gap-2">
+  <a 
+   href={`/dashboard/master/listings/${it.id}/edit`} 
+   className="flex-1 px-3 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors text-center"
+  >
+   Edit
+  </a>
+  <a 
+   href={`/masters/${it.id}`} 
+   className="flex-1 px-3 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 transition-colors text-center"
+  >
+   View
+  </a>
+  <button 
+   onClick={()=>onDelete(it)} 
+   className="px-3 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors"
+  >
+   Delete
+  </button>
+ </div>
+ </div>
+ </li>
+ ))}
+ </ul>
+ )}
+ </div>
+ );
 }

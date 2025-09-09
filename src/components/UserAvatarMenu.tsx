@@ -73,7 +73,7 @@ export default function UserAvatarMenu() {
         className="flex items-center gap-2"
         aria-haspopup="menu"
         aria-expanded={open}
-        title={displayName}
+        title={displayName || undefined}
       >
         {photo && imgOk ? (
           // eslint-disable-next-line @next/next/no-img-element

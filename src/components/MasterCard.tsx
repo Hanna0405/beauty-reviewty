@@ -3,9 +3,9 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useRef, useEffect } from 'react';
-import type { MasterWithExtras } from '@/types';
+import type { MasterWithExtras, Listing } from '@/types';
 
-export default function MasterCard({ master }: { master: MasterWithExtras }) {
+export default function MasterCard({ master }: { master: MasterWithExtras | Listing }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartX, setDragStartX] = useState(0);
@@ -27,8 +27,8 @@ export default function MasterCard({ master }: { master: MasterWithExtras }) {
   // Get all photos for carousel functionality
   const allPhotos = [
     ...(Array.isArray(master.photos) ? master.photos : []),
-    ...(Array.isArray(master.photoUrls) ? master.photoUrls : []),
-    ...(master.photo ? [master.photo] : []),
+    ...(Array.isArray((master as any).photoUrls) ? (master as any).photoUrls : []),
+    ...((master as any).photo ? [(master as any).photo] : []),
   ].filter(Boolean);
 
   // Fallback to placeholder if no photos
@@ -100,24 +100,24 @@ const city = master.city || '';
 
 // Услуга: mainServices[0] или services[0]
 const service =
-(master.mainServices && master.mainServices[0]) ||
+((master as any).mainServices && (master as any).mainServices[0]) ||
 (Array.isArray(master.services) && master.services[0]) ||
 '';
 
 // Рейтинг + кол-во отзывов
 const rating =
-typeof master.rating === 'number'
-? master.rating
+typeof (master as any).rating === 'number'
+? (master as any).rating
 : typeof master.ratingAvg === 'number'
 ? master.ratingAvg
 : undefined;
-const reviews = typeof master.reviewsCount === 'number' ? master.reviewsCount : undefined;
+const reviews = typeof (master as any).reviewsCount === 'number' ? (master as any).reviewsCount : undefined;
 
 // Правильный id профиля
-const pid = master.id || master.profileId || master.uid;
+const pid = master.id || (master as any).profileId || (master as any).uid;
 
 return (
-<div className="rounded-xl border bg-white p-4 shadow-sm hover:shadow-md transition">
+<div data-testid="listing-card" className="rounded-xl border bg-white p-4 shadow-sm hover:shadow-md transition">
       {/* Photo Gallery */}
       <div className="mb-3 overflow-hidden rounded-lg border bg-gray-100 relative group">
         <div
@@ -132,7 +132,7 @@ return (
         >
 <Image
             src={imageSrc}
-            alt={`${master.displayName || master.name || 'Master'} - Photo ${currentIndex + 1}`}
+            alt={`${master.title || (master as any).displayName || (master as any).name || 'Master'} - Photo ${currentIndex + 1}`}
             fill
             className="object-cover transition-transform duration-300"
             style={{
@@ -199,10 +199,28 @@ return (
 <div className="flex items-start justify-between gap-2">
 <div>
 <div className="text-lg font-semibold">
-{master.displayName || master.name || 'Master'}
+{master.title || (master as any).displayName || (master as any).name || 'Master'}
 </div>
-{city && <div className="text-sm text-gray-500">{city}</div>}
+{city && (
+ <Link
+ href={{ pathname: '/masters', query: { city: city } }}
+ className="inline-flex items-center gap-1 underline hover:no-underline text-sm text-gray-500"
+ prefetch={false}
+ >
+ {city}
+ </Link>
+)}
 {service && <div className="mt-1 text-sm text-gray-700">{service}</div>}
+{/* Languages */}
+{Array.isArray(master.languages) && master.languages.length > 0 && (
+ <div className="mt-1 flex flex-wrap gap-1 text-sm opacity-80">
+ {master.languages.map((lng: string) => (
+ <span key={lng} className="rounded bg-muted px-2 py-0.5">
+ {lng}
+ </span>
+ ))}
+ </div>
+)}
 </div>
 
 {/* Звезды */}

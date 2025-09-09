@@ -1,382 +1,383 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { upload, removeByUrl } from '@/lib/services/storage';
-import { create, update } from '@/lib/services/firestoreMasters';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { auth, storage as storageInstance } from "@/lib/firebase";
+import { uploadFilesAndGetURLs } from "@/lib/storage-helpers";
+import { createListingInBoth, patchListingPhotos } from "@/lib/firestore-listings";
+import { stripUndefined, toNumberOrNull } from "@/lib/object-helpers";
+import { getApp } from "firebase/app";
 import { useAuth } from '@/components/auth/AuthProvider';
-import type { Master, GeoPoint } from '@/types';
-import { SERVICES } from '@/data/services';
+import type { Listing, GeoPoint } from '@/types';
+import { listingFormSchema, type ListingFormData } from '@/lib/schemas';
 import CityAutocomplete from '../CityAutocomplete';
+import ServiceAutocomplete from '../ServiceAutocomplete';
 import LanguagesField from '../LanguagesField';
-import Portal from '../ui/Portal';
 import { useToast } from '../ui/Toast';
-import { geocodeCity } from '@/lib/geocode';
 
 interface MasterListingFormProps {
   mode: 'create' | 'edit';
   uid: string;
   listingId?: string;
-  initialData?: Master;
+  initialData?: Listing;
 }
 
-interface FormData {
-  title: string;
-  about: string;
-  city: string;
-  location: GeoPoint | null;
-  services: string[];
-  languages: string[];
-  priceFrom: number | '';
-  priceTo: number | '';
-  photos: string[];
-  status: 'active' | 'hidden';
-}
+
 
 export default function MasterListingForm({ mode, uid, listingId, initialData }: MasterListingFormProps) {
   const router = useRouter();
   const { showToast } = useToast();
-  const [formData, setFormData] = useState<FormData>({
-    title: '',
-    about: '',
-    city: '',
-    location: null,
-    services: [],
-    languages: [],
-    priceFrom: '',
-    priceTo: '',
-    photos: [],
-    status: 'active'
+  
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+    setValue,
+    watch,
+    reset
+  } = useForm<ListingFormData>({
+    resolver: zodResolver(listingFormSchema),
+    defaultValues: {
+      title: '',
+      about: '',
+      city: null,
+      services: [],
+      languages: [],
+      priceFrom: undefined,
+      priceTo: undefined,
+      photos: [],
+      status: 'active' as const,
+      isPublished: false
+    }
   });
 
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [serviceInput, setServiceInput] = useState('');
-  const [showServiceSuggestions, setShowServiceSuggestions] = useState(false);
-  const [filteredServices, setFilteredServices] = useState<string[]>([]);
-  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [progress, setProgress] = useState(0);
   
-  // City autocomplete state
-  const [cityText, setCityText] = useState<string>("");
-  const [location, setLocation] = useState<{lat: number; lng: number} | null>(null);
-
-  const serviceInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Helper to ensure user is authenticated
+  function assertSignedIn() {
+    const u = auth.currentUser;
+    if (!u) throw new Error("unauthenticated: please log in");
+    return u;
+  }
+
+  // Dev test function to verify Firestore write permissions
+  async function devTestWrite() {
+    const u = auth.currentUser;
+    if (!u) { alert("Not signed in"); return; }
+    try {
+      await addDoc(collection(db, "listings"), {
+        uid: u.uid,
+        title: "DEV TEST",
+        description: null,
+        city: "Test City",
+        services: ["Test"],
+        languages: [],
+        minPrice: null,
+        maxPrice: null,
+        photos: [],
+        status: "hidden",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      alert("DEV test write: OK (rules active)");
+    } catch (e: any) {
+      alert(`DEV test write failed: ${e.code}\n${e.message}`);
+      console.error("[DEV test] failed:", e);
+    }
+  }
+
+  // Debug function to verify Firebase project and auth
+  function logFirebaseDebug() {
+    try {
+      const app = getApp();
+      // @ts-ignore
+      // Some SDKs expose options directly as app.options
+      const options: any = (app as any).options || {};
+      const projectId = options.projectId || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+      const u = auth.currentUser;
+      console.log("[DEBUG] projectId:", projectId, "uid:", u?.uid);
+      alert(`Project: ${projectId}\nUID: ${u?.uid ?? "null"}`);
+    } catch (e) {
+      console.error("[DEBUG] getApp/options error", e);
+    }
+  }
+
+  // Debug function to verify Firebase context (project, bucket, origin)
+  function debugFirebaseContext() {
+    try {
+      const app = getApp();
+      // @ts-ignore
+      const opts: any = (app as any).options || {};
+      const projectId = opts.projectId || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+      // @ts-ignore
+      const bucket = storageInstance.bucket || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+      const uid = auth.currentUser?.uid || "null";
+      alert(`Origin: ${window.location.origin}\nProject: ${projectId}\nBucket: ${bucket}\nUID: ${uid}`);
+    } catch (e) {
+      console.error("[DEBUG] error reading app/options:", e);
+    }
+  }
+
+  // Debug function to check App Check state
+  function debugAppCheck() {
+    const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_V3_SITE_KEY;
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    const dbg = typeof window !== "undefined" ? (self.FIREBASE_APPCHECK_DEBUG_TOKEN ? "on" : "off") : "n/a";
+    alert(`Origin: ${window.location.origin}\nSiteKey set: ${!!siteKey}\nDebug token: ${dbg}`);
+  }
 
   // Initialize form with existing data
   useEffect(() => {
     if (initialData) {
-      setFormData({
+      reset({
         title: initialData.title || '',
         about: initialData.about || '',
-        city: initialData.city || '',
-        location: initialData.location || null,
+        city: initialData.city ? {
+          label: initialData.city,
+          placeId: undefined,
+          lat: initialData.location?.lat,
+          lng: initialData.location?.lng,
+        } : null,
         services: initialData.services || [],
         languages: initialData.languages || [],
-        priceFrom: initialData.priceFrom || '',
-        priceTo: initialData.priceTo || '',
+        priceFrom: initialData.priceFrom || undefined,
+        priceTo: initialData.priceTo || undefined,
         photos: initialData.photos || [],
-        status: initialData.status || 'active'
+        status: initialData.status || 'active',
+        isPublished: initialData.isPublished ?? false
       });
-      
-      // Initialize city autocomplete state
-      setCityText(initialData.city || '');
-      setLocation(initialData.location ? { lat: initialData.location.lat, lng: initialData.location.lng } : null);
     }
-  }, [initialData]);
+  }, [initialData, reset]);
 
-  // Filter services based on input
-  useEffect(() => {
-    if (!serviceInput.trim()) {
-      setFilteredServices(SERVICES.slice(0, 12));
-    } else {
-      const filtered = SERVICES.filter(service =>
-        service.toLowerCase().includes(serviceInput.toLowerCase())
-      );
-      setFilteredServices(filtered.slice(0, 12));
-    }
-  }, [serviceInput]);
 
-  // Handle service selection
-  const handleServiceSelect = (service: string) => {
-    if (!formData.services.includes(service)) {
-      setFormData(prev => ({
-        ...prev,
-        services: [...prev.services, service]
-      }));
-    }
-    setServiceInput('');
-    setShowServiceSuggestions(false);
-  };
-
-  // Handle service removal
-  const handleServiceRemove = (serviceToRemove: string) => {
-    setFormData(prev => ({
-      ...prev,
-      services: prev.services.filter(service => service !== serviceToRemove)
-    }));
-  };
 
   // Handle language selection
   const handleLanguageChange = (languages: string[]) => {
-    setFormData(prev => ({
-      ...prev,
-      languages
-    }));
+    setValue('languages', languages);
   };
 
-  // Handle city selection from autocomplete
-  const handleCitySelect = (city: { label: string; lat: number; lng: number }) => {
-    setCityText(city.label);
-    setLocation({ lat: city.lat, lng: city.lng });
-    setFormData(prev => ({
-      ...prev,
-      city: city.label,
-      location: { lat: city.lat, lng: city.lng }
-    }));
-  };
+
 
   // Handle file upload
-  const handleFileUpload = async (files: FileList) => {
-    if (!files.length) return;
-
-    setUploadingPhotos(true);
-    try {
-      const uploadPromises = Array.from(files).map(async (file) => {
-        const filename = `${Date.now()}-${file.name}`;
-        const path = `masters/${uid}/${listingId || 'temp'}/${filename}`;
-        return await upload(file, path);
-      });
-
-      const urls = await Promise.all(uploadPromises);
-      setFormData(prev => ({
-        ...prev,
-        photos: [...prev.photos, ...urls]
-      }));
-    } catch (error) {
-      console.error('Error uploading photos:', error);
-      showToast('Failed to upload photos. Please try again.', 'error');
-    } finally {
-      setUploadingPhotos(false);
-    }
+  const handleFileUpload = (fileList: FileList) => {
+    setFiles(Array.from(fileList || []));
   };
 
   // Handle photo removal
   const handlePhotoRemove = async (photoUrl: string) => {
-    try {
-      await removeByUrl(photoUrl);
-      setFormData(prev => ({
-        ...prev,
-        photos: prev.photos.filter(photo => photo !== photoUrl)
-      }));
-    } catch (error) {
-      console.error('Error removing photo:', error);
-      // Remove from form even if storage removal fails
-      setFormData(prev => ({
-        ...prev,
-        photos: prev.photos.filter(photo => photo !== photoUrl)
-      }));
-    }
-  };
-
-  // Validate form
-  const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.title.trim()) {
-      newErrors.title = 'Title is required';
-    }
-
-    if (!cityText.trim()) {
-      newErrors.city = 'City is required';
-    }
-
-    if (formData.services.length === 0) {
-      newErrors.services = 'At least one service is required';
-    }
-
-    if (formData.priceFrom && formData.priceTo && Number(formData.priceFrom) > Number(formData.priceTo)) {
-      newErrors.priceTo = 'Maximum price must be greater than minimum price';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const currentPhotos = watch('photos') || [];
+    const newPhotos = currentPhotos.filter(photo => photo !== photoUrl);
+    setValue('photos', newPhotos);
+    
+    // Note: Photo removal from storage is handled by the storage service
+    // For now, we'll just remove from the form state
   };
 
   // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!validateForm()) return;
+    if (saving) return;
+    const u = auth.currentUser;
+    if (!u) { alert("Please log in."); return; }
 
-    setLoading(true);
+    const formData = watch();
+    const title = (formData.title || "").trim();
+    const city = (formData.city?.label || "").trim();
+    const services = formData.services || [];
+    const languages = formData.languages || [];
+    const description = (formData.about || "").trim();
+    const minPrice = toNumberOrNull(formData.priceFrom);
+    const maxPrice = toNumberOrNull(formData.priceTo);
+
+    if (!title || !city || services.length === 0) { 
+      alert("Please fill Title, City and at least one Service."); 
+      return; 
+    }
+
+    let id: string | null = null;
     try {
-      // If location is null but cityText exists, try to geocode
-      let finalLocation = location;
-      if (!location && cityText.trim()) {
-        const geocodedLocation = await geocodeCity(cityText.trim());
-        if (geocodedLocation) {
-          finalLocation = geocodedLocation;
-        } else {
-          showToast('City not found — please pick from suggestions', 'error');
-          setLoading(false);
-          return;
-        }
+      setSaving(true); 
+      setProgress(0);
+
+      // 1) Create listing doc (in both collections)
+      id = await createListingInBoth(stripUndefined({
+        uid: u.uid, 
+        title,
+        description: description || null,
+        city, 
+        services, 
+        languages,
+        minPrice, 
+        maxPrice,
+        photos: [], 
+        status: "active" as const
+      }));
+
+      // 2) Upload photos (convert HEIC->JPEG, retries, progress)
+      let urls: string[] = [];
+      if (files?.length) {
+        const candid = files.filter(f => (f.size || 0) <= 8 * 1024 * 1024);
+        urls = await uploadFilesAndGetURLs(`listings/${id}`, candid, setProgress);
       }
 
-      const data = {
-        title: formData.title.trim(),
-        about: formData.about.trim(),
-        city: cityText.trim(),
-        location: finalLocation ? { lat: finalLocation.lat, lng: finalLocation.lng } : null,
-        services: formData.services,
-        languages: formData.languages,
-        priceFrom: formData.priceFrom ? Number(formData.priceFrom) : undefined,
-        priceTo: formData.priceTo ? Number(formData.priceTo) : undefined,
-        photos: formData.photos,
-        status: formData.status
-      };
+      // 3) Patch photos (if any)
+      if (id && urls.length) await patchListingPhotos(id, urls);
 
-      if (mode === 'create') {
-        await create(uid, data);
-        showToast('Listing created successfully!', 'success');
-      } else if (listingId) {
-        await update(listingId, data);
-        showToast('Listing updated successfully!', 'success');
-      }
+      alert(urls.length ? "Listing created with photos!" : "Listing created (no photos uploaded).");
 
-      router.push('/dashboard/master/listings');
-    } catch (error) {
-      console.error('Error saving listing:', error);
-      showToast('Failed to save listing. Please try again.', 'error');
+      // 4) Navigate or reload so pages see it immediately
+      router.push("/dashboard/master/listings");
+      router.refresh();
+
+    } catch (err: any) {
+      console.error("[NewListing] submit error:", err);
+      alert(`Save failed: ${err?.code ?? "unknown"}\n${err?.message ?? String(err)}`);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 overflow-visible">
-      {/* Title */}
-      <div>
-        <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
-          Listing Title *
-        </label>
-        <input
-          type="text"
-          id="title"
-          value={formData.title}
-          onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-          className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500 ${
-            errors.title ? 'border-red-300' : 'border-gray-300'
-          }`}
-          placeholder="e.g., Professional Nail Artist in Downtown"
-        />
-        {errors.title && <p className="mt-1 text-sm text-red-600">{errors.title}</p>}
-      </div>
+    <form onSubmit={onSubmit} className="space-y-6">
+        {/* Title */}
+        <div>
+          <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
+            Listing Title *
+          </label>
+          <Controller
+            name="title"
+            control={control}
+            render={({ field, fieldState }) => (
+              <>
+                <input
+                  {...field}
+                  type="text"
+                  id="title"
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500 ${
+                    fieldState.error ? 'border-red-300' : 'border-gray-300'
+                  }`}
+                  placeholder="e.g., Anna Petrenko — Brow Artist"
+                />
+                {fieldState.error && <p className="mt-1 text-sm text-red-600">{fieldState.error.message}</p>}
+              </>
+            )}
+          />
+        </div>
 
-      {/* About */}
-      <div>
-        <label htmlFor="about" className="block text-sm font-medium text-gray-700 mb-2">
-          About Your Services
-        </label>
-        <textarea
-          id="about"
-          rows={4}
-          value={formData.about}
-          onChange={(e) => setFormData(prev => ({ ...prev, about: e.target.value }))}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500"
-          placeholder="Describe your services, experience, and what makes you unique..."
-          maxLength={2000}
-        />
-        <p className="mt-1 text-sm text-gray-500">{formData.about.length}/2000 characters</p>
-      </div>
+        {/* About */}
+        <div>
+          <label htmlFor="about" className="block text-sm font-medium text-gray-700 mb-2">
+            About Your Services
+          </label>
+          <Controller
+            name="about"
+            control={control}
+            render={({ field, fieldState }) => (
+              <>
+                <textarea
+                  {...field}
+                  id="about"
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500"
+                  placeholder="Describe your services, experience, and what makes you unique..."
+                  maxLength={2000}
+                />
+                <p className="mt-1 text-sm text-gray-500">{field.value?.length || 0}/2000 characters</p>
+              </>
+            )}
+          />
+        </div>
 
-      {/* City */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          City/Location *
-        </label>
-        <CityAutocomplete
-          value={cityText}
-          onChange={setCityText}
-          onSelect={handleCitySelect}
-          placeholder="Start typing a city..."
-        />
-        {errors.city && <p className="mt-1 text-sm text-red-600">{errors.city}</p>}
-      </div>
+        {/* City */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            City/Location *
+          </label>
+          <Controller
+            name="city"
+            control={control}
+            render={({ field }) => (
+              <CityAutocomplete
+                value={field.value?.label || ''}
+                onChange={(value) => field.onChange({ label: value, lat: undefined, lng: undefined })}
+                placeholder="Enter city name"
+              />
+            )}
+          />
+        </div>
 
       {/* Services */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Services *
         </label>
-        <div className="relative">
-          <input
-            ref={serviceInputRef}
-            type="text"
-            value={serviceInput}
-            onChange={(e) => setServiceInput(e.target.value)}
-            onFocus={() => setShowServiceSuggestions(true)}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500 ${
-              errors.services ? 'border-red-300' : 'border-gray-300'
-            }`}
-            placeholder="Search and add services..."
-          />
-          
-          {showServiceSuggestions && filteredServices.length > 0 && serviceInputRef.current && (
-            <Portal>
-              <div
-                className="fixed z-[9999] bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto"
-                style={{
-                  top: serviceInputRef.current.getBoundingClientRect().bottom + window.scrollY + 4,
-                  left: serviceInputRef.current.getBoundingClientRect().left + window.scrollX,
-                  width: serviceInputRef.current.getBoundingClientRect().width,
-                }}
-              >
-                <ul>
-                  {filteredServices.map((service, index) => (
-                    <li
-                      key={index}
-                      onClick={() => handleServiceSelect(service)}
-                      className="px-3 py-2 cursor-pointer text-sm border-b border-gray-100 last:border-b-0 hover:bg-gray-50"
-                    >
-                      {service}
-                    </li>
-                  ))}
-                </ul>
+        <Controller
+          name="services"
+          control={control}
+          render={({ field, fieldState }) => (
+            <>
+              <div className="space-y-2">
+                {/* Selected services as chips */}
+                {field.value && field.value.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {field.value.map((service, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center gap-1 bg-pink-100 text-pink-800 px-3 py-1 rounded-full text-sm"
+                      >
+                        <span>{service}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newServices = field.value?.filter((_, i) => i !== index) || [];
+                            setValue('services', newServices, { shouldDirty: true, shouldValidate: false });
+                          }}
+                          className="text-pink-600 hover:text-pink-800 ml-1"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Service autocomplete */}
+                <ServiceAutocomplete
+                  onSelect={(service) => {
+                    if (service.trim() && !field.value?.includes(service.trim())) {
+                      const newServices = [...(field.value || []), service.trim()];
+                      setValue('services', newServices, { shouldDirty: true, shouldValidate: false });
+                    }
+                  }}
+                  placeholder="Type to search services..."
+                />
+                
+                {fieldState.error && <p className="mt-1 text-sm text-red-600">{fieldState.error.message}</p>}
               </div>
-            </Portal>
+            </>
           )}
-        </div>
-        
-        {formData.services.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {formData.services.map((service, index) => (
-              <span
-                key={index}
-                className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
-              >
-                {service}
-                <button
-                  type="button"
-                  onClick={() => handleServiceRemove(service)}
-                  className="text-blue-600 hover:text-blue-800"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-        {errors.services && <p className="mt-1 text-sm text-red-600">{errors.services}</p>}
+        />
       </div>
 
       {/* Languages */}
-      <LanguagesField
-        value={formData.languages}
-        onChange={handleLanguageChange}
-        label="Languages You Speak"
+      <Controller
+        name="languages"
+        control={control}
+        render={({ field }) => (
+          <LanguagesField
+            value={field.value || []}
+            onChange={handleLanguageChange}
+            label="Languages You Speak"
+          />
+        )}
       />
 
       {/* Price Range */}
@@ -385,32 +386,43 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
           <label htmlFor="priceFrom" className="block text-sm font-medium text-gray-700 mb-2">
             Minimum Price ($)
           </label>
-          <input
-            type="number"
-            id="priceFrom"
-            value={formData.priceFrom}
-            onChange={(e) => setFormData(prev => ({ ...prev, priceFrom: e.target.value }))}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500"
-            placeholder="0"
-            min="0"
+          <Controller
+            name="priceFrom"
+            control={control}
+            render={({ field }) => (
+              <input
+                {...field}
+                type="number"
+                id="priceFrom"
+                value={field.value || ''}
+                onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500"
+                placeholder="0"
+                min="0"
+              />
+            )}
           />
         </div>
         <div>
           <label htmlFor="priceTo" className="block text-sm font-medium text-gray-700 mb-2">
             Maximum Price ($)
           </label>
-          <input
-            type="number"
-            id="priceTo"
-            value={formData.priceTo}
-            onChange={(e) => setFormData(prev => ({ ...prev, priceTo: e.target.value }))}
-            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500 ${
-              errors.priceTo ? 'border-red-300' : 'border-gray-300'
-            }`}
-            placeholder="0"
-            min="0"
+          <Controller
+            name="priceTo"
+            control={control}
+            render={({ field }) => (
+              <input
+                {...field}
+                type="number"
+                id="priceTo"
+                value={field.value || ''}
+                onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500"
+                placeholder="0"
+                min="0"
+              />
+            )}
           />
-          {errors.priceTo && <p className="mt-1 text-sm text-red-600">{errors.priceTo}</p>}
         </div>
       </div>
 
@@ -424,49 +436,82 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={uploadingPhotos}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 disabled:opacity-50"
+              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500"
             >
-              {uploadingPhotos ? 'Uploading...' : 'Add Photos'}
+              Add Photos
             </button>
             <input
               ref={fileInputRef}
               type="file"
               multiple
               accept="image/*"
-              onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+              onChange={(e) => handleFileUpload(e.target.files || new FileList())}
               className="hidden"
             />
             <p className="text-sm text-gray-500">Upload photos of your work</p>
           </div>
           
-          {formData.photos.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {formData.photos.map((photo, index) => (
-                <div key={index} className="relative group">
-                  <div className="relative w-full h-32">
-                    <Image
-                      src={photo}
-                      alt={`Photo ${index + 1}`}
-                      fill
-                      className="object-cover rounded-lg"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = '/placeholder.jpg';
-                      }}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handlePhotoRemove(photo)}
-                    className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    ×
-                  </button>
+          {/* Progress display */}
+          {progress > 0 && progress < 100 && (
+            <div className="bg-blue-50 p-3 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-blue-700">Uploading photos...</span>
+                <span className="text-sm text-blue-600">{Math.round(progress)}%</span>
+              </div>
+              <div className="w-full bg-blue-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+          )}
+          
+          {/* File preview */}
+          {files.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm text-gray-600">Selected files:</p>
+              {files.map((file, index) => (
+                <div key={index} className="text-sm text-gray-500">
+                  {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
                 </div>
               ))}
             </div>
           )}
+          
+          <Controller
+            name="photos"
+            control={control}
+            render={({ field }) => (
+              field.value && field.value.length > 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {field.value.map((photo: string, index: number) => (
+                    <div key={index} className="relative group">
+                      <div className="relative w-full h-32">
+                        <Image
+                          src={photo}
+                          alt={`Photo ${index + 1}`}
+                          fill
+                          className="object-cover rounded-lg"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = '/placeholder.jpg';
+                          }}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handlePhotoRemove(photo)}
+                        className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null
+            )}
+          />
         </div>
       </div>
 
@@ -475,32 +520,71 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Status
         </label>
-        <div className="space-y-2">
-          <label className="flex items-center">
-            <input
-              type="radio"
-              value="active"
-              checked={formData.status === 'active'}
-              onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as 'active' | 'hidden' }))}
-              className="mr-2"
-            />
-            <span className="text-sm">Active - Visible to clients</span>
-          </label>
-          <label className="flex items-center">
-            <input
-              type="radio"
-              value="hidden"
-              checked={formData.status === 'hidden'}
-              onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as 'active' | 'hidden' }))}
-              className="mr-2"
-            />
-            <span className="text-sm">Hidden - Not visible to clients</span>
-          </label>
-        </div>
+        <Controller
+          name="status"
+          control={control}
+          render={({ field }) => (
+            <div className="space-y-2">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  value="active"
+                  checked={field.value === 'active'}
+                  onChange={(e) => field.onChange(e.target.value as 'active' | 'hidden')}
+                  className="mr-2"
+                />
+                <span className="text-sm">Active - Visible to clients</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  value="hidden"
+                  checked={field.value === 'hidden'}
+                  onChange={(e) => field.onChange(e.target.value as 'active' | 'hidden')}
+                  className="mr-2"
+                />
+                <span className="text-sm">Hidden - Not visible to clients</span>
+              </label>
+            </div>
+          )}
+        />
       </div>
 
       {/* Submit Button */}
       <div className="flex justify-end gap-4 pt-6 border-t">
+        {/* TEMP dev test buttons (remove after success) */}
+        {process.env.NODE_ENV !== "production" && (
+          <>
+            <button
+              type="button"
+              onClick={devTestWrite}
+              className="px-4 py-2 text-gray-600 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors text-sm"
+            >
+              DEV: test Firestore write
+            </button>
+            <button
+              type="button"
+              onClick={logFirebaseDebug}
+              className="px-4 py-2 text-gray-600 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors text-sm"
+            >
+              DEV: show Firebase project
+            </button>
+                        <button
+                          type="button"
+                          onClick={debugFirebaseContext}
+                          className="px-4 py-2 text-gray-600 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors text-sm"
+                        >
+                          DEV: Firebase context
+                        </button>
+                        <button
+                          type="button"
+                          onClick={debugAppCheck}
+                          className="px-4 py-2 text-gray-600 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors text-sm"
+                        >
+                          DEV: AppCheck state
+                        </button>
+          </>
+        )}
         <button
           type="button"
           onClick={() => router.push('/dashboard/master/listings')}
@@ -510,12 +594,12 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
         </button>
         <button
           type="submit"
-          disabled={loading}
+          disabled={saving}
           className="px-6 py-2 bg-pink-600 text-white rounded-md hover:bg-pink-700 transition-colors disabled:opacity-50"
         >
-          {loading ? 'Saving...' : mode === 'create' ? 'Create Listing' : 'Update Listing'}
+          {saving ? "Saving..." : "Create Listing"}
         </button>
-      </div>
-    </form>
-  );
-}
+                        </div>
+       </form>
+   );
+ }

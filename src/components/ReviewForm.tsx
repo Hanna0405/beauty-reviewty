@@ -1,11 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { app } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import {
- getFirestore, addDoc, collection, serverTimestamp,
+ addDoc, collection, serverTimestamp,
  getDocs, query, where
 } from 'firebase/firestore';
-import { getStorage, ref as sRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { uploadImage } from '@/lib/upload-image';
 import Image from 'next/image';
 
 type Props = {
@@ -15,8 +15,6 @@ type Props = {
 };
 
 export default function ReviewForm({ profileId, clientId, clientName }: Props) {
- const db = getFirestore(app);
- const storage = getStorage(app);
 
  const [rating, setRating] = useState<number>(5);
  const [text, setText] = useState('');
@@ -53,9 +51,8 @@ export default function ReviewForm({ profileId, clientId, clientName }: Props) {
  const uploadReviewImage = async (file: File) => {
  const id = crypto.randomUUID();
  const path = `reviews/${id}/${file.name}`;
- const r = sRef(storage, path);
- await uploadBytes(r, file);
- return await getDownloadURL(r);
+ const { url } = await uploadImage(file, path);
+ return url;
  };
 
  const submit = async (e: React.FormEvent) => {
@@ -64,6 +61,12 @@ export default function ReviewForm({ profileId, clientId, clientName }: Props) {
  setMsg('You can leave a review after your booking is completed.');
  return;
  }
+ 
+ if (!db) {
+ setMsg('Database is not available. Please check your configuration.');
+ return;
+ }
+ 
  setLoading(true);
  setMsg(null);
  try {

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithGoogle } from "@/lib/auth-helpers";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
@@ -96,15 +97,13 @@ export default function AuthModal({ open, onClose }: Props) {
  async function doGoogle() {
  setLoading(true);
  try {
- const provider = new GoogleAuthProvider();
- const cred = await signInWithPopup(auth, provider);
- // если первый раз — создаём документ (роль берём из вкладки)
- await ensureUserDoc(cred.user.uid, tab, cred.user.displayName || "");
+ await signInWithGoogle();
+ // при успехе можно редиректнуть пользователя:
  if (tab === "master") router.push("/dashboard");
  onClose();
  } catch (e) {
- alert("Google auth error");
- console.error(e);
+ console.error("Google sign-in error:", e);
+ alert("Google sign-in failed. Please try again.");
  } finally {
  setLoading(false);
  }

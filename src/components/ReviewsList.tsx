@@ -1,8 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { app } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import {
- getFirestore, collection, query, where, orderBy, onSnapshot
+ collection, query, where, orderBy, onSnapshot
 } from 'firebase/firestore';
 import Image from 'next/image';
 
@@ -19,11 +19,19 @@ type Review = {
 };
 
 export default function ReviewsList({ masterId }: { masterId: string }) {
- const db = getFirestore(app);
  const [items, setItems] = useState<Review[]>([]);
  const [loading, setLoading] = useState(true);
 
  useEffect(() => {
+ if (!db) {
+ if (process.env.NODE_ENV !== "production") {
+ console.warn("Firestore is not initialized. Returning empty reviews list.");
+ }
+ setItems([]);
+ setLoading(false);
+ return;
+ }
+ 
  // Если в БД поле называется profileId — замени masterId → profileId в where ниже.
  const q = query(
  collection(db, 'reviews'),

@@ -109,3 +109,151 @@ body, p, li, input, select, button {
  border-color: #fbcfe8; /* pink-200 */
  color: #be185d; /* pink-700 */
 }
+
+/* =========================
+ Soft Pink Theme (enhanced)
+ ========================= */
+:root {
+ --pink-primary: #ec4899; /* bright pink for CTAs */
+ --pink-soft: #fdf2f8; /* very soft pink background */
+ --pink-light: #fce7f3; /* light pink for borders */
+ --pink-medium: #f9a8d4; /* medium pink for hover states */
+ --pink-dark: #be185d; /* dark pink for text */
+ 
+ --blue-primary: #3b82f6;
+ --green-primary: #10b981;
+ --red-primary: #ef4444;
+}
+
+/* Enhanced button styles */
+.btn {
+ @apply inline-flex items-center justify-center text-white rounded-lg text-sm font-medium px-4 py-2 transition-all duration-200;
+ box-shadow: 0 4px 12px rgba(236, 72, 153, 0.15);
+}
+.btn:hover {
+ transform: translateY(-1px);
+ box-shadow: 0 6px 16px rgba(236, 72, 153, 0.25);
+}
+.btn:active {
+ transform: translateY(0);
+}
+.btn:disabled { 
+ @apply opacity-60 cursor-not-allowed;
+ transform: none !important;
+ box-shadow: 0 4px 12px rgba(236, 72, 153, 0.15) !important;
+}
+
+.btn-primary { 
+ background: var(--pink-primary); 
+}
+.btn-primary:hover { 
+ background: var(--pink-dark); 
+}
+
+.btn-blue { 
+ background: var(--blue-primary); 
+ box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+}
+.btn-blue:hover { 
+ background: #2563eb;
+ box-shadow: 0 6px 16px rgba(59, 130, 246, 0.25);
+}
+
+.btn-green { 
+ background: var(--green-primary); 
+ box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+}
+.btn-green:hover { 
+ background: #059669;
+ box-shadow: 0 6px 16px rgba(16, 185, 129, 0.25);
+}
+
+.btn-red { 
+ background: var(--red-primary); 
+ box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
+}
+.btn-red:hover { 
+ background: #dc2626;
+ box-shadow: 0 6px 16px rgba(239, 68, 68, 0.25);
+}
+
+/* Enhanced card styles */
+.card-soft { 
+ @apply bg-white rounded-xl border-2 shadow-sm hover:shadow-md transition-shadow duration-200; 
+ border-color: var(--pink-light);
+}
+.badge-soft { 
+ @apply text-xs px-3 py-1 rounded-full font-medium; 
+ background: #ecfccb; 
+ color: #365314; 
+}
+.tag-soft { 
+ @apply text-xs px-3 py-1 rounded-full font-medium; 
+ background: #e0e7ff; 
+ color: #1e40af; 
+}
+.hl-soft { 
+ background: var(--pink-soft); 
+}
+
+/* Form input enhancements */
+.input {
+ @apply w-full px-4 py-3 rounded-lg border-2 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent;
+ border-color: var(--pink-light);
+ background: white;
+}
+.input:hover {
+ border-color: var(--pink-medium);
+}
+.input:focus {
+ border-color: var(--pink-primary);
+ box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.1);
+}
+
+.textarea {
+ @apply w-full px-4 py-3 rounded-lg border-2 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent resize-none;
+ border-color: var(--pink-light);
+ background: white;
+}
+.textarea:hover {
+ border-color: var(--pink-medium);
+}
+.textarea:focus {
+ border-color: var(--pink-primary);
+ box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.1);
+}
+
+/* Mobile-first responsive improvements */
+@media (max-width: 640px) {
+ .btn {
+  @apply text-sm px-3 py-2;
+ }
+ .input, .textarea {
+  @apply px-3 py-2 text-sm;
+ }
+ .card-soft {
+  @apply rounded-lg;
+ }
+ 
+ /* Sticky save button on mobile */
+ .sticky-save {
+  position: sticky;
+  bottom: 0;
+  background: white;
+  border-top: 1px solid var(--pink-light);
+  padding: 1rem;
+  margin: 0 -1rem -1rem -1rem;
+  z-index: 10;
+ }
+ 
+ /* Form spacing on mobile */
+ .mobile-form {
+  padding-bottom: 5rem; /* Space for sticky button */
+ }
+ 
+ /* Touch-friendly tap targets */
+ .touch-target {
+  min-height: 44px;
+  min-width: 44px;
+ }
+}

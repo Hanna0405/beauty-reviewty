@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { db } from '@/lib/firebase';
-import { collection, getDocs, query, limit } from 'firebase/firestore';
+import { listMasters, type Master } from '@/lib/masters';
 import type { MasterWithExtras } from '@/types';
 import SocialBar from '@/components/SocialBar';
 
@@ -17,30 +16,27 @@ export default function HomePage() {
  let alive = true;
  (async () => {
  try {
- const snap = await getDocs(query(collection(db, 'profiles'), limit(50)));
+ const mastersList = await listMasters({ take: 6 });
  if (!alive) return;
- const list: MasterWithExtras[] = snap.docs.map(d => {
- const x = d.data() as any;
- return {
- id: d.id,
- uid: d.id, // Use document ID as uid
- title: x.name ?? x.displayName ?? '',
- name: x.name ?? x.displayName ?? '',
- displayName: x.displayName ?? x.name ?? '',
- city: x.city ?? '',
- about: x.bio ?? '',
- bio: x.bio ?? '',
- services: Array.isArray(x.services) ? x.services : [],
- languages: Array.isArray(x.languages) ? x.languages : [],
- photos: Array.isArray(x.photoUrls) ? x.photoUrls : (x.photoUrl ? [x.photoUrl] : []),
- photoUrls: Array.isArray(x.photoUrls) ? x.photoUrls : (x.photoUrl ? [x.photoUrl] : []),
+ const list: MasterWithExtras[] = mastersList.map(m => ({
+ id: m.id,
+ uid: m.id, // Use document ID as uid
+ title: m.displayName ?? '',
+ name: m.displayName ?? '',
+ displayName: m.displayName ?? '',
+ city: m.city ?? '',
+ about: m.bio ?? '',
+ bio: m.bio ?? '',
+ services: Array.isArray(m.services) ? m.services : [],
+ languages: Array.isArray(m.languages) ? m.languages : [],
+ photos: Array.isArray(m.photoUrls) ? m.photoUrls : (m.photoUrl ? [m.photoUrl] : []),
+ photoUrls: Array.isArray(m.photoUrls) ? m.photoUrls : (m.photoUrl ? [m.photoUrl] : []),
  status: 'active' as const,
- ratingAvg: typeof x.ratingAvg === 'number' ? x.ratingAvg : undefined,
- reviewsCount: typeof x.reviewsCount === 'number' ? x.reviewsCount : undefined,
- createdAt: x.createdAt,
- updatedAt: x.updatedAt,
- };
- });
+ ratingAvg: typeof m.rating === 'number' ? m.rating : undefined,
+ reviewsCount: typeof m.reviewsCount === 'number' ? m.reviewsCount : undefined,
+ createdAt: m.createdAt,
+ updatedAt: m.updatedAt,
+ }));
  setMasters(list);
  } finally {
  setLoading(false);

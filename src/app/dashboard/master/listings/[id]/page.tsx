@@ -2,11 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { RequireRole } from '@/components/auth/guards';
-import { getById } from '@/lib/services/firestoreMasters';
-import MasterListingForm from '@/components/masters/MasterListingForm';
-import type { Master } from '@/types';
+import { getListingById } from '@/lib/services/firestoreMasters';
+import GoogleMapsLoader from '@/components/GoogleMapsLoader';
+import type { Listing } from '@/types';
+
+// Dynamically import the form to disable SSR
+const MasterListingForm = dynamic(() => import('@/components/masters/MasterListingForm'), { 
+  ssr: false 
+});
 
 export default function EditListingPage() {
   return (
@@ -21,7 +27,7 @@ function Content() {
   const params = useParams();
   const listingId = params.id as string;
   
-  const [listing, setListing] = useState<Master | null>(null);
+  const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,7 +40,7 @@ function Content() {
   const loadListing = async () => {
     try {
       setLoading(true);
-      const data = await getById(listingId);
+      const data = await getListingById(listingId);
       
       if (!data) {
         setError('Listing not found');
@@ -42,7 +48,7 @@ function Content() {
       }
 
       // Verify ownership
-      if (data.uid !== user?.uid) {
+      if (data.ownerUid !== user?.uid) {
         setError('You do not have permission to edit this listing');
         return;
       }
@@ -101,16 +107,18 @@ function Content() {
         </p>
       </div>
 
-      <div className="bg-white rounded-lg border shadow-sm">
-        <div className="p-6">
-          <MasterListingForm 
-            mode="edit"
-            uid={user?.uid || ''}
-            listingId={listingId}
-            initialData={listing}
-          />
+      <GoogleMapsLoader>
+        <div className="bg-white rounded-lg border shadow-sm">
+          <div className="p-6">
+            <MasterListingForm 
+              mode="edit"
+              uid={user?.uid || ''}
+              listingId={listingId}
+              initialData={listing}
+            />
+          </div>
         </div>
-      </div>
+      </GoogleMapsLoader>
     </div>
   );
 }

@@ -1,8 +1,10 @@
 export type GeoPoint = { lat: number; lng: number };
 
+export type UserRole = "master" | "client";
+
 export type UserProfile = {
   uid: string;
-  role: "master" | "client";
+  role: UserRole;
   name: string;
   phone?: string;
   avatar?: string;
@@ -11,7 +13,8 @@ export type UserProfile = {
 
 export type Master = {
   id: string;
-  uid: string;
+  uid: string; // Legacy field for backward compatibility
+  ownerId: string; // New field for consistency
   title: string;
   about?: string;
   city?: string;
@@ -26,6 +29,27 @@ export type Master = {
   ratingCount?: number;
   createdAt: any;
   updatedAt: any;
+};
+
+// New Listing type for better organization
+export type Listing = {
+  id: string;
+  ownerId: string; // User ID of the listing owner
+  isPublished: boolean;
+  title: string;
+  about?: string;
+  city?: string;
+  location?: GeoPoint | null;
+  services: string[];
+  languages: string[];
+  priceFrom?: number;
+  priceTo?: number;
+  photos: string[];
+  status: "active" | "hidden";
+  ratingAvg?: number;
+  ratingCount?: number;
+  createdAt?: any;
+  updatedAt?: any;
 };
 
 export type MasterWithExtras = Master & {
@@ -58,25 +82,18 @@ export type SearchFiltersValue = {
 
 // анкета мастера (мастер может иметь несколько)
 export type MasterProfile = {
- id: string;
- ownerUid: string; // id пользователя-мастера
- title: string; // заголовок профиля, напр. "Ногтевой мастер · Toronto"
- bio?: string;
- city: string;
- services: {
- id: string;
- name: string; // название услуги
- durationMin: number;
- price: number;
- currency: 'CAD';
- }[];
- photos: string[];
- rating?: { avg: number; count: number; sum: number };
- lat?: number;
- lng?: number;
- isActive: boolean;
- createdAt: any;
- updatedAt: any;
+  uid: string;
+  displayName: string;
+  city: string;
+  services: string[];
+  languages: string[];
+  avatarUrl: string | null;
+  about?: string | null;
+  priceFrom?: number | null;
+  priceTo?: number | null;
+  coords?: { lat: number; lng: number } | null;
+  updatedAt?: unknown; // Firestore serverTimestamp
+  createdAt?: unknown;
 };
 
 // бронирование услуги
@@ -98,6 +115,22 @@ export type Booking = {
  note?: string;
  createdAt: any;
  updatedAt: any;
+};
+
+// Master profile form data type
+export type MasterProfileFormData = {
+  name: string;
+  city: {
+    label: string;
+    lat?: number;
+    lng?: number;
+  };
+  services: string[];
+  languages: string[];
+  priceFrom?: number;
+  priceTo?: number;
+  about?: string;
+  photos?: string[];
 };
 
 // отзыв

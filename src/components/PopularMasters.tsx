@@ -22,6 +22,15 @@ export default function PopularMasters() {
 
  useEffect(() => {
  async function load() {
+ if (!db) {
+ if (process.env.NODE_ENV !== "production") {
+ console.warn("Firestore is not initialized. Returning empty masters list.");
+ }
+ setItems([]);
+ setLoading(false);
+ return;
+ }
+ 
  try {
  // сортируем по числу отзывов (проще, не требует композитного индекса)
  const q = query(collection(db, 'masters'), orderBy('reviewsCount', 'desc'), limit(8));

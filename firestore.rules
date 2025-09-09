@@ -1,77 +1,36 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper functions
-    function isSignedIn() { 
-      return request.auth != null; 
-    }
-    
-    function isOwner(uid) { 
-      return isSignedIn() && request.auth.uid == uid; 
-    }
-    
-    function isMaster() {
-      return isSignedIn() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'master';
-    }
-    
-    function isClient() {
-      return isSignedIn() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'client';
-    }
 
-    // User profiles - users can only access their own profile
+    // Users: public read, user can write own doc
     match /users/{uid} {
-      allow read: if isOwner(uid);
-      allow create: if isOwner(uid);
-      allow update: if isOwner(uid);
-      allow delete: if false; // Prevent accidental deletion
+      allow read: if true;
+      allow create, update, delete: if request.auth != null && request.auth.uid == uid;
     }
 
-    // Master profiles - public read, owner write
-    match /masters/{id} {
-      allow read: if true; // Public read access
-      allow create: if isMaster() && isOwner(request.resource.data.uid);
-      allow update: if isMaster() && isOwner(resource.data.uid);
-      allow delete: if isMaster() && isOwner(resource.data.uid);
+    // Listings
+    match /listings/{id} {
+      function isOwner() {
+        return request.auth != null &&
+        ((request.resource.data.ownerUid == request.auth.uid) ||
+        (resource != null && resource.data.ownerUid == request.auth.uid));
+      }
+
+      // Read: anyone can read published; owners can read their drafts
+      allow read: if resource != null && (
+        resource.data.status == "published" ||
+        (request.auth != null && resource.data.ownerUid == request.auth.uid)
+      );
+
+      // Create must set ownerUid to current user
+      allow create: if request.auth != null &&
+        request.resource.data.ownerUid == request.auth.uid;
+
+      // Update/Delete only owner
+      allow update, delete: if isOwner();
     }
 
-    // Reviews - public read, authenticated users can create
-    match /reviews/{id} {
-      allow read: if true; // Public read access
-      allow create: if isSignedIn() && 
-        request.resource.data.authorUid == request.auth.uid;
-      allow update: if isSignedIn() && 
-        resource.data.authorUid == request.auth.uid;
-      allow delete: if isSignedIn() && 
-        resource.data.authorUid == request.auth.uid;
-    }
-
-    // Bookings - users can only access their own bookings
-    match /bookings/{id} {
-      allow read: if isSignedIn() && 
-        (resource.data.masterUid == request.auth.uid || 
-         resource.data.clientUid == request.auth.uid);
-      allow create: if isSignedIn() && 
-        request.resource.data.clientUid == request.auth.uid;
-      allow update: if isSignedIn() && 
-        (resource.data.masterUid == request.auth.uid || 
-         resource.data.clientUid == request.auth.uid);
-      allow delete: if isSignedIn() && 
-        resource.data.clientUid == request.auth.uid;
-    }
-
-    // Legacy profiles collection (if you're still using it)
-    match /profiles/{id} {
-      allow read: if true; // Public read access
-      allow create: if isMaster() && 
-        request.resource.data.ownerId == request.auth.uid;
-      allow update: if isMaster() && 
-        resource.data.ownerId == request.auth.uid;
-      allow delete: if isMaster() && 
-        resource.data.ownerId == request.auth.uid;
-    }
+    // Default deny
+    match /{document=**} { allow read, write: if false; }
   }
 }

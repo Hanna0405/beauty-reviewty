@@ -7,7 +7,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 import CityAutocomplete from '@/components/CityAutocomplete';
 import LanguagesField from '@/components/LanguagesField';
-import { uploadFilesAndGetURLs } from '@/lib/auth-helpers';
+import { uploadFilesAndGetURLs } from '@/lib/services/storage';
 
 const SERVICE_OPTIONS = [
  'Piercing',
@@ -51,6 +51,11 @@ export default function MasterForm() {
  async function onSubmit(e: React.FormEvent) {
  e.preventDefault();
  if (!canSubmit || !uid) return; // <-- страховка для TS
+
+ if (!db) {
+ setErr('Database is not available. Please check your configuration.');
+ return;
+ }
 
  setBusy(true);
  setErr(null);

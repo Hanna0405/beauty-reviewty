@@ -1,254 +1,222 @@
-'use client';
-
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { loadGoogleMaps } from '@/lib/googleMaps';
-import Portal from '@/components/ui/Portal';
+"use client";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useGoogleMaps } from "@/providers/GoogleMapsProvider";
 
 interface CityAutocompleteProps {
   value: string;
-  onChange?: (text: string) => void;
-  onSelect: (city: { label: string; lat: number; lng: number }) => void;
+  onChange: (val: string) => void;
   placeholder?: string;
+  required?: boolean;
+  error?: string;
 }
 
-interface PlacePrediction {
-  place_id: string;
-  description: string;
-}
-
+/**
+ * City autocomplete component using Google Places API
+ * Supports small towns and cities with debounced search
+ */
 export default function CityAutocomplete({ 
   value, 
   onChange, 
-  onSelect, 
-  placeholder = "Start typing a city..." 
+  placeholder = "Start typing your city...", 
+  required = false,
+  error 
 }: CityAutocompleteProps) {
-  const [inputValue, setInputValue] = useState(value);
-  const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [selectedIndex, setSelectedIndex] = useState(-1);
-  const [containerRect, setContainerRect] = useState<DOMRect | null>(null);
-  
-  const debounceTimeoutRef = useRef<NodeJS.Timeout>();
-  const containerRef = useRef<HTMLDivElement>(null);
+  const { isLoaded, error: mapsError } = useGoogleMaps();
+  const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteServiceRef = useRef<google.maps.places.AutocompleteService | null>(null);
   const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [isLoading, setIsLoading] = useState(false);
+  const debounceRef = useRef<NodeJS.Timeout>();
 
-  // Initialize Google Maps services
+  // Initialize Google Places services
   useEffect(() => {
-    const initGoogleMaps = async () => {
-      try {
-        await loadGoogleMaps();
-        autocompleteServiceRef.current = new google.maps.places.AutocompleteService();
-        placesServiceRef.current = new google.maps.places.PlacesService(
-          document.createElement('div')
-        );
-      } catch (error) {
-        console.error('Failed to load Google Maps:', error);
-      }
-    };
-
-    initGoogleMaps();
-  }, []);
+    if (isLoaded && typeof window !== "undefined" && window.google?.maps?.places) {
+      autocompleteServiceRef.current = new window.google.maps.places.AutocompleteService();
+      const div = document.createElement("div");
+      placesServiceRef.current = new window.google.maps.places.PlacesService(div);
+    }
+  }, [isLoaded]);
 
   // Debounced search function
-  const searchCities = useCallback(async (query: string) => {
-    if (query.length < 2 || !autocompleteServiceRef.current) {
-      setPredictions([]);
-      setIsLoading(false);
+  const searchPlaces = useCallback((query: string) => {
+    if (!query.trim() || !autocompleteServiceRef.current) {
+      setSuggestions([]);
+      setIsOpen(false);
       return;
     }
 
     setIsLoading(true);
-
-    try {
-      const request: google.maps.places.AutocompletionRequest = {
+    autocompleteServiceRef.current.getPlacePredictions(
+      {
         input: query,
-        types: ['(cities)'],
-      };
-
-      autocompleteServiceRef.current.getPlacePredictions(
-        request,
-        (predictions, status) => {
-          setIsLoading(false);
-          if (status === google.maps.places.PlacesServiceStatus.OK && predictions) {
-            setPredictions(predictions.slice(0, 8));
-          } else {
-            setPredictions([]);
-          }
+        types: ["(cities)"],
+        fields: ["address_components", "name"]
+      },
+      (predictions, status) => {
+        setIsLoading(false);
+        if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
+          const cityNames = predictions
+            .map(prediction => {
+              // Extract city name from address components
+              const components = prediction.structured_formatting?.main_text || prediction.description;
+              return components.split(",")[0].trim(); // Get first part before comma
+            })
+            .filter((name, index, arr) => arr.indexOf(name) === index) // Remove duplicates
+            .slice(0, 8); // Limit to 8 suggestions
+          
+          setSuggestions(cityNames);
+          setIsOpen(cityNames.length > 0);
+          setSelectedIndex(-1);
+        } else {
+          setSuggestions([]);
+          setIsOpen(false);
         }
-      );
-    } catch (error) {
-      console.error('Error fetching predictions:', error);
-      setIsLoading(false);
-      setPredictions([]);
-    }
+      }
+    );
   }, []);
 
   // Handle input change with debouncing
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
-    setInputValue(newValue);
-    onChange?.(newValue);
+    onChange(newValue);
+    
+    // Clear previous debounce
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    
+    // Set new debounce
+    debounceRef.current = setTimeout(() => {
+      searchPlaces(newValue);
+    }, 250);
+  };
+
+  // Handle suggestion selection
+  const selectSuggestion = (suggestion: string) => {
+    onChange(suggestion);
+    setSuggestions([]);
+    setIsOpen(false);
     setSelectedIndex(-1);
-    setShowDropdown(true);
-
-    // Clear previous timeout
-    if (debounceTimeoutRef.current) {
-      clearTimeout(debounceTimeoutRef.current);
-    }
-
-    // Set new timeout
-    debounceTimeoutRef.current = setTimeout(() => {
-      searchCities(newValue);
-    }, 300);
-  }, [onChange, searchCities]);
-
-  // Handle prediction selection
-  const handlePredictionSelect = useCallback(async (prediction: PlacePrediction) => {
-    if (!placesServiceRef.current) return;
-
-    try {
-      const request: google.maps.places.PlaceDetailsRequest = {
-        placeId: prediction.place_id,
-        fields: ['name', 'geometry'],
-      };
-
-      placesServiceRef.current.getDetails(
-        request,
-        (place, status) => {
-          if (status === google.maps.places.PlacesServiceStatus.OK && place) {
-            const label = place.name || prediction.description;
-            const lat = place.geometry?.location?.lat();
-            const lng = place.geometry?.location?.lng();
-
-            if (lat && lng) {
-              onSelect({ label, lat, lng });
-              setInputValue(label);
-              onChange?.(label);
-              setShowDropdown(false);
-              setPredictions([]);
-              setSelectedIndex(-1);
-            }
-          }
-        }
-      );
-    } catch (error) {
-      console.error('Error getting place details:', error);
-    }
-  }, [onChange, onSelect]);
+    inputRef.current?.blur();
+  };
 
   // Handle keyboard navigation
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (!showDropdown || predictions.length === 0) return;
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!isOpen) return;
 
     switch (e.key) {
-      case 'ArrowDown':
+      case "ArrowDown":
         e.preventDefault();
-        setSelectedIndex(prev => (prev + 1) % predictions.length);
+        setSelectedIndex(prev => 
+          prev < suggestions.length - 1 ? prev + 1 : prev
+        );
         break;
-      case 'ArrowUp':
+      case "ArrowUp":
         e.preventDefault();
-        setSelectedIndex(prev => prev <= 0 ? predictions.length - 1 : prev - 1);
+        setSelectedIndex(prev => prev > 0 ? prev - 1 : -1);
         break;
-      case 'Enter':
+      case "Enter":
         e.preventDefault();
-        if (selectedIndex >= 0 && selectedIndex < predictions.length) {
-          handlePredictionSelect(predictions[selectedIndex]);
+        if (selectedIndex >= 0 && selectedIndex < suggestions.length) {
+          selectSuggestion(suggestions[selectedIndex]);
         }
         break;
-      case 'Escape':
-        setShowDropdown(false);
-        setPredictions([]);
+      case "Escape":
+        setIsOpen(false);
         setSelectedIndex(-1);
+        inputRef.current?.blur();
         break;
     }
-  }, [showDropdown, predictions, selectedIndex, handlePredictionSelect]);
+  };
 
-  // Handle click outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setShowDropdown(false);
-        setPredictions([]);
-        setSelectedIndex(-1);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Update container rect for portal positioning
-  useEffect(() => {
-    if (containerRef.current) {
-      setContainerRect(containerRef.current.getBoundingClientRect());
+  // Handle focus
+  const handleFocus = () => {
+    if (suggestions.length > 0) {
+      setIsOpen(true);
     }
-  }, [showDropdown]);
+  };
 
-  // Sync input value with prop value
-  useEffect(() => {
-    setInputValue(value);
-  }, [value]);
+  // Handle blur (with delay to allow clicks on suggestions)
+  const handleBlur = () => {
+    setTimeout(() => {
+      setIsOpen(false);
+      setSelectedIndex(-1);
+    }, 150);
+  };
 
-  // Cleanup on unmount
+  // Cleanup debounce on unmount
   useEffect(() => {
     return () => {
-      if (debounceTimeoutRef.current) {
-        clearTimeout(debounceTimeoutRef.current);
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
       }
     };
   }, []);
 
+  if (mapsError) {
+    return (
+      <div>
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className={`w-full px-4 py-3 rounded-lg border-2 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent ${
+            error ? 'border-red-300 bg-red-50' : 'border-pink-200 bg-white hover:border-pink-300'
+          }`}
+          required={required}
+        />
+        <p className="text-xs text-gray-500 mt-1">Google Maps unavailable - manual entry only</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="relative" ref={containerRef}>
+    <div className="relative">
       <input
-        type="text"
-        value={inputValue}
+        ref={inputRef}
+        value={value}
         onChange={handleInputChange}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
         onKeyDown={handleKeyDown}
-        onFocus={() => setShowDropdown(true)}
         placeholder={placeholder}
-        className="w-full rounded-lg border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-200 focus:border-pink-400 transition"
+        className={`w-full px-4 py-3 rounded-lg border-2 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent ${
+          error ? 'border-red-300 bg-red-50' : 'border-pink-200 bg-white hover:border-pink-300'
+        }`}
+        required={required}
+        disabled={!isLoaded}
       />
       
-      {/* Loading indicator */}
       {isLoading && (
-        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-          <div className="w-4 h-4 border-2 border-pink-200 border-t-pink-600 rounded-full animate-spin"></div>
+        <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-pink-500 border-t-transparent"></div>
         </div>
       )}
 
-      {/* Predictions dropdown via Portal */}
-      {showDropdown && (predictions.length > 0 || isLoading) && containerRect && (
-        <Portal>
-          <div
-            className="fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto"
-            style={{
-              top: containerRect.bottom + window.scrollY + 4,
-              left: containerRect.left + window.scrollX,
-              width: containerRect.width,
-            }}
-          >
-            {isLoading ? (
-              <div className="px-3 py-2 text-gray-500 text-sm">Loading...</div>
-            ) : (
-              <ul>
-                {predictions.map((prediction, index) => (
-                  <li
-                    key={prediction.place_id}
-                    onClick={() => handlePredictionSelect(prediction)}
-                    className={`px-3 py-2 cursor-pointer text-sm hover:bg-gray-50 ${
-                      index === selectedIndex ? 'bg-pink-50 text-pink-700' : ''
-                    }`}
-                  >
-                    {prediction.description}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </Portal>
+      {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
+
+      {/* Suggestions dropdown */}
+      {isOpen && suggestions.length > 0 && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-pink-200 rounded-lg shadow-lg max-h-60 overflow-auto">
+          {suggestions.map((suggestion, index) => (
+            <button
+              key={suggestion}
+              type="button"
+              className={`w-full px-4 py-3 text-left hover:bg-pink-50 transition-colors ${
+                index === selectedIndex ? 'bg-pink-100' : ''
+              } ${index === 0 ? 'rounded-t-lg' : ''} ${
+                index === suggestions.length - 1 ? 'rounded-b-lg' : 'border-b border-pink-100'
+              }`}
+              onClick={() => selectSuggestion(suggestion)}
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );

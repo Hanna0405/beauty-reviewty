@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { useGoogleMaps } from '@/lib/useGoogleMaps';
+import { useEffect, useRef, useState } from 'react';
 
 type MarkerT = { id: string; title: string; lat: number; lng: number };
 type Props = {
@@ -11,8 +10,20 @@ type Props = {
 };
 
 export default function ClientMap({ markers, me, onMarkerClick }: Props) {
-  // твой хук возвращает true/false когда скрипт Google Maps загружен
-  const ready = useGoogleMaps();
+  const [ready, setReady] = useState(false);
+
+  // Check if Google Maps is loaded
+  useEffect(() => {
+    const checkGoogleMaps = () => {
+      if (typeof window !== 'undefined' && (window as any).google?.maps) {
+        setReady(true);
+      } else {
+        // Retry after a short delay
+        setTimeout(checkGoogleMaps, 100);
+      }
+    };
+    checkGoogleMaps();
+  }, []);
 
   const mapDivRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);

@@ -3,15 +3,9 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { auth } from '@/lib/firebase';
-import {
-createUserWithEmailAndPassword,
-signInWithPopup,
-GoogleAuthProvider,
-updateProfile,
-} from 'firebase/auth';
-import { ensureUserDoc } from '@/lib/auth-helpers';
-import type { UserRole } from '@/types'; // <-- важный импорт
+import { signUpWithEmail, signInWithGoogle } from '@/lib/auth-actions';
+import { isFirebaseReady } from '@/lib/firebase';
+import type { UserRole } from '@/types';
 
 export default function SignupPage() {
 const router = useRouter();
@@ -34,26 +28,16 @@ return true;
 
 async function onEmailSignup(e: React.FormEvent) {
 e.preventDefault();
+if (!isFirebaseReady) {
+setErr("Authentication is not configured. Please check Firebase settings.");
+return;
+}
 setErr('');
 if (!requireRole(role)) return;
 
 setLoading(true);
 try {
-const cred = await createUserWithEmailAndPassword(
-auth,
-email.trim(),
-password
-);
-
-if (name.trim()) {
-await updateProfile(cred.user, { displayName: name.trim() });
-}
-
-await ensureUserDoc(cred.user.uid, {
-role, // тип — строго UserRole
-name: name.trim() || cred.user.displayName || '',
-});
-
+const user = await signUpWithEmail(email.trim(), password, name.trim());
 router.push('/');
 } catch (e: any) {
 setErr(e?.message ?? 'Signup error');
@@ -63,18 +47,16 @@ setLoading(false);
 }
 
 async function onGoogle() {
+if (!isFirebaseReady) {
+setErr("Authentication is not configured. Please check Firebase settings.");
+return;
+}
 setErr('');
 if (!requireRole(role)) return;
 
 setLoading(true);
 try {
-const cred = await signInWithPopup(auth, new GoogleAuthProvider());
-
-await ensureUserDoc(cred.user.uid, {
-role,
-name: cred.user.displayName || '',
-});
-
+const user = await signInWithGoogle();
 router.push('/');
 } catch (e: any) {
 setErr(e?.message ?? 'Google signup error');

@@ -1,90 +1,71 @@
-import { redirect } from 'next/navigation';
-import { auth } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { UserProfile } from '@/types';
+import {
+ GoogleAuthProvider,
+ signInWithPopup,
+ signInWithRedirect,
+ signInWithEmailAndPassword,
+ createUserWithEmailAndPassword,
+ browserLocalPersistence,
+ setPersistence,
+ onAuthStateChanged,
+ updateProfile,
+ signOut,
+ getIdToken,
+ User,
+} from "firebase/auth";
+import { auth } from "./firebase";
 
-// Server-side function to get current user
-export async function getCurrentUser(): Promise<{ user: any; profile: UserProfile | null } | null> {
-  try {
-    // Note: This is a simplified version. In a real app, you'd need to handle Firebase Auth tokens
-    // and verify them server-side. This is just a placeholder for the structure.
-    
-    // For now, we'll return null as server-side Firebase Auth requires additional setup
-    // In a production app, you'd typically:
-    // 1. Get the Firebase ID token from cookies/headers
-    // 2. Verify the token with Firebase Admin SDK
-    // 3. Get the user UID from the verified token
-    // 4. Fetch the user profile from Firestore
-    
-    return null;
-  } catch (error) {
-    console.error('Error getting current user:', error);
-    return null;
-  }
+const googleProvider = new GoogleAuthProvider();
+// При необходимости:
+// googleProvider.setCustomParameters({ prompt: "select_account" });
+
+export async function signInWithGoogle(): Promise<void> {
+ await setPersistence(auth, browserLocalPersistence);
+ try {
+ await signInWithPopup(auth, googleProvider);
+ } catch (err: any) {
+ const code = err?.code ?? "";
+ const popupProblem =
+ code.includes("popup") ||
+ code.includes("blocked") ||
+ code.includes("cancelled") ||
+ code.includes("unavailable");
+ if (popupProblem) {
+ await signInWithRedirect(auth, googleProvider);
+ return;
+ }
+ throw err;
+ }
 }
 
-// Server action to require authentication
-export async function requireAuth(): Promise<UserProfile> {
-  const userData = await getCurrentUser();
-  
-  if (!userData?.user) {
-    redirect('/login');
-  }
-  
-  if (!userData.profile) {
-    // User exists but no profile - redirect to complete profile
-    redirect('/complete-profile');
-  }
-  
-  return userData.profile;
+export async function signInWithEmail(email: string, password: string) {
+ await setPersistence(auth, browserLocalPersistence);
+ const cred = await signInWithEmailAndPassword(auth, email, password);
+ return cred.user;
 }
 
-// Server action to require specific role
-export async function requireRole(role: "master" | "client"): Promise<UserProfile> {
-  const profile = await requireAuth();
-  
-  if (profile.role !== role) {
-    // User doesn't have the required role
-    if (profile.role === 'master') {
-      redirect('/dashboard/master');
-    } else {
-      redirect('/masters');
-    }
-  }
-  
-  return profile;
+export async function signUpWithEmail(
+ email: string,
+ password: string,
+ displayName?: string
+) {
+ await setPersistence(auth, browserLocalPersistence);
+ const cred = await createUserWithEmailAndPassword(auth, email, password);
+ if (displayName) {
+ try { await updateProfile(cred.user, { displayName }); } catch {}
+ }
+ return cred.user;
 }
 
-// Client-side helper to get user profile from Firestore
-export async function getUserProfile(uid: string): Promise<UserProfile | null> {
-  try {
-    const userDoc = await getDoc(doc(db, 'users', uid));
-    if (userDoc.exists()) {
-      return userDoc.data() as UserProfile;
-    }
-    return null;
-  } catch (error) {
-    console.error('Error fetching user profile:', error);
-    return null;
-  }
+export async function signOutUser() {
+ await signOut(auth);
 }
 
-// Helper to check if user has required role
-export function hasRole(profile: UserProfile | null, requiredRole: "master" | "client"): boolean {
-  return profile?.role === requiredRole;
+export function onAuthChange(cb: (user: User | null) => void) {
+ return onAuthStateChanged(auth, cb);
 }
 
-// Helper to get redirect URL based on user role
-export function getRedirectUrl(profile: UserProfile | null, fallback: string = '/masters'): string {
-  if (!profile) return fallback;
-  
-  switch (profile.role) {
-    case 'master':
-      return '/dashboard/master';
-    case 'client':
-      return '/masters';
-    default:
-      return fallback;
-  }
+export async function getIdTokenSafe(): Promise<string | null> {
+ const user = auth.currentUser;
+ if (!user) return null;
+ try { return await getIdToken(user, false); } catch { return null; }
 }

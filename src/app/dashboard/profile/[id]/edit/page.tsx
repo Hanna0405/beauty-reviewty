@@ -11,6 +11,10 @@ export default function EditProfilePage() {
 
  // ждём инициализации auth (если нужно ограничение по входу)
  useEffect(() => {
+ if (!auth) {
+   setReady(true);
+   return;
+ }
  const unsub = auth.onAuthStateChanged(() => setReady(true));
  return () => unsub();
  }, []);

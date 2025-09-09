@@ -19,6 +19,7 @@ A modern, responsive Next.js application for discovering and connecting with bea
 - **Styling**: Tailwind CSS
 - **Icons**: Heroicons (SVG)
 - **Images**: Unsplash (placeholder images)
+- **Maps**: Google Maps JavaScript API + Places API
 
 ## Project Structure
 
@@ -50,6 +51,48 @@ beauty-masters/
 ### Prerequisites
 
 Make sure you have Node.js installed on your system. You can download it from [nodejs.org](https://nodejs.org/).
+
+### Environment Setup
+
+1. **Copy the environment example file**
+   ```bash
+   cp env.example .env.local
+   ```
+
+2. **Configure your environment variables**
+   Edit `.env.local` and add your API keys:
+       - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` - Your Google Maps API key
+   - Firebase configuration variables
+
+### Google Maps API Setup
+
+1. **Create a Google Cloud Project** (if you don't have one)
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project or select an existing one
+
+2. **Enable required APIs**
+   - Maps JavaScript API
+   - Places API
+   - Geocoding API (if using geocoding features)
+
+3. **Create an API Key**
+   - Go to **Credentials** → **Create Credentials** → **API Key**
+   - Copy the generated key
+
+4. **Configure API Key Restrictions**
+   - Click on your API key to edit it
+   - Set **Application restrictions** to "HTTP referrers (web sites)"
+   - Add these referrer patterns:
+     ```
+     http://localhost:3000/*
+     http://127.0.0.1:3000/*
+     ```
+   - Set **API restrictions** to restrict to the APIs you enabled above
+
+
+5. **Enable Billing**
+   - Google Maps APIs require billing to be enabled
+   - The free tier includes generous usage limits
 
 ### Installation
 
@@ -154,6 +197,61 @@ The application can be deployed to any platform that supports Next.js:
 ## License
 
 This project is open source and available under the [MIT License](LICENSE).
+
+
+
+## Troubleshooting
+
+### Google Maps Issues
+
+**Error: "RefererNotAllowedMapError" or "Google Maps key is restricted for this origin"**
+
+This error occurs when your Google Maps API key is not configured to allow requests from your local development environment.
+
+**Solution:**
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Navigate to **APIs & Services** → **Credentials**
+3. Click on your API key
+4. Under **Application restrictions**, ensure it's set to "HTTP referrers (web sites)"
+5. Add these referrer patterns:
+   ```
+   http://localhost:3000/*
+   http://127.0.0.1:3000/*
+   ```
+6. Save the changes
+7. Reload your application
+
+**Error: "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is missing"**
+
+This error occurs when the environment variable is not set.
+
+**Solution:**
+1. Ensure you have a `.env.local` file in your project root
+2. Add your Google Maps API key:
+   ```
+   NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_actual_api_key_here
+   ```
+3. Restart your development server
+
+**Error: "Places API failed to load"**
+
+This error occurs when the Places API is not properly enabled or configured.
+
+**Solution:**
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Navigate to **APIs & Services** → **Library**
+3. Search for and enable **"Places API"**
+4. Ensure your API key has access to the Places API
+5. Check that referrer restrictions include your domain
+
+### Firebase Issues
+
+**Error: "Firebase configuration missing"**
+
+**Solution:**
+1. Ensure all Firebase environment variables are set in `.env.local`
+2. Check that your Firebase project is properly configured
+3. Verify that the required Firebase services are enabled
 
 ## Support
 

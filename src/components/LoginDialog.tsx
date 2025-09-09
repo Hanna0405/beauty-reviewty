@@ -14,6 +14,10 @@ export default function LoginDialog() {
  const [loading, setLoading] = useState(false);
 
  const handleEmailLogin = async () => {
+ if (!auth) {
+ setErr('Authentication is not configured. Please check Firebase settings.');
+ return;
+ }
  try {
  setLoading(true);
  setErr(null);
@@ -27,6 +31,10 @@ export default function LoginDialog() {
  };
 
  const handleGoogleLogin = async () => {
+ if (!auth || !googleProvider) {
+ setErr('Authentication is not configured. Please check Firebase settings.');
+ return;
+ }
  try {
  setLoading(true);
  setErr(null);

@@ -1,9 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { auth, db, storage } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { uploadImage } from "@/lib/upload-image";
 
 type Service = { id: string; name: string; price: number };
 
@@ -68,8 +68,12 @@ export default function MasterProfileForm({ initialUser }: { initialUser?: any }
  setSaving(true);
  setError(null);
  try {
- const uid = auth.currentUser?.uid;
+ const uid = auth?.currentUser?.uid;
  if (!uid) throw new Error('Not authenticated');
+
+ if (!db) {
+ throw new Error('Database is not available. Check Firebase configuration.');
+ }
 
  const userRef = doc(db, 'users', uid);
 
@@ -102,9 +106,8 @@ export default function MasterProfileForm({ initialUser }: { initialUser?: any }
 
  const tasks = allowed.map(async f => {
  const path = `users/${uid}/photos/${Date.now()}-${f.name}`;
- const r = ref(storage, path);
- await uploadBytes(r, f, { contentType: f.type });
- return await getDownloadURL(r);
+ const { url } = await uploadImage(f, path);
+ return url;
  });
 
  const results = await Promise.allSettled(tasks);

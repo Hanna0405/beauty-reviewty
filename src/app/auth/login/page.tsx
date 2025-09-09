@@ -4,15 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-import { auth, db } from '@/lib/firebase';
-import {
-GoogleAuthProvider,
-signInWithEmailAndPassword,
-signInWithPopup,
-} from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-
-import type { UserDoc, UserRole } from '@/types';
+import { signInWithEmail, signInWithGoogle } from '@/lib/auth-actions';
+import { isFirebaseReady } from '@/lib/firebase';
 
 export default function LoginPage() {
 const router = useRouter();
@@ -24,35 +17,18 @@ const [loading, setLoading] = useState(false);
 const [err, setErr] = useState<string>('');
 
 // 🔹 Редирект по роли пользователя
-async function redirectByRole(uid: string, fallback?: UserRole | null) {
-const ref = doc(db, 'users', uid);
-const snap = await getDoc(ref);
-
-// допускаем отсутствие роли (undefined) и приводим к UserRole | null
-let userRole: UserRole | null = fallback ?? null;
-if (snap.exists()) {
-const data = snap.data() as Partial<UserDoc>;
-userRole = (data.role ?? null) as UserRole | null;
-}
-
-if (userRole === 'master') {
-router.push('/dashboard');
-} else {
-router.push('/masters');
-}
-}
 
 async function onEmailLogin(e: React.FormEvent) {
 e.preventDefault();
+if (!isFirebaseReady) {
+setErr("Authentication is not configured. Please check Firebase settings.");
+return;
+}
 setErr('');
 setLoading(true);
 try {
-const cred = await signInWithEmailAndPassword(
-auth,
-email.trim(),
-password
-);
-await redirectByRole(cred.user.uid);
+const user = await signInWithEmail(email.trim(), password);
+router.push('/masters');
 } catch (e: any) {
 setErr(e.message ?? 'Login error');
 } finally {
@@ -61,11 +37,15 @@ setLoading(false);
 }
 
 async function onGoogle() {
+if (!isFirebaseReady) {
+setErr("Authentication is not configured. Please check Firebase settings.");
+return;
+}
 setErr('');
 setLoading(true);
 try {
-const cred = await signInWithPopup(auth, new GoogleAuthProvider());
-await redirectByRole(cred.user.uid);
+const user = await signInWithGoogle();
+router.push('/masters');
 } catch (e: any) {
 setErr(e.message ?? 'Google login error');
 } finally {

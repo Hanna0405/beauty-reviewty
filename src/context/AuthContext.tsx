@@ -18,6 +18,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 const [state, setState] = useState<AuthState>({ user: null, role: null, loading: true });
 
 useEffect(() => {
+if (!auth) {
+  setState({ user: null, role: null, loading: false });
+  return;
+}
+
 const unsub = onAuthStateChanged(auth, async (u) => {
 if (!u) {
 setState({ user: null, role: null, loading: false });
@@ -25,8 +30,10 @@ return;
 }
 let role: UserRole | null = null;
 try {
-const snap = await getDoc(doc(db, 'users', u.uid));
-if (snap.exists()) role = (snap.data().role as UserRole) ?? null;
+if (db) {
+  const snap = await getDoc(doc(db, 'users', u.uid));
+  if (snap.exists()) role = (snap.data().role as UserRole) ?? null;
+}
 } catch {}
 setState({ user: u, role, loading: false });
 });
