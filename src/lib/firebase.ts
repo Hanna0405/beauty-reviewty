@@ -1,46 +1,34 @@
-/* eslint-disable import/no-extraneous-dependencies */
-import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
-import { getAuth, type Auth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
-import { getStorage, type FirebaseStorage } from "firebase/storage";
+// Compatibility layer for old imports
+// This file provides backward compatibility for existing imports
+// while redirecting to the new client modules ONLY
+// DO NOT import admin modules here as they will be pulled into client bundles
 
-let app: FirebaseApp;
-if (!getApps().length) {
-  app = initializeApp({
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-    // optional:
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-    measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
-  });
-} else {
-  app = getApps()[0]!;
-}
+import { auth, db, storage, requireAuth, requireDb, requireStorage } from './firebase/client';
+import { GoogleAuthProvider } from 'firebase/auth';
 
-// Canonical getters
-export const getClientApp = (): FirebaseApp => app;
-export const getClientAuth = (): Auth => getAuth(app); // <-- shim for legacy imports
-export const getDb = (): Firestore => getFirestore(app);
-export const getStorageSafe = (): FirebaseStorage => getStorage(app); // <-- shim for legacy imports
+// Re-export safe client instances (null on server, initialized on client)
+export { auth, db, storage };
 
-// Also export common singletons if some code imports them directly
-export const auth = getClientAuth();
-export const db = getDb();
-export const storage = getStorageSafe();
+// Re-export helper functions for client components
+export { requireAuth, requireDb, requireStorage };
 
-// Export Google provider for auth
-export const googleProvider = new GoogleAuthProvider();
+// Legacy compatibility exports for old function-based imports
+export const clientAuth = () => requireAuth();
+export const clientDb = () => requireDb();
+export const clientStorage = () => requireStorage();
+export const getClientAuth = () => requireAuth();
+export const getStorageSafe = () => requireStorage();
 
-// Export utility functions for compatibility
-export const isFirebaseReady = () => true; // Firebase is always ready after initialization
-export const makeRecaptcha = () => null; // Placeholder for compatibility
-export const signInWithPhoneNumber = async (auth: any, phone: string, verifier: any) => {
-  // Placeholder for compatibility - returns a mock confirmation result
-  return {
-    confirm: async (code: string) => ({ user: null })
-  };
+// Legacy compatibility exports
+export const isFirebaseReady = () => {
+  return typeof window !== 'undefined' && auth !== null;
 };
-export const firebaseStatus = () => ({ ready: true, missing: [] }); // Placeholder for compatibility
+
+export const firebaseStatus = () => ({
+  ready: isFirebaseReady(),
+  missing: null as string | null,
+  error: null as string | null,
+});
+
+// Google provider for auth (only create on client)
+export const googleProvider = typeof window !== 'undefined' ? new GoogleAuthProvider() : null;

@@ -1,149 +1,94 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { signUpWithEmail, signInWithGoogle } from '@/lib/auth-actions';
-import { isFirebaseReady } from '@/lib/firebase';
-import type { UserRole } from '@/types';
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { setDoc, doc, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+
+type Role = "master" | "client";
 
 export default function SignupPage() {
-const router = useRouter();
+ const router = useRouter();
+ const [form, setForm] = useState({ displayName: "", email: "", password: "", role: "master" as Role });
+ const [err, setErr] = useState<string | null>(null);
+ const [loading, setLoading] = useState(false);
 
-// было '' — из-за этого ругался TS. Делаем null.
-const [role, setRole] = useState<UserRole | null>(null);
-const [name, setName] = useState('');
-const [email, setEmail] = useState('');
-const [password, setPassword] = useState('');
-const [loading, setLoading] = useState(false);
-const [err, setErr] = useState('');
+ const canSubmit = form.displayName.trim().length >= 2 && /\S+@\S+\.\S+/.test(form.email) && form.password.length >= 6;
 
-function requireRole(r: UserRole | null): r is UserRole {
-if (!r) {
-setErr('Please choose a role (Client or Master).');
-return false;
-}
-return true;
-}
+ async function onSubmit(e: React.FormEvent) {
+ e.preventDefault();
+ if (!canSubmit) return setErr("Please fill all fields correctly");
+ setErr(null); setLoading(true);
+ try {
+ const cred = await createUserWithEmailAndPassword(auth, form.email, form.password);
+ if (form.displayName) await updateProfile(cred.user, { displayName: form.displayName });
+ await setDoc(doc(db, "users", cred.user.uid), {
+ uid: cred.user.uid,
+ email: cred.user.email,
+ displayName: form.displayName || "",
+ role: (form.role === "client" || form.role === "master") ? form.role : "master",
+ avatarUrl: null,
+ city: "",
+ services: [],
+ languages: [],
+ createdAt: serverTimestamp(),
+ updatedAt: serverTimestamp(),
+ }, { merge: true });
+ router.push("/profile");
+ } catch (e:any) {
+ setErr(e?.message || "Signup failed");
+ } finally { setLoading(false); }
+ }
 
-async function onEmailSignup(e: React.FormEvent) {
-e.preventDefault();
-if (!isFirebaseReady) {
-setErr("Authentication is not configured. Please check Firebase settings.");
-return;
-}
-setErr('');
-if (!requireRole(role)) return;
+ return (
+ <div className="min-h-[80vh] w-full bg-gradient-to-b from-pink-500 to-fuchsia-600 py-10">
+ <div className="mx-auto w-full max-w-lg rounded-2xl bg-white/95 p-8 shadow-xl">
+ <div className="mb-6 text-center">
+ <h1 className="text-2xl font-bold text-gray-900">Sign up</h1>
+ </div>
 
-setLoading(true);
-try {
-const user = await signUpWithEmail(email.trim(), password, name.trim());
-router.push('/');
-} catch (e: any) {
-setErr(e?.message ?? 'Signup error');
-} finally {
-setLoading(false);
-}
-}
+ <form onSubmit={onSubmit} className="space-y-4">
+ <fieldset className="space-y-2">
+ <legend className="text-sm font-medium text-gray-700">I am:</legend>
+ <div className="flex items-center gap-4">
+ <label className="flex items-center gap-2 text-sm">
+ <input type="radio" name="role" value="client"
+ checked={form.role === "client"} onChange={() => setForm(s=>({...s, role:"client"}))} />
+ Client
+ </label>
+ <label className="flex items-center gap-2 text-sm">
+ <input type="radio" name="role" value="master"
+ checked={form.role === "master"} onChange={() => setForm(s=>({...s, role:"master"}))} />
+ Master
+ </label>
+ </div>
+ </fieldset>
 
-async function onGoogle() {
-if (!isFirebaseReady) {
-setErr("Authentication is not configured. Please check Firebase settings.");
-return;
-}
-setErr('');
-if (!requireRole(role)) return;
+ <input className="w-full rounded-md border border-gray-300 px-3 py-2 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-200"
+ placeholder="Name" value={form.displayName}
+ onChange={e=>setForm(s=>({...s, displayName:e.target.value}))} required />
+ <input className="w-full rounded-md border border-gray-300 px-3 py-2 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-200"
+ placeholder="Email" type="email" value={form.email}
+ onChange={e=>setForm(s=>({...s, email:e.target.value}))} required />
+ <input className="w-full rounded-md border border-gray-300 px-3 py-2 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-200"
+ placeholder="Password (6+ chars)" type="password" value={form.password}
+ onChange={e=>setForm(s=>({...s, password:e.target.value}))} required />
 
-setLoading(true);
-try {
-const user = await signInWithGoogle();
-router.push('/');
-} catch (e: any) {
-setErr(e?.message ?? 'Google signup error');
-} finally {
-setLoading(false);
-}
-}
+ {err && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
 
-return (
-<div className="max-w-md mx-auto p-6">
-<h1 className="text-2xl font-semibold mb-4">Sign up</h1>
+ <button disabled={!canSubmit || loading}
+ className="w-full rounded-md bg-pink-600 px-4 py-2.5 font-semibold text-white hover:bg-pink-700 disabled:opacity-60">
+ {loading ? "Creating..." : "Create account"}
+ </button>
+ </form>
 
-{/* Role */}
-<div className="mb-4">
-<p className="mb-2 font-medium">I am:</p>
-<div className="flex gap-4">
-<label className="flex items-center gap-2">
-<input
-type="radio"
-name="role"
-value="client"
-checked={role === 'client'}
-onChange={() => setRole('client')}
-/>
-<span>Client</span>
-</label>
-<label className="flex items-center gap-2">
-<input
-type="radio"
-name="role"
-value="master"
-checked={role === 'master'}
-onChange={() => setRole('master')}
-/>
-<span>Master</span>
-</label>
-</div>
-</div>
-
-{/* Email form */}
-<form onSubmit={onEmailSignup} className="space-y-3">
-<input
-type="text"
-value={name}
-onChange={(e) => setName(e.target.value)}
-placeholder="Name"
-className="w-full border rounded px-3 py-2"
-/>
-<input
-required
-type="email"
-value={email}
-onChange={(e) => setEmail(e.target.value)}
-placeholder="Email"
-className="w-full border rounded px-3 py-2"
-/>
-<input
-required
-type="password"
-value={password}
-onChange={(e) => setPassword(e.target.value)}
-placeholder="Password"
-className="w-full border rounded px-3 py-2"
-/>
-
-{err && <p className="text-red-600 text-sm">{err}</p>}
-
-<button
-type="submit"
-disabled={loading}
-className="w-full py-2 rounded bg-black text-white"
->
-{loading ? 'Creating account…' : 'Create account'}
-</button>
-</form>
-
-<button
-onClick={onGoogle}
-disabled={loading}
-className="w-full py-2 rounded border mt-3"
->
-Sign up with Google
-</button>
-
-<Link href="/auth/login" className="block text-center underline mt-3">
-Already have an account? Log in
-</Link>
-</div>
-);
+ <p className="mt-4 text-center text-sm text-gray-600">
+ Already have an account?{" "}
+ <Link href="/auth/login" className="font-medium text-pink-600 hover:underline">Log in</Link>
+ </p>
+ </div>
+ </div>
+ );
 }

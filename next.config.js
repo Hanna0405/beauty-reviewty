@@ -21,6 +21,7 @@ const nextConfig = {
     remotePatterns: [
       // Firebase Storage images
       { protocol: 'https', hostname: 'firebasestorage.googleapis.com' },
+      { protocol: 'https', hostname: 'storage.googleapis.com' },
       
       // Optional: Unsplash images (if still used)
       { protocol: 'https', hostname: 'images.unsplash.com' },

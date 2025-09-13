@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { auth, db } from '@/lib/firebase';
+import { requireAuth, requireDb } from '@/lib/firebase';
 import { doc, setDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
 
 type Role = 'client' | 'master';
@@ -16,10 +16,16 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!auth.currentUser) router.replace('/auth/login');
+    try {
+      const auth = requireAuth();
+      if (!auth.currentUser) router.replace('/auth/login');
+    } catch (error) {
+      router.replace('/auth/login');
+    }
   }, [router]);
 
   const saveClient = async (uid: string) => {
+    const db = requireDb();
     await setDoc(doc(db, 'users', uid), {
       uid,
       role: 'client',
@@ -36,6 +42,7 @@ export default function OnboardingPage() {
     if (!geoRes.ok) throw new Error(geoData.error || 'Geocode error');
 
     // users
+    const db = requireDb();
     await setDoc(doc(db, 'users', uid), {
       uid,
       role: 'master',
@@ -65,6 +72,7 @@ export default function OnboardingPage() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const auth = requireAuth();
     const uid = auth.currentUser?.uid;
     if (!uid || !role) return;
 

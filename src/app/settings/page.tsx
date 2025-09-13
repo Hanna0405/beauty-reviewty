@@ -1,6 +1,6 @@
 'use client';
 
-import { useAuth } from '@/components/auth/AuthProvider';
+import { useAuth } from '@/contexts/AuthContext';
 import PhoneAuthBlock from '@/components/PhoneAuthBlock';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
@@ -45,11 +45,15 @@ export default function SettingsPage() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Phone Number</label>
-                      <p className="mt-1 text-sm text-gray-900">{user.phoneNumber || 'Not linked'}</p>
+                      <p className="mt-1 text-sm text-gray-900">{profile?.phone || 'Not linked'}</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Display Name</label>
                       <p className="mt-1 text-sm text-gray-900">{user.displayName || 'Not set'}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Role</label>
+                      <p className="mt-1 text-sm text-gray-900">{user.role || 'client'}</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700">User ID</label>

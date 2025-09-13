@@ -1,7 +1,7 @@
 "use client";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { deleteFile, getImageDimensions } from "@/lib/storage-helpers";
-import { uploadImage } from "@/lib/upload-image";
+import { getImageDimensions } from "@/lib/storage-helpers";
+import { uploadImageViaApi } from "@/lib/upload-client";
 import { useToast } from "@/components/ui/Toast";
 import { logStorageDebug } from "@/lib/debug-storage";
 
@@ -46,11 +46,10 @@ export default function ListingPhotos({
 
   // Upload single file using server-side API
   const uploadSingleFile = useCallback(async (file: File, fileId: string): Promise<PhotoData> => {
-    const path = `listings/${userId}/${listingId || 'temp'}/${Date.now()}-${file.name}`;
-    console.info("[BR][Storage] Upload path:", path);
-    
     try {
-      const { url, path: savedPath } = await uploadImage(file, path);
+      const folder = listingId ? `listings/${listingId}/photos` : 'uploads';
+      const url = await uploadImageViaApi(file, folder);
+      const savedPath = url; // For now, using URL as path
       
       // Compute dimensions
       const dims = await new Promise<{w: number; h: number}>((resolve, reject) => {
@@ -155,9 +154,9 @@ export default function ListingPhotos({
     const newPhotos = photos.filter((_, i) => i !== index);
     onChange(newPhotos);
 
-    // Try to delete from storage (best effort)
+    // Try to delete from storage via API (best effort)
     if (photoToRemove.path) {
-      await deleteFile(photoToRemove.path);
+      fetch(`/api/upload?path=${encodeURIComponent(photoToRemove.path)}`, { method: "DELETE" }).catch(()=>{});
     }
   }, [photos, onChange]);
 

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { signInWithGoogle } from "@/lib/auth-helpers";
-import { auth, db } from "@/lib/firebase";
+import { requireAuth, requireDb } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
@@ -28,6 +28,7 @@ export default function AuthModal({ open, onClose }: Props) {
  if (!open) return null;
 
  async function ensureUserDoc(uid: string, role: "client" | "master", displayName?: string) {
+ const db = requireDb();
  const userRef = doc(db, "users", uid);
  const snap = await getDoc(userRef);
  if (!snap.exists()) {
@@ -62,8 +63,10 @@ export default function AuthModal({ open, onClose }: Props) {
  async function doLogin() {
  setLoading(true);
  try {
+ const auth = requireAuth();
  const cred = await signInWithEmailAndPassword(auth, email, pass);
  // роль читаем, если нет — считаем client по умолчанию
+ const db = requireDb();
  const userRef = doc(db, "users", cred.user.uid);
  const us = await getDoc(userRef);
  let role: "client" | "master" = "client";
@@ -81,6 +84,7 @@ export default function AuthModal({ open, onClose }: Props) {
  async function doRegister() {
  setLoading(true);
  try {
+ const auth = requireAuth();
  const cred = await createUserWithEmailAndPassword(auth, email, pass);
  const role = tab; // вкладка определяет роль
  await ensureUserDoc(cred.user.uid, role, cred.user.displayName || name);

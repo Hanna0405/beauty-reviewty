@@ -12,10 +12,10 @@ export default function LanguagesAutocomplete({
  const inputRef = useRef<HTMLInputElement | null>(null);
  const rootRef = useRef<HTMLDivElement | null>(null);
 
- // Filter options based on input
- const filtered = options.filter((lang) =>
- lang.toLowerCase().includes(value.toLowerCase())
- );
+  // Filter options based on input (only after 2+ characters)
+  const filtered = value.trim().length >= 2 
+    ? options.filter((lang) => lang.toLowerCase().includes(value.toLowerCase()))
+    : [];
 
  const select = (lang: string) => {
  onAdd?.(lang);

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { doc as fsDoc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { requireDb } from "@/lib/firebase/client";
 
 type Listing = {
  title?: string;
@@ -29,8 +29,8 @@ export default function MasterViewPage() {
  let cancelled = false;
  (async () => {
  try {
- // IMPORTANT: use modular Firestore 'doc' (aliased to avoid collisions)
- const ref = fsDoc(db, "listings", id);
+      // IMPORTANT: use modular Firestore 'doc' (aliased to avoid collisions)
+      const ref = fsDoc(requireDb(), "listings", id);
  const snap = await getDoc(ref);
  if (!cancelled) {
  if (snap.exists()) {

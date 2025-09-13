@@ -3,11 +3,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAnchoredPopup } from '@/lib/useAnchoredPopup';
 import Portal from './ui/Portal';
+import { LANGUAGES } from '@/constants/languages';
 
-const LANGS = [
-  'English', 'Ukrainian', 'Russian', 'Polish', 'French',
-  'Spanish', 'Portuguese', 'Arabic', 'Mandarin', 'Hindi',
-];
+const LANGS = LANGUAGES.map(lang => lang.label);
 
 interface LanguagesFieldProps {
   value: string[];

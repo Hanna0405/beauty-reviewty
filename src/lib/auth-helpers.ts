@@ -1,3 +1,5 @@
+"use client";
+
 import {
  GoogleAuthProvider,
  signInWithPopup,
@@ -12,16 +14,16 @@ import {
  getIdToken,
  User,
 } from "firebase/auth";
-import { auth } from "./firebase";
+import { requireAuth } from "./firebase/client";
 
 const googleProvider = new GoogleAuthProvider();
 // При необходимости:
 // googleProvider.setCustomParameters({ prompt: "select_account" });
 
 export async function signInWithGoogle(): Promise<void> {
- await setPersistence(auth, browserLocalPersistence);
+ await setPersistence(requireAuth(), browserLocalPersistence);
  try {
- await signInWithPopup(auth, googleProvider);
+ await signInWithPopup(requireAuth(), googleProvider);
  } catch (err: any) {
  const code = err?.code ?? "";
  const popupProblem =
@@ -30,7 +32,7 @@ export async function signInWithGoogle(): Promise<void> {
  code.includes("cancelled") ||
  code.includes("unavailable");
  if (popupProblem) {
- await signInWithRedirect(auth, googleProvider);
+ await signInWithRedirect(requireAuth(), googleProvider);
  return;
  }
  throw err;
@@ -38,8 +40,8 @@ export async function signInWithGoogle(): Promise<void> {
 }
 
 export async function signInWithEmail(email: string, password: string) {
- await setPersistence(auth, browserLocalPersistence);
- const cred = await signInWithEmailAndPassword(auth, email, password);
+ await setPersistence(requireAuth(), browserLocalPersistence);
+ const cred = await signInWithEmailAndPassword(requireAuth(), email, password);
  return cred.user;
 }
 
@@ -48,8 +50,8 @@ export async function signUpWithEmail(
  password: string,
  displayName?: string
 ) {
- await setPersistence(auth, browserLocalPersistence);
- const cred = await createUserWithEmailAndPassword(auth, email, password);
+ await setPersistence(requireAuth(), browserLocalPersistence);
+ const cred = await createUserWithEmailAndPassword(requireAuth(), email, password);
  if (displayName) {
  try { await updateProfile(cred.user, { displayName }); } catch {}
  }
@@ -57,15 +59,15 @@ export async function signUpWithEmail(
 }
 
 export async function signOutUser() {
- await signOut(auth);
+ await signOut(requireAuth());
 }
 
 export function onAuthChange(cb: (user: User | null) => void) {
- return onAuthStateChanged(auth, cb);
+ return onAuthStateChanged(requireAuth(), cb);
 }
 
 export async function getIdTokenSafe(): Promise<string | null> {
- const user = auth.currentUser;
+ const user = requireAuth().currentUser;
  if (!user) return null;
  try { return await getIdToken(user, false); } catch { return null; }
 }

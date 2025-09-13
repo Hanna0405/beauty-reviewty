@@ -6,7 +6,8 @@ import MasterProfileForm from '@/components/MasterProfileForm';
 import { auth } from '@/lib/firebase';
 
 export default function EditProfilePage() {
- const { id } = useParams<{ id: string }>();
+ const params = useParams<{ id: string }>();
+ const id = params?.id;
  const [ready, setReady] = useState(false);
 
  // ждём инициализации auth (если нужно ограничение по входу)

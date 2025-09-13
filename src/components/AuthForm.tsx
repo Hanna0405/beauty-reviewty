@@ -1,23 +1,32 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
- createUserWithEmailAndPassword,
- signInWithEmailAndPassword,
- updateProfile,
- signInWithPopup,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile,
+  signInWithPopup,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
 } from "firebase/auth";
-import { auth, makeRecaptcha, signInWithPhoneNumber } from "@/lib/firebase";
+import { getFirebaseClientAuth } from "@/lib/firebase-client";
 import { signInWithGoogle } from "@/lib/auth-helpers";
+import { registerUser } from "@/lib/auth/registerUser";
+import { useAuth } from "@/context/AuthContext";
+
+const auth = getFirebaseClientAuth();
 import { ensureUserDoc } from "@/lib/users";
 import { useRouter } from "next/navigation";
 import { Field } from "@/components/auth/Field";
 import { GoogleButton } from "@/components/auth/GoogleButton";
+
+const PENDING_ROLE_KEY = "BR_pendingRole";
 
 type Mode = "signup" | "login";
 type Variant = "full" | "emailOnly";
 
 export default function AuthForm({ mode, variant = "full" }: { mode: Mode; variant?: Variant }) {
  const router = useRouter();
+ const { user, isAuthReady } = useAuth();
  const [tab, setTab] = useState<"email" | "phone">("email");
  const [pending, setPending] = useState(false);
  const [error, setError] = useState<string | null>(null);
@@ -38,25 +47,44 @@ export default function AuthForm({ mode, variant = "full" }: { mode: Mode; varia
 
  const enablePhone = process.env.NEXT_PUBLIC_ENABLE_PHONE_AUTH === "true";
 
+ // If already signed in, don't render the signup form
+ useEffect(() => {
+   if (!isAuthReady) return;
+   if (user && mode === "signup") {
+     // User is already signed in, redirect or show message
+     router.replace("/");
+   }
+ }, [isAuthReady, user, mode, router]);
+
  async function afterLogin(user: any, maybeRole?: "client" | "master") {
  await ensureUserDoc(user, maybeRole);
  router.push("/");
  }
 
  async function onEmailSubmit(e: React.FormEvent) {
- e.preventDefault();
- setError(null); setPending(true);
- try {
- if (mode === "signup") {
- if (password !== confirm) throw new Error("Passwords do not match");
- const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
- if (fullName) await updateProfile(cred.user, { displayName: fullName.trim() });
- await afterLogin(cred.user, role);
- } else {
- const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
- await afterLogin(cred.user);
- }
- } catch (e:any) { setError(clean(e.message)); } finally { setPending(false); }
+   e.preventDefault();
+   if (user) return; // signed in users should not create new accounts
+   setError(null); setPending(true);
+   try {
+     if (mode === "signup") {
+       if (password !== confirm) throw new Error("Passwords do not match");
+       
+       // Hand off the selected role for AuthProvider to consume (prevents race)
+       try { window.localStorage.setItem(PENDING_ROLE_KEY, role); } catch {}
+       
+       await registerUser({
+         fullName: fullName.trim(),
+         email: email.trim(),
+         password,
+         role,
+       });
+       // User is already created and logged in, just redirect
+       router.push("/");
+     } else {
+       const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+       await afterLogin(cred.user);
+     }
+   } catch (e:any) { setError(clean(e.message)); } finally { setPending(false); }
  }
 
  async function onGoogle() {
@@ -75,8 +103,10 @@ export default function AuthForm({ mode, variant = "full" }: { mode: Mode; varia
  e.preventDefault();
  setError(null); setPending(true);
  try {
- const verifier = makeRecaptcha();
- const conf = await signInWithPhoneNumber(auth, phone.trim(), verifier);
+  const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+    size: 'invisible',
+  });
+  const conf = await signInWithPhoneNumber(auth, phone.trim(), verifier);
  setConfirmationResult(conf);
  } catch (e:any) { setError(clean(e.message)); } finally { setPending(false); }
  }
@@ -94,6 +124,16 @@ export default function AuthForm({ mode, variant = "full" }: { mode: Mode; varia
 
  const showTabs = variant === "full";
  const showPhone = variant === "full" && enablePhone;
+
+ // If already signed in, show message instead of form
+ if (isAuthReady && user && mode === "signup") {
+   return (
+     <div className="p-6">
+       <p>You are already signed in as <b>{user.email ?? user.displayName ?? "user"}</b>.</p>
+       <p>Sign out first if you want to create a new account.</p>
+     </div>
+   );
+ }
 
  return (
  <div className="space-y-5">

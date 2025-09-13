@@ -1,68 +1,61 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import UserAvatarMenu from '@/components/UserAvatarMenu';
-
-const LANGS = ['EN', 'RU', 'TJ'] as const;
-type Lang = typeof LANGS[number];
+import React, { useState } from "react";
+import Link from "next/link";
+import { useAuth } from "@/contexts/AuthContext";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 
 export default function Header() {
- const { user, loading } = useAuth(); // ← берём юзера из контекста
- const [lang, setLang] = useState<Lang>('EN');
- const [openLang, setOpenLang] = useState(false);
+ const { user, profile, loading } = useAuth();
+
+ // Prefer displayName, fallback to email (for avatar initials)
+ const nameOrEmail = profile?.displayName || user?.email || "User";
 
  return (
- <header className="fixed top-0 left-0 right-0 z-30 bg-white/90 backdrop-blur border-b">
- <div className="mx-auto h-14 max-w-6xl px-4 flex items-center justify-between">
- {/* Лого (домой) */}
- <Link href="/" className="font-semibold text-lg hover:opacity-80">
- BeautyReviewty
- </Link>
-
- {/* Правый блок */}
- <div className="flex items-center gap-3">
- <Link href="/masters" className="text-sm hover:underline">
- Masters
- </Link>
-
- {/* Язык */}
- <div className="relative">
- <button
- onClick={() => setOpenLang(!openLang)}
- className="rounded-md border px-2 py-1 text-sm"
- >
- {lang}
- </button>
- {openLang && (
- <div className="absolute right-0 mt-2 w-24 rounded-md border bg-white shadow z-[1000]">
- {LANGS.map(l => (
- <button
- key={l}
- onClick={() => { setLang(l); setOpenLang(false); }}
- className="block w-full px-3 py-1 text-left text-sm hover:bg-gray-50"
- >
- {l}
- </button>
- ))}
- </div>
- )}
+ <header className="w-full">
+ <nav className="mx-auto flex items-center justify-between gap-4 px-4 py-3">
+ {/* LEFT: keep your logo/brand */}
+ <div className="flex items-center gap-2">
+ <Link href="/" className="font-semibold text-white">BeautyReviewty</Link>
  </div>
 
- {/* Вход / Аватар */}
- {loading ? null : user ? (
- <UserAvatarMenu />
- ) : (
- <Link
- href="/auth/login"
- className="inline-flex items-center justify-center rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700"
- >
+ {/* RIGHT: Auth area (non-blocking) */}
+ <div className="relative flex items-center gap-2">
+ {!user && (
+ <>
+ <Link href="/auth/login" className="btn btn-secondary" aria-disabled={loading ? "true" : "false"}>
  Log in
  </Link>
+ <Link href="/auth/signup" className="btn btn-primary" aria-disabled={loading ? "true" : "false"}>
+ Sign up
+ </Link>
+ </>
+ )}
+
+ {user && <AccountMenu nameOrEmail={nameOrEmail} />}
+ </div>
+ </nav>
+ </header>
+ );
+}
+
+function AccountMenu({ nameOrEmail }: { nameOrEmail: string | null | undefined }) {
+ const [open, setOpen] = useState(false);
+
+ return (
+ <div className="relative">
+ <button onClick={() => setOpen(v => !v)} aria-label="Account menu" className="focus:outline-none">
+ <UserAvatar nameOrEmail={nameOrEmail} />
+ </button>
+ {open && (
+ <div className="absolute right-0 mt-2 w-44 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+ <div className="px-3 py-2 text-sm font-medium text-gray-900 truncate">{nameOrEmail}</div>
+ <div className="h-px bg-gray-100" />
+ <Link href="/dashboard/master" className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Dashboard</Link>
+ <Link href="/profile" className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">My profile</Link>
+ <Link href="/auth/logout" className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Log out</Link>
+ </div>
  )}
  </div>
- </div>
- </header>
  );
 }

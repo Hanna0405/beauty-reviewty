@@ -5,34 +5,14 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 
-import { auth, db } from "@/lib/firebase";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { requireAuth, requireDb } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 import { useToast } from "@/components/ui/Toast";
-import CityAutocomplete from "@/components/CityAutocomplete";
-import MultiSelectChips from "@/components/MultiSelectChips";
-import AvatarUploader from "@/components/AvatarUploader";
+import CityAutocompleteNew from "@/components/CityAutocompleteNew";
+import SmartAutocomplete from "@/components/SmartAutocomplete";
+import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/options";
+import { saveMyProfile, uploadAvatar } from "@/lib/db";
 
-/** Taxonomy for services (category -> procedures). */
-const SERVICE_TAXONOMY: Record<string, string[]> = {
- "Cosmetologist": [
- "Botox",
- "Lip augmentation",
- "Filler",
- "Biorevitalization",
- "Chemical peel",
- "Microneedling",
- "PRP",
- "Facial cleansing",
- ],
- "Hair": ["Haircut", "Coloring", "Balayage", "Keratin treatment", "Extensions", "Styling"],
- "Nails": ["Manicure", "Pedicure", "Gel polish", "Acrylic", "Nail extensions", "Nail art"],
- "Brows & Lashes": ["Brow shaping", "Brow tint", "Lamination", "Lash lift", "Lash extensions"],
- "Makeup": ["Day makeup", "Evening makeup", "Wedding makeup", "Photoshoot makeup"],
-};
-
-const LANGUAGE_SUGGESTIONS = [
- "English", "Russian", "Ukrainian", "Polish", "Spanish", "French", "German", "Italian", "Portuguese",
-];
 
 type MasterProfile = {
  uid: string;
@@ -70,6 +50,7 @@ const emptyProfile = (uid: string): MasterProfile => ({
 
 export default function EditProfilePage() {
  const router = useRouter();
+ const auth = requireAuth();
  const user = auth.currentUser;
  const uid = useMemo(() => user?.uid ?? "", [user]);
  const { showToast } = useToast();
@@ -80,15 +61,6 @@ export default function EditProfilePage() {
  const [saving, setSaving] = useState(false);
  const [error, setError] = useState<string | null>(null);
 
- // Precompute flat suggestions for services: categories + procedures.
- const serviceSuggestions = useMemo(() => {
- const items: string[] = [];
- Object.entries(SERVICE_TAXONOMY).forEach(([cat, subs]) => {
- items.push(cat);
- subs.forEach((p) => items.push(p));
- });
- return items;
- }, []);
 
  useEffect(() => {
  let cancelled = false;
@@ -99,8 +71,10 @@ export default function EditProfilePage() {
       return;
     }
     
-    if (!db) {
-      if (process.env.NODE_ENV !== "production") console.warn("Firestore is not initialized (missing env).");
+    try {
+      const db = requireDb();
+    } catch (error) {
+      if (process.env.NODE_ENV !== "production") console.warn("Firestore is not initialized (missing env).");                                                                                              
       setError("Database is not available. Please check your configuration.");
       setLoading(false);
       return;
@@ -109,6 +83,7 @@ export default function EditProfilePage() {
     setLoading(true);
     setError(null);
     try {
+      const db = requireDb();
       const snap = await getDoc(doc(db, "masters", uid));
  if (snap.exists()) {
  const data = snap.data() as Partial<MasterProfile>;
@@ -149,9 +124,6 @@ export default function EditProfilePage() {
  setForm((p) => ({ ...p, [key]: val }));
  }
 
- function onAvatarUploaded(url: string) {
- setForm((p) => ({ ...p, avatarUrl: url }));
- }
 
  function validate(p: MasterProfile): string[] {
  const errs: string[] = [];
@@ -176,54 +148,41 @@ export default function EditProfilePage() {
       return;
     }
     
-    if (!db) {
-      setError("Database is not available. Please check your configuration.");
-      return;
-    }
-    
     const errs = validate(form);
     if (errs.length) {
       setError(errs.join(" "));
       return;
     }
 
- setSaving(true);
- setError(null);
+    setSaving(true);
+    setError(null);
 
- try {
- const payload: MasterProfile = {
- uid,
- displayName: form.displayName.trim(),
- city: form.city.trim(),
- services: Array.from(new Set(form.services.map((s) => s.trim()).filter(Boolean))),
- languages: Array.from(new Set(form.languages.map((l) => l.trim()).filter(Boolean))),
- avatarUrl: form.avatarUrl ?? null,
- avatarPath: form.avatarPath ?? null,
- phone: form.phone?.trim() || "",
- socials: {
-  instagram: form.socials?.instagram?.trim() || "",
-  facebook: form.socials?.facebook?.trim() || "",
-  website: form.socials?.website?.trim() || "",
- },
- updatedAt: serverTimestamp(),
- };
+    try {
+      await saveMyProfile({
+        displayName: form.displayName.trim(),
+        city: form.city.trim(),
+        phone: form.phone?.trim() || "",
+        services: Array.from(new Set(form.services.map((s) => s.trim()).filter(Boolean))),
+        languages: Array.from(new Set(form.languages.map((l) => l.trim()).filter(Boolean))),
+        avatarUrl: form.avatarUrl ?? null,
+        socials: {
+          instagram: form.socials?.instagram?.trim() || "",
+          facebook: form.socials?.facebook?.trim() || "",
+          website: form.socials?.website?.trim() || "",
+        },
+      });
+      
+      // Show success message and redirect
+      showToast("Profile updated successfully", "success");
+      router.replace("/dashboard/master/profile");
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || "Failed to save profile.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
- await withTimeout(setDoc(doc(db, "masters", uid), payload, { merge: true }));
- 
- // Show success message and redirect
- showToast("Profile updated successfully", "success");
- router.replace("/dashboard/master/profile");
- } catch (err: any) {
- console.error(err);
- setError(err?.message || "Failed to save profile.");
- } finally {
- setSaving(false);
- }
- }
-
- function removeChip(key: "services" | "languages", v: string) {
- setForm((p) => ({ ...p, [key]: (p[key] || []).filter((x) => x !== v) }));
- }
 
  if (!uid) {
  return (
@@ -252,16 +211,25 @@ export default function EditProfilePage() {
  )}
 
     {/* Avatar */}
-    <AvatarUploader
-     currentUrl={form.avatarUrl}
-     currentPath={form.avatarPath}
-     onUpload={(url, path) => {
-      setField("avatarUrl", url);
-      setField("avatarPath", path);
-     }}
-     userId={uid}
-     disabled={saving}
-    />
+    <div className="grid gap-1">
+     <label className="text-sm font-medium">Profile Photo</label>
+     <input 
+      type="file" 
+      accept="image/*" 
+      onChange={async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setSaving(true);
+        try {
+          const url = await uploadAvatar(file);
+          setField("avatarUrl", url);
+        } finally { 
+          setSaving(false); 
+        }
+      }}
+      className="w-full px-4 py-3 rounded-lg border-2 border-pink-200 bg-white hover:border-pink-300 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-colors"
+     />
+    </div>
 
     {/* Display name */}
     <div className="grid gap-1">
@@ -277,11 +245,10 @@ export default function EditProfilePage() {
     {/* City */}
     <div className="grid gap-1">
      <label className="text-sm font-medium">City *</label>
-     <CityAutocomplete
+     <CityAutocompleteNew
       value={form.city}
       onChange={(city) => setField("city", city)}
       placeholder="Start typing your city"
-      required
      />
     </div>
 
@@ -299,28 +266,24 @@ export default function EditProfilePage() {
     {/* Services with autocomplete */}
     <div>
      <label className="block text-sm font-medium text-gray-700 mb-2">Services</label>
-     <MultiSelectChips
-      value={form.services}
-      onChange={(services) => setField("services", services)}
-      options={serviceSuggestions}
+     <SmartAutocomplete
       placeholder="Type to search services..."
-      min={0}
-      max={20}
-      allowCustom={true}
+      options={SERVICE_OPTIONS.map(o => ({ ...o, leftIcon: <span>{o.label.split(" ").slice(-1)}</span> }))}
+      value={(form.services ?? []).map((s: string) => ({ value: s, label: SERVICE_OPTIONS.find(o => o.value === s)?.label || s }))}
+      onChange={(val) => setField("services", Array.isArray(val) ? val.map(v => v.value) : (val ? [val.value] : []))}
+      multi
      />
     </div>
 
     {/* Languages with autocomplete */}
     <div>
      <label className="block text-sm font-medium text-gray-700 mb-2">Languages</label>
-     <MultiSelectChips
-      value={form.languages}
-      onChange={(languages) => setField("languages", languages)}
-      options={LANGUAGE_SUGGESTIONS}
+     <SmartAutocomplete
       placeholder="Type to search languages..."
-      min={0}
-      max={10}
-      allowCustom={true}
+      options={LANGUAGE_OPTIONS.map(o => ({ ...o, leftIcon: <span></span> }))}
+      value={(form.languages ?? []).map((s: string) => ({ value: s, label: LANGUAGE_OPTIONS.find(o => o.value === s)?.label || s }))}
+      onChange={(val) => setField("languages", Array.isArray(val) ? val.map(v => v.value) : (val ? [val.value] : []))}
+      multi
      />
     </div>
 

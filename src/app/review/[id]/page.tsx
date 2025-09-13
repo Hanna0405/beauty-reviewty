@@ -2,16 +2,17 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { db } from '@/lib/firebase';
+import { requireDb } from '@/lib/firebase';
 import { addDoc, collection, doc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
 import { uploadFilesAndGetURLs } from '@/lib/services/storage';
 
 export default function ReviewPage() {
  // id — это id анкеты мастера (profile/master)
- const { id } = useParams<{ id: string }>();
+ const params = useParams<{ id: string }>();
+ const id = params?.id;
  const router = useRouter();
- const { user, role, loading } = useAuth();
+ const { user, loading } = useAuth();
 
  const [masterName, setMasterName] = useState<string>('');
  const [rating, setRating] = useState<number | ''>('');
@@ -28,6 +29,7 @@ export default function ReviewPage() {
  useEffect(() => {
  if (!id) return;
  (async () => {
+ const db = requireDb();
  const snap = await getDoc(doc(db, 'masters', id));
  if (snap.exists()) setMasterName((snap.data() as any).displayName || 'Master');
  })();
@@ -37,7 +39,7 @@ export default function ReviewPage() {
 
  if (loading) return <div className="p-6">Loading…</div>;
  if (!user) return <div className="p-6">Please log in to write a review.</div>;
- if (role !== 'client') return <div className="p-6">Only clients can write reviews.</div>;
+ if (user?.role !== 'client') return <div className="p-6">Only clients can write reviews.</div>;
 
  async function onSubmit(e: React.FormEvent) {
  e.preventDefault();
@@ -51,6 +53,7 @@ export default function ReviewPage() {
  photoURLs = result.urls;
  }
 
+ const db = requireDb();
  await addDoc(collection(db, 'reviews'), {
  profileId: id, // к какой анкете относится
  authorUid: uid, // безопасно: строка

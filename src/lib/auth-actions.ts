@@ -1,11 +1,14 @@
+"use client";
+
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, signInWithPopup } from "firebase/auth";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
-import { db, getClientAuth, googleProvider } from "./firebase";
+import { requireDb, requireAuth, googleProvider } from "./firebase";
 
 export async function signUpWithEmail(email: string, password: string, displayName?: string) {
- const auth = getClientAuth();
+ const auth = requireAuth();
  const cred = await createUserWithEmailAndPassword(auth, email, password);
  if (displayName) await updateProfile(cred.user, { displayName });
+ const db = requireDb();
  await setDoc(doc(db, "users", cred.user.uid), {
  uid: cred.user.uid,
  email: cred.user.email ?? email,
@@ -17,20 +20,22 @@ export async function signUpWithEmail(email: string, password: string, displayNa
 }
 
 export async function signInWithEmail(email: string, password: string) {
- const auth = getClientAuth();
+ const auth = requireAuth();
  const cred = await signInWithEmailAndPassword(auth, email, password);
  await ensureUserDoc(cred.user.uid, cred.user.email ?? email, cred.user.displayName ?? "");
  return cred.user;
 }
 
 export async function signInWithGoogle() {
- const auth = getClientAuth();
+ const auth = requireAuth();
+ if (!googleProvider) throw new Error("Google provider not available");
  const cred = await signInWithPopup(auth, googleProvider);
  await ensureUserDoc(cred.user.uid, cred.user.email ?? "", cred.user.displayName ?? "");
  return cred.user;
 }
 
 async function ensureUserDoc(uid: string, email: string, displayName: string) {
+ const db = requireDb();
  const ref = doc(db, "users", uid);
  const snap = await getDoc(ref);
  if (!snap.exists()) {

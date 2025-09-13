@@ -1,68 +1,34 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { 
-  collection, 
-  getDocs, 
-  writeBatch, 
-  doc, 
-  serverTimestamp,
-  query,
-  where,
-  limit
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { getAuth } from 'firebase-admin/auth';
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+import { NextResponse } from 'next/server';
+import { adminDb } from '@/lib/firebase/admin';
+import { FieldValue } from 'firebase-admin/firestore';
+
+function isAllowed() {
+  // Disable by default in Preview/Production unless explicitly enabled
+  if (process.env.ALLOW_BACKFILL !== 'true') return false;
+  // Optional: protect with secret header if you already use one
+  return true;
+}
 
 const BATCH_SIZE = 400;
 
-// Initialize Firebase Admin if not already initialized
-if (!getApps().length) {
-  initializeApp({
-    credential: cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
-  });
+export async function GET() {
+  if (!isAllowed()) {
+    return NextResponse.json({ ok: false, error: 'disabled' }, { status: 403 });
+  }
+  // TODO: your backfill logic using adminDb()
+  return NextResponse.json({ ok: true });
 }
 
-export async function POST(request: NextRequest) {
+export async function POST() {
+  if (!isAllowed()) {
+    return NextResponse.json({ ok: false, error: 'disabled' }, { status: 403 });
+  }
+  
   try {
-    // Authentication check
-    const authHeader = request.headers.get('authorization');
-    const backfillToken = request.headers.get('x-backfill-token');
-    
-    let isAuthorized = false;
-    
-    // Check for admin UID via Firebase Auth token
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      try {
-        const adminAuth = getAuth();
-        const decodedToken = await adminAuth.verifyIdToken(token);
-        const adminUid = process.env.ADMIN_UID;
-        if (adminUid && decodedToken.uid === adminUid) {
-          isAuthorized = true;
-        }
-      } catch (error) {
-        console.error('Failed to verify Firebase token:', error);
-      }
-    }
-    
-    // Check for backfill token
-    if (!isAuthorized && backfillToken) {
-      const expectedToken = process.env.BACKFILL_TOKEN;
-      if (expectedToken && backfillToken === expectedToken) {
-        isAuthorized = true;
-      }
-    }
-    
-    if (!isAuthorized) {
-      return NextResponse.json(
-        { error: 'Unauthorized. Requires valid Firebase Auth token for ADMIN_UID or BACKFILL_TOKEN header.' },
-        { status: 401 }
-      );
-    }
     
     console.log('Starting backfill for listings missing createdAt...');
     
@@ -71,17 +37,12 @@ export async function POST(request: NextRequest) {
     let hasMore = true;
     
     while (hasMore) {
-      if (!db) {
-        throw new Error("Firestore is not initialized. Check Firebase settings.");
-      }
       // Query for listings without createdAt field
-      const q = query(
-        collection(db, 'listings'),
-        where('createdAt', '==', null),
-        limit(BATCH_SIZE)
-      );
+      const q = adminDb().collection('listings')
+        .where('createdAt', '==', null)
+        .limit(BATCH_SIZE);
       
-      const querySnapshot = await getDocs(q);
+      const querySnapshot = await q.get();
       const docs = querySnapshot.docs;
       
       if (docs.length === 0) {
@@ -90,13 +51,13 @@ export async function POST(request: NextRequest) {
       }
       
       // Create batch update
-      const batch = writeBatch(db);
+      const batch = adminDb().batch();
       
       docs.forEach((docSnapshot) => {
-        const docRef = doc(db, 'listings', docSnapshot.id);
+        const docRef = adminDb().collection('listings').doc(docSnapshot.id);
         batch.update(docRef, {
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp()
         });
       });
       
@@ -117,12 +78,10 @@ export async function POST(request: NextRequest) {
     // Also check for listings where createdAt is undefined (not just null)
     console.log('Checking for listings with undefined createdAt...');
     
-    const allListingsQuery = query(
-      collection(db, 'listings'),
-      limit(1000) // Reasonable limit for this check
-    );
+    const allListingsQuery = adminDb().collection('listings')
+      .limit(1000); // Reasonable limit for this check
     
-    const allListingsSnapshot = await getDocs(allListingsQuery);
+    const allListingsSnapshot = await allListingsQuery.get();
     const undefinedCreatedAtDocs = allListingsSnapshot.docs.filter(doc => {
       const data = doc.data();
       return data.createdAt === undefined;
@@ -133,14 +92,14 @@ export async function POST(request: NextRequest) {
       
       // Process in batches
       for (let i = 0; i < undefinedCreatedAtDocs.length; i += BATCH_SIZE) {
-        const batch = writeBatch(db);
+        const batch = adminDb().batch();
         const batchDocs = undefinedCreatedAtDocs.slice(i, i + BATCH_SIZE);
         
         batchDocs.forEach((docSnapshot) => {
-          const docRef = doc(db, 'listings', docSnapshot.id);
+          const docRef = adminDb().collection('listings').doc(docSnapshot.id);
           batch.update(docRef, {
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp()
           });
         });
         

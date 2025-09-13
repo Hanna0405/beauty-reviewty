@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { uploadFilesAndGetURLs } from "@/lib/services/storage";
+import { uploadImageViaApi } from "@/lib/upload-client";
 
 type PhotoData = {
  url: string;
@@ -39,11 +39,14 @@ export default function PhotoPicker({ max = 10, onPhotosChange, currentPhotos = 
   // Upload immediately
   setUploading(true);
   try {
-   const result = await uploadFilesAndGetURLs(
-    `listings/${Date.now()}`,
-    picked
+   const folder = `listings/${Date.now()}`;
+   
+   // Upload files and get URLs
+   const urls = await Promise.all(
+    picked.map(async (file) => {
+     return await uploadImageViaApi(file, folder);
+    })
    );
-   const urls = result.urls;
 
    // Get image dimensions and create photo data
    const newPhotos: PhotoData[] = await Promise.all(

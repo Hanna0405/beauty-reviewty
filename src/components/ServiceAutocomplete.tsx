@@ -14,7 +14,9 @@ export default function ServiceAutocomplete({ value, onChange, options, placehol
  const [open, setOpen] = useState(false);
  const boxRef = useRef<HTMLDivElement>(null);
 
- const filtered = options.filter(o => o.toLowerCase().includes(input.toLowerCase()) && !value.includes(o));
+  const filtered = input.trim().length >= 2 
+    ? options.filter(o => o.toLowerCase().includes(input.toLowerCase()) && !value.includes(o))
+    : [];
 
  // Close dropdown when clicking outside
  useEffect(() => {

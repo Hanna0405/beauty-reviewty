@@ -1,102 +1,59 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-
-import { signInWithEmail, signInWithGoogle } from '@/lib/auth-actions';
-import { isFirebaseReady } from '@/lib/firebase';
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 
 export default function LoginPage() {
-const router = useRouter();
+ const router = useRouter();
+ const [form, setForm] = useState({ email: "", password: "" });
+ const [err, setErr] = useState<string | null>(null);
+ const [loading, setLoading] = useState(false);
 
-const [email, setEmail] = useState('');
-const [password, setPassword] = useState('');
+ const canSubmit = /\S+@\S+\.\S+/.test(form.email) && form.password.length >= 6;
 
-const [loading, setLoading] = useState(false);
-const [err, setErr] = useState<string>('');
+ async function onSubmit(e: React.FormEvent) {
+ e.preventDefault();
+ if (!canSubmit) return setErr("Email or password is invalid");
+ setErr(null); setLoading(true);
+ try {
+ await signInWithEmailAndPassword(auth, form.email, form.password);
+ router.push("/profile");
+ } catch (e:any) {
+ setErr(e?.message || "Login failed");
+ } finally { setLoading(false); }
+ }
 
-// 🔹 Редирект по роли пользователя
+ return (
+ <div className="min-h-[80vh] w-full bg-gradient-to-b from-pink-500 to-fuchsia-600 py-10">
+ <div className="mx-auto w-full max-w-lg rounded-2xl bg-white/95 p-8 shadow-xl">
+ <div className="mb-6 text-center">
+ <h1 className="text-2xl font-bold text-gray-900">Log in</h1>
+ </div>
 
-async function onEmailLogin(e: React.FormEvent) {
-e.preventDefault();
-if (!isFirebaseReady) {
-setErr("Authentication is not configured. Please check Firebase settings.");
-return;
-}
-setErr('');
-setLoading(true);
-try {
-const user = await signInWithEmail(email.trim(), password);
-router.push('/masters');
-} catch (e: any) {
-setErr(e.message ?? 'Login error');
-} finally {
-setLoading(false);
-}
-}
+ <form onSubmit={onSubmit} className="space-y-4">
+ <input className="w-full rounded-md border border-gray-300 px-3 py-2 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-200"
+ placeholder="Email" type="email" value={form.email}
+ onChange={e=>setForm(s=>({...s, email:e.target.value}))} required />
+ <input className="w-full rounded-md border border-gray-300 px-3 py-2 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-200"
+ placeholder="Password" type="password" value={form.password}
+ onChange={e=>setForm(s=>({...s, password:e.target.value}))} required />
 
-async function onGoogle() {
-if (!isFirebaseReady) {
-setErr("Authentication is not configured. Please check Firebase settings.");
-return;
-}
-setErr('');
-setLoading(true);
-try {
-const user = await signInWithGoogle();
-router.push('/masters');
-} catch (e: any) {
-setErr(e.message ?? 'Google login error');
-} finally {
-setLoading(false);
-}
-}
+ {err && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
 
-return (
-<div className="max-w-md mx-auto p-6">
-<h1 className="text-2xl font-semibold mb-4">Log in</h1>
+ <button disabled={!canSubmit || loading}
+ className="w-full rounded-md bg-pink-600 px-4 py-2.5 font-semibold text-white hover:bg-pink-700 disabled:opacity-60">
+ {loading ? "Signing in..." : "Log in"}
+ </button>
+ </form>
 
-<form onSubmit={onEmailLogin} className="space-y-3">
-<input
-required
-type="email"
-value={email}
-onChange={(e) => setEmail(e.target.value)}
-placeholder="Email"
-className="w-full border rounded px-3 py-2"
-/>
-<input
-required
-type="password"
-value={password}
-onChange={(e) => setPassword(e.target.value)}
-placeholder="Password"
-className="w-full border rounded px-3 py-2"
-/>
-
-{err && <p className="text-red-600 text-sm">{err}</p>}
-
-<button
-type="submit"
-disabled={loading}
-className="w-full py-2 rounded bg-black text-white"
->
-{loading ? 'Signing in…' : 'Log in'}
-</button>
-</form>
-
-<button
-onClick={onGoogle}
-disabled={loading}
-className="w-full py-2 rounded border mt-3"
->
-Sign in with Google
-</button>
-
-<Link href="/auth/signup" className="block text-center underline mt-3">
-Don’t have an account? Sign up
-</Link>
-</div>
-);
+ <p className="mt-4 text-center text-sm text-gray-600">
+ No account?{" "}
+ <Link href="/auth/signup" className="font-medium text-pink-600 hover:underline">Sign up</Link>
+ </p>
+ </div>
+ </div>
+ );
 }

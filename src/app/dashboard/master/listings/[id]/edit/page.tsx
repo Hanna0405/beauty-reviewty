@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { doc, getDoc } from "firebase/firestore";
-import { db, auth } from "@/lib/firebase";
+import { requireDb, requireAuth } from "@/lib/firebase/client";
 import { updateListing } from "@/lib/firestore-listings";
 import { useToast } from "@/components/ui/Toast";
 import CityAutocomplete from "@/components/CityAutocomplete";
@@ -56,7 +56,7 @@ export default function EditListingPage() {
  useEffect(() => {
  (async () => {
       try {
-        const listingRef = doc(db, "listings", id);
+        const listingRef = doc(requireDb(), "listings", id);
         const listingSnap = await getDoc(listingRef);
         
         if (listingSnap.exists()) {
@@ -122,7 +122,7 @@ export default function EditListingPage() {
  try {
  setSaving(true);
       
-      const listingRef = doc(db, "listings", id);
+      const listingRef = doc(requireDb(), "listings", id);
       const formData = {
         title,
         city,
@@ -136,7 +136,7 @@ export default function EditListingPage() {
       };
 
       // Save using standardized helper
-      await updateListing(listingRef, auth.currentUser?.uid || "", formData);
+      await updateListing(listingRef, requireAuth().currentUser?.uid || "", formData);
       console.info("[BR][EditListing] Updated successfully:", id);
       
       showToast("Listing updated successfully", "success");
@@ -260,7 +260,7 @@ export default function EditListingPage() {
             photos={photos}
             onChange={setPhotos}
             maxPhotos={10}
-            userId={auth.currentUser?.uid || ""}
+            userId={requireAuth().currentUser?.uid || ""}
             listingId={id}
           />
         </div>

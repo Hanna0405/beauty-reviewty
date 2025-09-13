@@ -1,26 +1,22 @@
-import { 
-  collection, 
-  doc, 
-  getDoc, 
-  getDocs, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  query as fsQuery, 
-  where,
-  getFirestore, 
-  orderBy, 
-  serverTimestamp,
-  limit,
-  startAfter,
-  QueryDocumentSnapshot,
-  DocumentData,
+'use client';
+
+import { requireDb } from '@/lib/firebase/client';
+import {
+  collection,
+  doc,
+  addDoc,
   setDoc,
-  GeoPoint
+  updateDoc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  limit,
+  serverTimestamp,
+  type Firestore,
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import type { Master, Listing, SearchFiltersValue, MasterProfileFormData } from '@/types';
-import { handleFirestoreErrorLegacy } from '@/lib/firestoreErrorHandler';
 
 // Helper function to strip undefined values
 function stripUndefined(obj: any): any {
@@ -35,10 +31,7 @@ function stripUndefined(obj: any): any {
 
 // Get a single master listing by ID
 export async function getById(id: string): Promise<Master | null> {
-  if (!db) {
-    if (process.env.NODE_ENV !== "production") console.warn("Firestore is not initialized (missing env).");
-    return null;
-  }
+  const db = requireDb();
   
   try {
     const docRef = doc(db, 'masters', id);
@@ -56,10 +49,7 @@ export async function getById(id: string): Promise<Master | null> {
 
 // Get a single listing by ID
 export async function getListingById(id: string): Promise<Listing | null> {
-  if (!db) {
-    if (process.env.NODE_ENV !== "production") console.warn("Firestore is not initialized (missing env).");
-    return null;
-  }
+  const db = requireDb();
   
   try {
     const docRef = doc(db, 'listings', id);
@@ -75,16 +65,14 @@ export async function getListingById(id: string): Promise<Listing | null> {
   }
 }
 
-// Get all listings for a specific owner
-export async function listByOwner(uid: string): Promise<Master[]> {
-  if (!db) {
-    if (process.env.NODE_ENV !== "production") console.warn("Firestore is not initialized (missing env).");
-    return [];
-  }
+// Get all masters for a specific user
+export async function getByUid(uid: string): Promise<Master[]> {
+  const db = requireDb();
   
   try {
-    const q = fsQuery(
-      collection(db, 'masters'),
+    const col = collection(db, 'masters');
+    const q = query(
+      col,
       where('uid', '==', uid),
       orderBy('createdAt', 'desc')
     );
@@ -95,25 +83,22 @@ export async function listByOwner(uid: string): Promise<Master[]> {
       ...doc.data()
     })) as Master[];
   } catch (error) {
-    console.error('Error getting masters by owner:', error);
+    console.error('Error getting masters by UID:', error);
     throw error;
   }
 }
 
-// Get all listings for a specific owner (new listings collection)
-export async function listListingsByOwner(ownerId: string): Promise<Listing[]> {
-  if (!db) {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("Firestore is not initialized. Returning empty listings list.");
-    }
-    return [];
-  }
+// Get all listings for a specific owner
+export async function getListingsByOwner(ownerId: string, limitCount: number = 50): Promise<Listing[]> {
+  const db = requireDb();
+  
   try {
-    const q = fsQuery(
-      collection(db, 'listings'),
+    const col = collection(db, 'listings');
+    const q = query(
+      col,
       where('ownerUid', '==', ownerId),
       orderBy('createdAt', 'desc'),
-      limit(50)
+      limit(limitCount)
     );
     
     const querySnapshot = await getDocs(q);
@@ -123,229 +108,169 @@ export async function listListingsByOwner(ownerId: string): Promise<Listing[]> {
     })) as Listing[];
   } catch (error) {
     console.error('Error getting listings by owner:', error);
-    const errorMessage = handleFirestoreErrorLegacy(error);
-    throw new Error(errorMessage);
-  }
-}
-
-// Query masters with filters (legacy)
-export async function query(filters: Partial<SearchFiltersValue>): Promise<Master[]> {
-  if (!db) {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("Firestore is not initialized. Returning empty masters list.");
-    }
-    return [];
-  }
-  try {
-    let q = fsQuery(collection(db, 'masters'), where('status', '==', 'active'));
-
-    // Apply filters
-    if (filters.city) {
-      q = fsQuery(q, where('city', '==', filters.city));
-    }
-
-    if (filters.service) {
-      q = fsQuery(q, where('services', 'array-contains', filters.service));
-    }
-
-    if (filters.languages && filters.languages.length > 0) {
-      q = fsQuery(q, where('languages', 'array-contains-any', filters.languages));
-    }
-
-    // Price filter
-    if (filters.price && filters.price !== 'all') {
-      let minPrice = 0;
-      let maxPrice = Infinity;
-      
-      switch (filters.price) {
-        case 'low':
-          maxPrice = 50;
-          break;
-        case 'mid':
-          minPrice = 50;
-          maxPrice = 150;
-          break;
-        case 'high':
-          minPrice = 150;
-          break;
-      }
-      
-      if (minPrice > 0) {
-        q = fsQuery(q, where('priceFrom', '>=', minPrice));
-      }
-      if (maxPrice < Infinity) {
-        q = fsQuery(q, where('priceTo', '<=', maxPrice));
-      }
-    }
-
-    const querySnapshot = await getDocs(q);
-    let results = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Master[];
-
-    // Text search filter (client-side for now)
-    if (filters.q) {
-      const searchTerm = filters.q.toLowerCase();
-      results = results.filter(master => 
-        master.title.toLowerCase().includes(searchTerm) ||
-        master.about?.toLowerCase().includes(searchTerm) ||
-        master.services.some(service => service.toLowerCase().includes(searchTerm))
-      );
-    }
-
-    return results;
-  } catch (error) {
-    console.error('Error querying masters:', error);
     throw error;
   }
 }
 
-// Query public listings with filters (new listings collection)
-export async function queryPublicListings(filters: {
-  city?: string;
-  service?: string | string[];
-  languages?: string[];
-  isPublished?: boolean;
-}): Promise<Listing[]> {
-  if (!db) {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("Firestore is not initialized. Returning empty listings list.");
-    }
-    return [];
-  }
+// Search masters with filters
+export async function searchMasters(filters: Partial<SearchFiltersValue>, limitCount: number = 50): Promise<Master[]> {
+  const db = requireDb();
+  
   try {
-    const filterArray = [
-      where('isPublished', '==', filters.isPublished ?? true),
-      filters.city ? where('city', '==', filters.city) : null,
-      // Handle service filter - can be single string or array for IN query
-      filters.service ? 
-        (Array.isArray(filters.service) ? 
-          where('service', 'in', filters.service) : 
-          where('service', '==', filters.service)
-        ) : null,
-      // Handle languages filter - array-contains-any for multiple languages
-      filters.languages && filters.languages.length > 0 ? 
-        where('languages', 'array-contains-any', filters.languages) : null,
-    ].filter((item): item is NonNullable<typeof item> => Boolean(item));
+    let q = query(collection(db, 'masters'), where('status', '==', 'active'));
 
-    const q = fsQuery(
-      collection(db, 'listings'),
+    // Apply filters
+    if (filters.city) {
+      q = query(q, where('city', '==', filters.city));
+    }
+    
+    if (filters.service) {
+      q = query(q, where('services', 'array-contains', filters.service));
+    }
+    
+    if (filters.languages && filters.languages.length > 0) {
+      q = query(q, where('languages', 'array-contains-any', filters.languages));
+    }
+
+    q = query(q, orderBy('createdAt', 'desc'), limit(limitCount));
+    
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Master[];
+  } catch (error) {
+    console.error('Error searching masters:', error);
+    throw error;
+  }
+}
+
+// Search listings with filters
+export async function searchListings(filters: Partial<SearchFiltersValue>, limitCount: number = 50): Promise<Listing[]> {
+  const db = requireDb();
+  
+  try {
+    const filterArray: any[] = [];
+    
+    if (filters.city) {
+      filterArray.push(where('city', '==', filters.city));
+    }
+    
+    if (filters.service) {
+      filterArray.push(where('services', 'array-contains', filters.service));
+    }
+    
+    if (filters.languages && filters.languages.length > 0) {
+      filterArray.push(where('languages', 'array-contains-any', filters.languages));
+    }
+
+    const col = collection(db, 'listings');
+    const q = query(
+      col,
       ...filterArray,
       orderBy('createdAt', 'desc'),
-      limit(50)
+      limit(limitCount)
     );
-
+    
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as Listing[];
   } catch (error) {
-    console.error('Error querying public listings:', error);
-    const errorMessage = handleFirestoreErrorLegacy(error);
-    throw new Error(errorMessage);
+    console.error('Error searching listings:', error);
+    throw error;
   }
 }
 
-// Query public masters with filters (masters collection)
-export async function fetchPublicMasters(filters: {
-  city?: string;
-  service?: string;
-  languages?: string[];
-} = {}): Promise<Master[]> {
-  if (!db) {
-    if (process.env.NODE_ENV !== "production") console.warn("Firestore is not initialized (missing env).");
-    return [];
-  }
+// Fetch public masters with filters
+export async function fetchPublicMasters(filters: Partial<SearchFiltersValue>, limitCount: number = 50): Promise<Master[]> {
+  const db = requireDb();
   
   try {
-    const filterArray = [
-      // Use isPublished field if it exists, otherwise fall back to status
-      where('isPublished', '==', true),
-      filters.city ? where('city', '==', filters.city) : null,
-      // Handle service filter - check if service is in services array
-      filters.service ? where('services', 'array-contains', filters.service) : null,
-      // Handle languages filter - array-contains-any for multiple languages
-      filters.languages && filters.languages.length > 0 ? 
-        where('languages', 'array-contains-any', filters.languages) : null,
-    ].filter((item): item is NonNullable<typeof item> => Boolean(item));
+    const filterArray: any[] = [];
+    
+    if (filters.city) {
+      filterArray.push(where('city', '==', filters.city));
+    }
+    
+    if (filters.service) {
+      filterArray.push(where('services', 'array-contains', filters.service));
+    }
+    
+    if (filters.languages && filters.languages.length > 0) {
+      filterArray.push(where('languages', 'array-contains-any', filters.languages));
+    }
 
-    const q = fsQuery(
-      collection(db, 'masters'),
+    const col = collection(db, 'masters');
+    const q = query(
+      col,
       ...filterArray,
       orderBy('updatedAt', 'desc'),
-      limit(50)
+      limit(limitCount)
     );
-
+    
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as Master[];
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching public masters:', error);
+    throw error;
+  }
+}
+
+// Fetch public listings with filters
+export async function fetchPublicListings(filters: Partial<SearchFiltersValue>, limitCount: number = 50): Promise<Listing[]> {
+  const db = requireDb();
+  
+  try {
+    const filterArray: any[] = [];
     
-    // If isPublished field doesn't exist, try with status field
-    if (error?.code === 'failed-precondition' && error?.message?.includes('isPublished')) {
-      try {
-        const filterArray = [
-          where('status', '==', 'active'),
-          filters.city ? where('city', '==', filters.city) : null,
-          filters.service ? where('services', 'array-contains', filters.service) : null,
-          filters.languages && filters.languages.length > 0 ? 
-            where('languages', 'array-contains-any', filters.languages) : null,
-        ].filter((item): item is NonNullable<typeof item> => Boolean(item));
-
-        const q = fsQuery(
-          collection(db, 'masters'),
-          ...filterArray,
-          orderBy('updatedAt', 'desc'),
-          limit(50)
-        );
-
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as Master[];
-      } catch (fallbackError) {
-        console.error('Error fetching public masters (fallback):', fallbackError);
-        throw fallbackError;
-      }
+    if (filters.city) {
+      filterArray.push(where('city', '==', filters.city));
     }
     
+    if (filters.service) {
+      filterArray.push(where('services', 'array-contains', filters.service));
+    }
+    
+    if (filters.languages && filters.languages.length > 0) {
+      filterArray.push(where('languages', 'array-contains-any', filters.languages));
+    }
+
+    const col = collection(db, 'listings');
+    const q = query(
+      col,
+      ...filterArray,
+      orderBy('updatedAt', 'desc'),
+      limit(limitCount)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Listing[];
+  } catch (error) {
+    console.error('Error fetching public listings:', error);
     throw error;
   }
 }
 
 // Create a new master listing
-export async function create(uid: string, partial: Partial<Master>): Promise<string> {
-  if (!db) {
-    throw new Error("Firestore is not initialized. Check Firebase settings.");
-  }
+export async function createMaster(data: any): Promise<string> {
+  const db = requireDb();
+  
   try {
-    const now = serverTimestamp();
-    const data = {
-      uid,
-      ownerId: uid, // Add ownerId for consistency
-      title: partial.title ?? "",
-      about: partial.about ?? "",
-      city: partial.city ?? "",
-      location: partial.location ?? null,
-      services: partial.services ?? [],
-      languages: partial.languages ?? [],
-      photos: partial.photos ?? [],
-      status: partial.status ?? "active",
-      priceFrom: partial.priceFrom ?? null,
-      priceTo: partial.priceTo ?? null,
-      ratingAvg: 0,
-      ratingCount: 0,
-      createdAt: now,
-      updatedAt: now,
+    const col = collection(db, 'masters');
+    const payload = { 
+      ...data, 
+      createdAt: serverTimestamp(), 
+      updatedAt: serverTimestamp() 
     };
-    
-    const docRef = await addDoc(collection(db, "masters"), data);
+    const docRef = await addDoc(col, payload);
     return docRef.id;
   } catch (error) {
     console.error('Error creating master listing:', error);
@@ -353,11 +278,10 @@ export async function create(uid: string, partial: Partial<Master>): Promise<str
   }
 }
 
-// Update an existing master listing
-export async function update(id: string, partial: Partial<Master>): Promise<void> {
-  if (!db) {
-    throw new Error("Firestore is not initialized. Check Firebase settings.");
-  }
+// Update a master listing
+export async function updateMaster(id: string, partial: Partial<Master>): Promise<void> {
+  const db = requireDb();
+  
   try {
     const docRef = doc(db, 'masters', id);
     const updateData = stripUndefined({
@@ -372,77 +296,203 @@ export async function update(id: string, partial: Partial<Master>): Promise<void
   }
 }
 
-// Remove a master listing
-export async function remove(id: string): Promise<void> {
-  if (!db) {
-    throw new Error("Firestore is not initialized. Check Firebase settings.");
-  }
+// Delete a master listing
+export async function deleteMaster(id: string): Promise<void> {
+  const db = requireDb();
+  
   try {
     const docRef = doc(db, 'masters', id);
-    await deleteDoc(docRef);
+    await updateDoc(docRef, { deleted: true, deletedAt: serverTimestamp() });
   } catch (error) {
     console.error('Error removing master listing:', error);
     throw error;
   }
 }
 
-// Remove a listing from the listings collection
-export async function removeListing(id: string): Promise<void> {
-  if (!db) {
-    throw new Error("Firestore is not initialized. Check Firebase settings.");
-  }
+// Delete a listing
+export async function deleteListing(id: string): Promise<void> {
+  const db = requireDb();
+  
   try {
     const docRef = doc(db, 'listings', id);
-    await deleteDoc(docRef);
+    await updateDoc(docRef, { deleted: true, deletedAt: serverTimestamp() });
   } catch (error) {
     console.error('Error removing listing:', error);
     throw error;
   }
 }
 
-// Legacy function for backward compatibility
-export async function getByOwner(uid: string): Promise<Master | null> {
-  const listings = await listByOwner(uid);
-  return listings.length > 0 ? listings[0] : null;
-}
-
-export async function upsert(uid: string, data: Partial<Master>): Promise<void> {
-  const existing = await getByOwner(uid);
-  if (existing) {
-    await update(existing.id, data);
-  } else {
-    await create(uid, data);
-  }
-  }
-  
-  export type MasterProfilePayload = {
-    name: string;
-    city?: string;
-    coords?: { lat: number; lng: number } | null;
-    services?: string[];
-    languages?: string[];
-    priceMin?: number | null;
-    priceMax?: number | null;
-    about?: string | null;
-    photos?: string[];
+// Save master profile
+type MasterProfilePayload = {
+  name: string;
+  about: string;
+  city: string;
+  services: string[];
+  languages: string[];
+  avatarUrl?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  instagram?: string;
+  facebook?: string;
+  twitter?: string;
+  linkedin?: string;
+  youtube?: string;
+  tiktok?: string;
+  experience?: number;
+  education?: string;
+  certifications?: string[];
+  specialties?: string[];
+  priceRange?: {
+    min: number;
+    max: number;
   };
+  availability?: string;
+  travelRadius?: number;
+  responseTime?: string;
+  cancellationPolicy?: string;
+  depositRequired?: boolean;
+  depositAmount?: number;
+  paymentMethods?: string[];
+  insurance?: boolean;
+  portfolio?: string[];
+  testimonials?: Array<{
+    name: string;
+    text: string;
+    rating: number;
+    date: Date;
+  }>;
+  awards?: string[];
+  press?: string[];
+  socialProof?: {
+    followers?: number;
+    reviews?: number;
+    rating?: number;
+  };
+  businessHours?: {
+    [key: string]: {
+      open: string;
+      close: string;
+      closed: boolean;
+    };
+  };
+  location?: {
+    address: string;
+    city: string;
+    state: string;
+    zip: string;
+    country: string;
+    coordinates?: {
+      lat: number;
+      lng: number;
+    };
+  };
+  contactInfo?: {
+    phone?: string;
+    email?: string;
+    website?: string;
+    instagram?: string;
+    facebook?: string;
+    twitter?: string;
+    linkedin?: string;
+    youtube?: string;
+    tiktok?: string;
+  };
+  preferences?: {
+    clientTypes?: string[];
+    serviceTypes?: string[];
+    workingHours?: string[];
+    travelPreferences?: string[];
+    communicationPreferences?: string[];
+  };
+  settings?: {
+    profileVisibility?: 'public' | 'private' | 'unlisted';
+    notificationSettings?: {
+      email?: boolean;
+      sms?: boolean;
+      push?: boolean;
+    };
+    privacySettings?: {
+      showPhone?: boolean;
+      showEmail?: boolean;
+      showLocation?: boolean;
+    };
+  };
+};
+
+export async function saveMasterProfile(uid: string, data: MasterProfilePayload): Promise<void> {
+  const db = requireDb();
   
-  export async function saveMasterProfile(uid: string, data: MasterProfilePayload): Promise<void> {
-    // Use the shared db instance
+  try {
     const ref = doc(db, 'masters', uid); // one profile per master
     const payload: any = {
       name: data.name,
-      city: data.city ?? null,
-      services: data.services ?? [],
-      languages: data.languages ?? [],
-      priceMin: data.priceMin ?? null,
-      priceMax: data.priceMax ?? null,
-      about: data.about ?? null,
-      photos: data.photos ?? [],
+      about: data.about,
+      city: data.city,
+      services: data.services,
+      languages: data.languages,
+      avatarUrl: data.avatarUrl,
+      phone: data.phone,
+      email: data.email,
+      website: data.website,
+      instagram: data.instagram,
+      facebook: data.facebook,
+      twitter: data.twitter,
+      linkedin: data.linkedin,
+      youtube: data.youtube,
+      tiktok: data.tiktok,
+      experience: data.experience,
+      education: data.education,
+      certifications: data.certifications,
+      specialties: data.specialties,
+      priceRange: data.priceRange,
+      availability: data.availability,
+      travelRadius: data.travelRadius,
+      responseTime: data.responseTime,
+      cancellationPolicy: data.cancellationPolicy,
+      depositRequired: data.depositRequired,
+      depositAmount: data.depositAmount,
+      paymentMethods: data.paymentMethods,
+      insurance: data.insurance,
+      portfolio: data.portfolio,
+      testimonials: data.testimonials,
+      awards: data.awards,
+      press: data.press,
+      socialProof: data.socialProof,
+      businessHours: data.businessHours,
+      location: data.location,
+      contactInfo: data.contactInfo,
+      preferences: data.preferences,
+      settings: data.settings,
       updatedAt: serverTimestamp(),
     };
-    if (data.coords && typeof data.coords.lat === 'number' && typeof data.coords.lng === 'number') {
-      payload.coords = new GeoPoint(data.coords.lat, data.coords.lng);
-    }
+
     await setDoc(ref, payload, { merge: true });
+  } catch (error) {
+    console.error('Error saving master profile:', error);
+    throw error;
   }
+}
+
+// Helper functions for the examples you provided
+export async function fetchMastersLatest(opts?: { limitTo?: number; city?: string; service?: string }) {
+  const db = requireDb();
+  const col = collection(db, 'masters');
+
+  const parts: any[] = [];
+  if (opts?.city) parts.push(where('city', '==', opts.city));
+  if (opts?.service) parts.push(where('services', 'array-contains', opts.service));
+  parts.push(orderBy('createdAt', 'desc'));
+  if (opts?.limitTo) parts.push(limit(opts.limitTo));
+
+  const q = query(col, ...parts);
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+}
+
+export async function getMaster(id: string) {
+  const db = requireDb();
+  const ref = doc(db, 'masters', id);
+  const snap = await getDoc(ref);
+  return snap.exists() ? ({ id: snap.id, ...(snap.data() as any) }) : null;
+}

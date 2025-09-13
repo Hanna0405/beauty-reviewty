@@ -1,5 +1,7 @@
+"use client";
+
 import { getDownloadURL, ref, uploadBytes, uploadBytesResumable } from "firebase/storage";
-import { storage, getStorageSafe } from "@/lib/firebase";
+import { requireStorage } from "@/lib/firebase/client";
 
 export interface UploadProgress {
   fileIndex: number;
@@ -16,7 +18,7 @@ export interface UploadResult {
 
 /** Upload a single File/Blob to Firebase Storage under given path and return its download URL. */
 export async function uploadFileToStorage(path: string, file: File | Blob): Promise<string> {
- const r = ref(storage, path);
+ const r = ref(requireStorage(), path);
  const snap = await uploadBytes(r, file);
  return await getDownloadURL(snap.ref);
 }
@@ -27,7 +29,7 @@ export async function uploadFileWithProgress(
   file: File, 
   onProgress?: (progress: number) => void
 ): Promise<string> {
-  const storage = getStorageSafe();
+  const storage = requireStorage();
   if (!storage) throw new Error("Firebase Storage is not initialized. Check Firebase settings.");
   
   const r = ref(storage, path);

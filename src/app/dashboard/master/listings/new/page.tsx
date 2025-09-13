@@ -2,8 +2,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { doc, collection } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { auth } from "@/lib/firebase";
+import { requireDb, requireAuth } from "@/lib/firebase";
 import { createListing } from "@/lib/firestore-listings";
 import { useToast } from "@/components/ui/Toast";
 import CityAutocomplete from "@/components/CityAutocomplete";
@@ -76,6 +75,7 @@ export default function NewListingPage() {
 
  const onSubmit = async (e: React.FormEvent) => {
  e.preventDefault();
+ const auth = requireAuth();
  const user = auth.currentUser;
     if (!user) {
       showToast("Please sign in", "error");
@@ -88,6 +88,7 @@ export default function NewListingPage() {
  setSaving(true);
       
       // Create document reference first
+      const db = requireDb();
       const listingRef = doc(collection(db, "listings"));
       
       // Prepare form data
@@ -118,9 +119,27 @@ export default function NewListingPage() {
  };
 
  return (
- <div className="max-w-3xl mx-auto px-4 py-6">
-      <h1 className="text-2xl font-semibold mb-6 text-gray-800">Create New Listing</h1>
-      <form className="space-y-6 mobile-form" onSubmit={onSubmit}>
+ <div className="min-h-screen bg-gray-50">
+ <div className="max-w-3xl mx-auto px-4 py-8">
+ <div className="mb-8">
+ <div className="flex items-center justify-between mb-6">
+ <div>
+ <h1 className="text-3xl font-bold text-gray-900">Create New Listing</h1>
+ <p className="mt-1 text-sm text-gray-600">Add a new service listing to showcase your work</p>
+ </div>
+ <button
+ onClick={() => router.back()}
+ className="inline-flex items-center text-gray-600 hover:text-gray-900 font-medium"
+ >
+ <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+ <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+ </svg>
+ Back
+ </button>
+ </div>
+ </div>
+ <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+ <form className="space-y-6" onSubmit={onSubmit}>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Listing Title *</label>
           <input 
@@ -220,7 +239,7 @@ export default function NewListingPage() {
             photos={photos}
             onChange={setPhotos}
             maxPhotos={10}
-            userId={auth.currentUser?.uid || ""}
+            userId={requireAuth().currentUser?.uid || ""}
           />
  </div>
 
@@ -234,6 +253,8 @@ export default function NewListingPage() {
           </button>
  </div>
  </form>
+ </div>
+ </div>
  </div>
  );
 }

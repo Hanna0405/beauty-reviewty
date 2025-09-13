@@ -1,5 +1,7 @@
 /// src/lib/authClient.ts
-import { auth, db } from "@/lib/firebase";
+"use client";
+
+import { requireAuth, requireDb } from "@/lib/firebase/client";
 import {
  signInWithEmailAndPassword,
  createUserWithEmailAndPassword,
@@ -34,7 +36,7 @@ function mapAuthError(e: any): string {
 export const friendlyAuthError = (e: unknown) => new Error(mapAuthError(e));
 
 async function ensureUserDoc(u: User, role: "client"|"master" = "client") {
- const ref = doc(db, "users", u.uid);
+ const ref = doc(requireDb(), "users", u.uid);
  await setDoc(ref, {
  uid: u.uid,
  email: u.email ?? null,
@@ -47,12 +49,12 @@ async function ensureUserDoc(u: User, role: "client"|"master" = "client") {
 }
 
 export async function signInEmail(email: string, password: string) {
- const { user } = await signInWithEmailAndPassword(auth, email, password);
+ const { user } = await signInWithEmailAndPassword(requireAuth(), email, password);
  return user;
 }
 
 export async function signUpEmail(name: string, email: string, password: string, role: "client"|"master") {
- const { user } = await createUserWithEmailAndPassword(auth, email, password);
+ const { user } = await createUserWithEmailAndPassword(requireAuth(), email, password);
  if (name) await updateProfile(user, { displayName: name });
  await ensureUserDoc(user, role);
  return user;
@@ -61,7 +63,7 @@ export async function signUpEmail(name: string, email: string, password: string,
 export async function signInGoogle(role: "client"|"master" = "client") {
  const provider = new GoogleAuthProvider();
  try {
- const { user } = await signInWithPopup(auth, provider);
+ const { user } = await signInWithPopup(requireAuth(), provider);
  await ensureUserDoc(user, role);
  return user;
  } catch (e: any) {

@@ -1,0 +1,28 @@
+Firebase Storage Security Rules
+
+Copy and paste these rules into Firebase Console → Storage → Rules:
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Public read (tune later if needed)
+    match /{allPaths=**} {
+      allow read: if true;
+    }
+    match /profiles/{uid}/{all=**} {
+      allow write: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.size < 8 * 1024 * 1024;
+    }
+    match /listings/{listingId}/{all=**} {
+      allow write: if request.auth != null
+        && request.resource.size < 8 * 1024 * 1024;
+    }
+  }
+}
+
+Instructions:
+1. Open Firebase Console
+2. Go to Storage → Rules
+3. Replace existing rules with the above
+4. Click "Publish"

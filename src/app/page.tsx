@@ -1,70 +1,39 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from "react";
+import { safeGetCollection } from "@/lib/firestore/publicFetch";
+import { useAuth } from "@/context/AuthContext";
 import Link from 'next/link';
 import Image from 'next/image';
-import { listMasters, type Master } from '@/lib/masters';
-import type { MasterWithExtras } from '@/types';
 import SocialBar from '@/components/SocialBar';
 
+type MasterCard = { id: string; name: string; cityId?: string; avatar?: string; rating?: number; };
+type Service = { id: string; title: string; };
+type City = { id: string; title: string; };
+
 export default function HomePage() {
-   const [masters, setMasters] = useState<MasterWithExtras[]>([]);
- const [loading, setLoading] = useState(true);
+  const { loading: authLoading } = useAuth();
+  const [masters, setMasters] = useState<MasterCard[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [cities, setCities] = useState<City[]>([]);
+  const [loading, setLoading] = useState(true);
 
- // Загружаем немного анкет для главной
- useEffect(() => {
- let alive = true;
- (async () => {
- try {
- const mastersList = await listMasters({ take: 6 });
- if (!alive) return;
- const list: MasterWithExtras[] = mastersList.map(m => ({
- id: m.id,
- uid: m.id, // Use document ID as uid
- ownerId: m.id, // Add missing ownerId property
- title: (m as any).name ?? (m as any).displayName ?? '',
- name: (m as any).name ?? (m as any).displayName ?? '',
- displayName: (m as any).name ?? (m as any).displayName ?? '',
- city: m.city ?? '',
- about: m.about ?? '',
- bio: m.about ?? '',
- services: Array.isArray(m.services) ? m.services : [],
- languages: Array.isArray(m.languages) ? m.languages : [],
- photos: Array.isArray(m.photos) ? m.photos : [],
- photoUrls: Array.isArray(m.photos) ? m.photos : [],
- status: 'active' as const,
- ratingAvg: typeof (m as any).rating === 'number' ? (m as any).rating : undefined,
- reviewsCount: typeof (m as any).reviewsCount === 'number' ? (m as any).reviewsCount : undefined,
- createdAt: (m as any).createdAt,
- updatedAt: (m as any).updatedAt,
- }));
- setMasters(list);
- } finally {
- setLoading(false);
- }
- })();
- return () => { alive = false; };
- }, []);
+  useEffect(() => {
+    // Load ONLY public collections. DO NOT read /users here.
+    async function load() {
+      setLoading(true);
+      const [m, s, c] = await Promise.all([
+        safeGetCollection<MasterCard>("masters", (col) => col /* you can append orderBy('rating','desc'), limit(8) */),
+        safeGetCollection<Service>("services"),
+        safeGetCollection<City>("cities"),
+      ]);
+      setMasters(m); setServices(s); setCities(c);
+      setLoading(false);
+    }
+    load();
+  }, []);
 
- // Статистика
- const stats = useMemo(() => {
- const total = masters.length;
- const fivePlus = masters.filter(m => (m.reviewsCount ?? 0) >= 5).length;
- const services = new Set(masters.flatMap(m => m.services ?? []));
- const cities = new Set(masters.map(m => m.city).filter(Boolean));
- return { total, fivePlus, services: services.size, cities: cities.size };
- }, [masters]);
-
- // Популярные
- const popular = useMemo(() => {
- const withRank = [...masters].sort((a, b) => {
- const ra = a.ratingAvg ?? 0, rb = b.ratingAvg ?? 0;
- if (rb !== ra) return rb - ra;
- const ca = a.reviewsCount ?? 0, cb = b.reviewsCount ?? 0;
- return cb - ca;
- });
- return withRank.slice(0, 6);
- }, [masters]);
+  // Header should already handle 3 states; this component no longer depends on auth
 
  return (
  <main>
@@ -98,19 +67,19 @@ Log in
 <section className="py-10">
 <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
 <div className="bg-white shadow-sm border rounded-lg p-6">
-<p className="text-3xl font-bold text-pink-600">2</p>
+<p className="text-3xl font-bold text-pink-600">{masters.length}</p>
 <p className="text-gray-600">Masters</p>
 </div>
 <div className="bg-white shadow-sm border rounded-lg p-6">
-<p className="text-3xl font-bold text-pink-600">0</p>
-<p className="text-gray-600">5+ reviews</p>
+<p className="text-3xl font-bold text-pink-600">{masters.filter(m => (m.rating ?? 0) >= 4).length}</p>
+<p className="text-gray-600">4+ stars</p>
 </div>
 <div className="bg-white shadow-sm border rounded-lg p-6">
-<p className="text-3xl font-bold text-pink-600">2</p>
+<p className="text-3xl font-bold text-pink-600">{services.length}</p>
 <p className="text-gray-600">Services</p>
 </div>
 <div className="bg-white shadow-sm border rounded-lg p-6">
-<p className="text-3xl font-bold text-pink-600">2</p>
+<p className="text-3xl font-bold text-pink-600">{cities.length}</p>
 <p className="text-gray-600">Cities</p>
 </div>
 </div>
@@ -131,11 +100,11 @@ Log in
 
  {loading ? (
  <div className="section p-6 text-gray-500">Loading…</div>
- ) : popular.length === 0 ? (
+ ) : masters.length === 0 ? (
  <div className="section p-6 text-gray-500">No masters yet.</div>
  ) : (
  <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
- {popular.map(m => <MasterCard key={m.id} m={m} />)}
+ {masters.slice(0, 6).map(m => <MasterCard key={m.id} m={m} />)}
  </div>
  )}
 
@@ -148,39 +117,13 @@ Log in
 
 /* ===== Вспомогательные компоненты ===== */
 
-function StatCard({
- label,
- value,
- rightLink,
-}: {
- label: string;
- value: number | string;
- rightLink?: { href: string; text: string };
-}) {
- return (
- <div className="section flex items-center justify-between p-4">
- <div>
- <div className="text-2xl font-semibold">{value}</div>
- <div className="text-sm text-gray-500">{label}</div>
- </div>
- {rightLink && (
- <Link href={rightLink.href} className="text-sm text-pink-600 hover:underline">
- {rightLink.text}
- </Link>
- )}
- </div>
- );
-}
-
-function MasterCard({ m }: { m: MasterWithExtras }) {
+function MasterCard({ m }: { m: MasterCard }) {
  const [imageError, setImageError] = useState(false);
  
  const photo = imageError ? '/placeholder.jpg' : 
-   (m.photoUrls && m.photoUrls[0]) ? m.photoUrls[0] : '/placeholder.jpg';
+   m.avatar || '/placeholder.jpg';
 
- const rating = typeof m.ratingAvg === 'number' ? m.ratingAvg : undefined;
- const reviews = typeof m.reviewsCount === 'number' ? m.reviewsCount : 0;
- const services = (m.services ?? []).slice(0, 2);
+ const rating = typeof m.rating === 'number' ? m.rating : undefined;
 
  const handleImageError = () => {
    setImageError(true);
@@ -191,7 +134,7 @@ function MasterCard({ m }: { m: MasterWithExtras }) {
  <div className="relative h-44 w-full">
  <Image
  src={photo}
- alt={m.displayName ?? m.name ?? 'Master'}
+ alt={m.name ?? 'Master'}
  fill
  className="object-cover"
  sizes="(max-width:768px) 100vw, 33vw"
@@ -202,26 +145,18 @@ function MasterCard({ m }: { m: MasterWithExtras }) {
  <div className="p-4">
  <div className="flex items-start justify-between gap-3">
  <div>
- <h3 className="font-medium">{m.displayName || m.name || 'Master'}</h3>
- {m.city && <p className="text-sm text-gray-500">{m.city}</p>}
+ <h3 className="font-medium">{m.name || 'Master'}</h3>
+ {m.cityId && <p className="text-sm text-gray-500">{m.cityId}</p>}
  </div>
  </div>
 
  <div className="mt-2">
  {typeof rating === 'number' ? (
- <Stars rating={rating} reviews={reviews} />
+ <Stars rating={rating} reviews={0} />
  ) : (
  <span className="text-gray-400">No rating</span>
  )}
  </div>
-
- {services.length > 0 && (
- <div className="mt-3 flex flex-wrap gap-2">
- {services.map(s => (
- <span key={s} className="chip">{s}</span>
- ))}
- </div>
- )}
 
  <Link href={`/masters/${m.id}`} className="btn-pink mt-4 w-full text-center">
  View profile

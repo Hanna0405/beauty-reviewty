@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 
-import { auth, db } from '@/lib/firebase';
+import { requireAuth, requireDb } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import {
 collection,
@@ -34,12 +34,14 @@ const [loading, setLoading] = useState(true);
 
 // следим за авторизацией
 useEffect(() => {
-if (!auth) {
+try {
+  const auth = requireAuth();
+  const unsub = onAuthStateChanged(auth, (u) => setUid(u?.uid ?? null));
+  return () => unsub();
+} catch (error) {
   setUid(null);
   return;
 }
-const unsub = onAuthStateChanged(auth, (u) => setUid(u?.uid ?? null));
-return () => unsub();
 }, []);
 
 // live-подписка на профили текущего пользователя
@@ -51,6 +53,7 @@ return;
 }
 setLoading(true);
 
+const db = requireDb();
 const q = query(collection(db, 'profiles'), where('uid', '==', uid));
 const unsub = onSnapshot(
 q,
@@ -87,6 +90,7 @@ return () => unsub();
 async function removeProfile(id: string) {
 if (!confirm('Delete this profile?')) return;
 try {
+const db = requireDb();
 await deleteDoc(doc(db, 'profiles', id));
 } catch (e) {
 console.error(e);

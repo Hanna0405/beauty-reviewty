@@ -22,7 +22,7 @@ const SERVICE_OPTIONS = [
 
 export default function MasterForm() {
  const router = useRouter();
- const { user, role } = useAuth();
+ const { user } = useAuth();
  const uid = user?.uid ?? null; // <-- берём uid отдельно
 
  const [displayName, setDisplayName] = useState<string>(user?.displayName || '');
@@ -37,7 +37,7 @@ export default function MasterForm() {
  const [err, setErr] = useState<string | null>(null);
 
  // Дополнительная защита
- if (!user || role !== 'master') {
+ if (!user || user.role !== 'master') {
  return <div className="p-4">Only <b>master</b> can create a profile.</div>;
  }
 

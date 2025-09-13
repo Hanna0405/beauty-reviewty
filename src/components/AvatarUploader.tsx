@@ -1,14 +1,14 @@
 "use client";
 import React, { useCallback, useRef, useState, useEffect } from "react";
-import { deleteFile } from "@/lib/storage-helpers";
-import { uploadImage } from "@/lib/upload-image";
 import { useToast } from "@/components/ui/Toast";
 import { logStorageDebug } from "@/lib/debug-storage";
+import { uploadImageViaApi, deleteFromStorage } from "@/lib/upload-client";
 
 interface AvatarUploaderProps {
   currentUrl?: string | null;
   currentPath?: string | null;
   onUpload: (url: string, path: string) => void;
+  onChange?: (url: string, path: string) => void;
   userId: string;
   disabled?: boolean;
 }
@@ -21,14 +21,14 @@ export default function AvatarUploader({
   currentUrl,
   currentPath,
   onUpload,
+  onChange,
   userId,
   disabled = false
 }: AvatarUploaderProps) {
   const { showToast } = useToast();
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Debug storage bucket on mount
@@ -89,15 +89,18 @@ export default function AvatarUploader({
   }, []);
 
   // Upload avatar
-  const uploadAvatar = useCallback(async (file: File) => {
+  const handleUpload = useCallback(async (file: File) => {
     setUploading(true);
-    setUploadProgress(0);
     setError(null);
 
     try {
       // Validate file
+      if (!file) {
+        throw new Error('Select an image (JPEG/PNG/WebP)');
+      }
+
       if (!file.type.startsWith('image/')) {
-        throw new Error('Please select an image file');
+        throw new Error('Select an image (JPEG/PNG/WebP)');
       }
 
       if (file.size > 8 * 1024 * 1024) {
@@ -107,27 +110,35 @@ export default function AvatarUploader({
       // Debug logging
       console.info("[BR] will upload", file.name, file.type, file.size);
 
-      // Compress image
-      const compressedFile = await compressImage(file);
-
       // Create preview
-      const preview = URL.createObjectURL(compressedFile);
+      const preview = URL.createObjectURL(file);
       setPreviewUrl(preview);
 
-      // Generate path
-      const path = `profiles/${userId}/avatar-${Date.now()}.jpg`;
-      console.info("[BR][Storage] Upload path:", path);
-
       // Upload using server-side API
-      const { url, path: savedPath } = await uploadImage(compressedFile, path);
+      const url = await uploadImageViaApi(file, `masters/${userId}`);
+      const savedPath = url; // For now, using URL as path
       
       // Delete old avatar if exists
       if (currentPath) {
-        await deleteFile(currentPath);
+        await deleteFromStorage(currentPath);
       }
 
       // Update parent component
       onUpload(url, savedPath);
+      
+      // Persist avatar URL and path to Firestore via server API
+      try {
+        await fetch('/api/profile/set-avatar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid: userId, url, path: savedPath })
+        });
+        // Call onChange after successful API call
+        onChange?.(url, savedPath);
+      } catch (e) {
+        console.warn('Failed to persist avatar data to Firestore:', e);
+        // Don't fail the upload if Firestore update fails
+      }
       
       // Clean up preview URL
       URL.revokeObjectURL(preview);
@@ -146,29 +157,54 @@ export default function AvatarUploader({
       }
     } finally {
       setUploading(false);
-      setUploadProgress(0);
     }
-  }, [userId, currentPath, onUpload, compressImage, previewUrl]);
+  }, [userId, currentPath, onUpload, previewUrl]);
 
   // Handle file selection
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      uploadAvatar(file);
+      handleUpload(file);
     }
     // Reset input value
     e.target.value = '';
   };
 
   // Remove avatar
-  const removeAvatar = useCallback(async () => {
-    if (currentPath) {
-      await deleteFile(currentPath);
+  const handleRemove = useCallback(async () => {
+    setUploading(true);
+    setError(null);
+
+    try {
+      if (currentPath) {
+        await deleteFromStorage(currentPath);
+      }
+      
+      onUpload('', '');
+      setPreviewUrl(null);
+
+      // Clear avatar data in Firestore via server API
+      try {
+        await fetch('/api/profile/set-avatar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid: userId, url: null, path: null })
+        });
+        // Call onChange with null values after successful API call
+        onChange?.('', '');
+      } catch (e) {
+        console.warn('Failed to clear avatar data in Firestore:', e);
+        // Don't fail the remove if Firestore update fails
+      }
+    } catch (error) {
+      console.error('Remove error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Remove failed';
+      setError(errorMessage);
+      showToast(`Avatar remove failed: ${errorMessage}`, "error");
+    } finally {
+      setUploading(false);
     }
-    
-    onUpload('', '');
-    setPreviewUrl(null);
-  }, [currentPath, onUpload]);
+  }, [currentPath, onUpload, userId]);
 
   const displayUrl = previewUrl || currentUrl;
 
@@ -202,7 +238,7 @@ export default function AvatarUploader({
             <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
               <div className="text-white text-xs text-center">
                 <div className="animate-spin rounded-full h-6 w-6 border-2 border-white border-t-transparent mx-auto mb-1"></div>
-                {Math.round(uploadProgress)}%
+                Uploading...
               </div>
             </div>
           )}
@@ -231,7 +267,7 @@ export default function AvatarUploader({
           {displayUrl && (
             <button
               type="button"
-              onClick={removeAvatar}
+              onClick={handleRemove}
               disabled={uploading || disabled}
               className="px-4 py-2 border border-red-300 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >

@@ -1,36 +1,36 @@
 rules_version = '2';
 service cloud.firestore {
-  match /databases/{database}/documents {
+ match /databases/{database}/documents {
+ function isSignedIn() { return request.auth != null; }
+ function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
 
-    // Users: public read, user can write own doc
-    match /users/{uid} {
-      allow read: if true;
-      allow create, update, delete: if request.auth != null && request.auth.uid == uid;
-    }
+ match /services/{docId} { allow read: if true; allow write: if false; }
+ match /cities/{docId} { allow read: if true; allow write: if false; }
 
-    // Listings
-    match /listings/{id} {
-      function isOwner() {
-        return request.auth != null &&
-        ((request.resource.data.ownerUid == request.auth.uid) ||
-        (resource != null && resource.data.ownerUid == request.auth.uid));
-      }
+ match /users/{userId} {
+ allow read: if true;
+ allow create: if isOwner(userId);
+ allow update: if isOwner(userId);
+ allow delete: if false;
+ }
 
-      // Read: anyone can read published; owners can read their drafts
-      allow read: if resource != null && (
-        resource.data.status == "published" ||
-        (request.auth != null && resource.data.ownerUid == request.auth.uid)
-      );
+ match /masters/{userId} {
+ allow read: if true;
+ allow create, update: if isOwner(userId);
+ allow delete: if false;
+ }
 
-      // Create must set ownerUid to current user
-      allow create: if request.auth != null &&
-        request.resource.data.ownerUid == request.auth.uid;
+ match /listings/{listingId} {
+ allow read: if true;
+ allow create, update, delete: if isSignedIn()
+ && request.resource.data.ownerUid == request.auth.uid;
+ }
 
-      // Update/Delete only owner
-      allow update, delete: if isOwner();
-    }
-
-    // Default deny
-    match /{document=**} { allow read, write: if false; }
-  }
+ match /reviews/{reviewId} {
+ allow read: if true;
+ allow create: if isSignedIn();
+ allow update, delete: if isSignedIn()
+ && request.auth.uid == resource.data.authorUid;
+ }
+ }
 }

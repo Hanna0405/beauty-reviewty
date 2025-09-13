@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useAuth } from "@/components/auth/AuthProvider";
+import { useAuth } from "@/contexts/AuthContext";
 import { useSaveProfile } from "@/lib/hooks/useSaveProfile";
 import { MasterProfileSchema, type MasterProfileFormData } from '@/lib/schemas';
 import CityAutocomplete from "@/components/CityAutocomplete";

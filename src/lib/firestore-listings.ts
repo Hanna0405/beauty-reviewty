@@ -1,5 +1,7 @@
+"use client";
+
 import { doc, setDoc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { requireDb } from "@/lib/firebase/client";
 
 export async function createListing(listingRef: ReturnType<typeof doc>, userUid: string, data: any) {
   const payload = {
@@ -52,7 +54,7 @@ export async function updateListing(listingRef: ReturnType<typeof doc>, userUid:
 }
 
 export async function deleteListingCascade(listingId: string) {
-  const listingRef = doc(db, "listings", listingId);
+  const listingRef = doc(requireDb(), "listings", listingId);
   
   console.info("[BR][DeleteListing] Deleting listing:", listingId);
   

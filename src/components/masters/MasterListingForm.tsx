@@ -5,19 +5,31 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { auth, storage as storageInstance, db } from "@/lib/firebase";
+import { requireAuth, requireStorage, requireDb } from "@/lib/firebase/client";
 import { uploadFilesAndGetURLs } from "@/lib/services/storage";
+
+async function uploadImageViaApi(file: File, folder: string): Promise<string> {
+  const fd = new FormData();
+  fd.set('file', file);
+  fd.set('folder', folder);
+  const res = await fetch('/api/upload', { method: 'POST', body: fd });
+  const data = await res.json();
+  if (!res.ok || !data?.ok || !data?.url) {
+    throw new Error(data?.error || 'Upload failed');
+  }
+  return data.url as string;
+}
 import { createListingInBoth, patchListingPhotos } from "@/lib/firestore-listings";
 import { addDoc, collection, serverTimestamp, doc } from "firebase/firestore";
 import { stripUndefined, toNumberOrNull } from "@/lib/object-helpers";
-import { getApp } from "firebase/app";
-import { useAuth } from '@/components/auth/AuthProvider';
+import { useAuth } from '@/contexts/AuthContext';
 import type { Listing, GeoPoint } from '@/types';
 import { listingFormSchema, type ListingFormData } from '@/lib/schemas';
-import CityAutocomplete from '../CityAutocomplete';
-import ServiceAutocomplete from '../ServiceAutocomplete';
-import LanguagesField from '../LanguagesField';
-import { useToast } from '../ui/Toast';
+import CityAutocomplete from '@/components/CityAutocomplete';
+import ServiceAutocomplete from './ServiceAutocomplete';
+import LanguagesField from '@/components/LanguagesField';
+import { SERVICE_GROUPS } from '@/constants/services';
+import { useToast } from '@/components/ui/Toast';
 
 interface MasterListingFormProps {
   mode: 'create' | 'edit';
@@ -63,17 +75,17 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
 
   // Helper to ensure user is authenticated
   function assertSignedIn() {
-    const u = auth.currentUser;
+    const u = requireAuth().currentUser;
     if (!u) throw new Error("unauthenticated: please log in");
     return u;
   }
 
   // Dev test function to verify Firestore write permissions
   async function devTestWrite() {
-    const u = auth.currentUser;
+    const u = requireAuth().currentUser;
     if (!u) { alert("Not signed in"); return; }
     try {
-      await addDoc(collection(db, "listings"), {
+      await addDoc(collection(requireDb(), "listings"), {
         uid: u.uid,
         title: "DEV TEST",
         description: null,
@@ -97,12 +109,12 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
   // Debug function to verify Firebase project and auth
   function logFirebaseDebug() {
     try {
-      const app = getApp();
+      const app = requireAuth().app;
       // @ts-ignore
       // Some SDKs expose options directly as app.options
       const options: any = (app as any).options || {};
       const projectId = options.projectId || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-      const u = auth.currentUser;
+      const u = requireAuth().currentUser;
       console.log("[DEBUG] projectId:", projectId, "uid:", u?.uid);
       alert(`Project: ${projectId}\nUID: ${u?.uid ?? "null"}`);
     } catch (e) {
@@ -113,13 +125,13 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
   // Debug function to verify Firebase context (project, bucket, origin)
   function debugFirebaseContext() {
     try {
-      const app = getApp();
+      const app = requireAuth().app;
       // @ts-ignore
       const opts: any = (app as any).options || {};
       const projectId = opts.projectId || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
       // @ts-ignore
-      const bucket = storageInstance.bucket || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
-      const uid = auth.currentUser?.uid || "null";
+      const bucket = requireStorage().bucket || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+      const uid = requireAuth().currentUser?.uid || "null";
       alert(`Origin: ${window.location.origin}\nProject: ${projectId}\nBucket: ${bucket}\nUID: ${uid}`);
     } catch (e) {
       console.error("[DEBUG] error reading app/options:", e);
@@ -186,7 +198,7 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (saving) return;
-    const u = auth.currentUser;
+    const u = requireAuth().currentUser;
     if (!u) { alert("Please log in."); return; }
 
     const formData = watch();
@@ -209,7 +221,7 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
       setProgress(0);
 
       // 1) Create listing doc (in both collections)
-      const listingRef = doc(db, "listings", "");
+      const listingRef = doc(requireDb(), "listings", "");
       id = await createListingInBoth(listingRef, u.uid, stripUndefined({
         title,
         description: description || null,
@@ -222,17 +234,18 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
         status: "active" as const
       }));
 
-      // 2) Upload photos (convert HEIC->JPEG, retries, progress)
+      // 2) Upload photos using new API
       let urls: string[] = [];
       if (files?.length) {
         const candid = files.filter(f => (f.size || 0) <= 8 * 1024 * 1024);
-        const result = await uploadFilesAndGetURLs(`listings/${id}`, candid);
-        urls = result.urls;
+        urls = await Promise.all(
+          candid.map(file => uploadImageViaApi(file, `listings/${id}`))
+        );
       }
 
       // 3) Patch photos (if any)
       if (id && urls.length) {
-        const updateRef = doc(db, "listings", id);
+        const updateRef = doc(requireDb(), "listings", id);
         await patchListingPhotos(updateRef, u.uid, { photos: urls });
       }
 
@@ -358,11 +371,7 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
                 <ServiceAutocomplete
                   value={field.value || []}
                   onChange={(newServices) => setValue('services', newServices, { shouldDirty: true, shouldValidate: false })}
-                  options={[
-                    "Nails", "Haircut", "Makeup", "Brows & Lashes", "Massage", "Facial", "Waxing", 
-                    "Manicure", "Pedicure", "Hair Color", "Hair Styling", "Eyebrow Shaping", 
-                    "Eyelash Extensions", "Skin Care", "Body Treatment"
-                  ]}
+                  groups={SERVICE_GROUPS}
                   placeholder="Type to search services..."
                 />
                 

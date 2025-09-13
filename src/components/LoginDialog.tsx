@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 // Если у тебя alias "@/lib/..." работает — используй его.
 // Иначе оставь относительный путь, как ниже:
-import { auth, googleProvider } from '../lib/firebase';
+import { auth, googleProvider } from '@/lib/firebase';
 
 export default function LoginDialog() {
  const [open, setOpen] = useState(false);

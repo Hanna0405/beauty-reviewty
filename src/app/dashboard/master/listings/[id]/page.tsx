@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { useAuth } from '@/components/auth/AuthProvider';
-import { RequireRole } from '@/components/auth/guards';
-import { getListingById } from '@/lib/services/firestoreMasters';
+import { useAuth } from '@/contexts/AuthContext';
+import RequireRole from '@/components/auth/RequireRole';
+import { getListingById } from '@/lib/services/firestoreMastersClient';
 import GoogleMapsLoader from '@/components/GoogleMapsLoader';
 import type { Listing } from '@/types';
 
@@ -24,8 +24,8 @@ export default function EditListingPage() {
 
 function Content() {
   const { user } = useAuth();
-  const params = useParams();
-  const listingId = params.id as string;
+  const params = useParams<{ id: string }>();
+  const listingId = params?.id;
   
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,6 +38,12 @@ function Content() {
   }, [listingId]);
 
   const loadListing = async () => {
+    if (!listingId) {
+      setError('Invalid listing ID');
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
       const data = await getListingById(listingId);

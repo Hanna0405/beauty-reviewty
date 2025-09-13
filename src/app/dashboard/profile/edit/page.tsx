@@ -4,8 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 
 // ---- Adjust these imports to your project paths if they differ ----
-import { auth } from "@/lib/firebase"; // must export initialized Firebase Auth
-import { db, storage } from "@/lib/firebase"; // must export initialized Firestore & Storage
+import { requireAuth, requireDb, requireStorage } from "@/lib/firebase"; // must export initialized Firebase Auth
 import {
  doc,
  getDoc,
@@ -48,6 +47,7 @@ const emptyProfile = (uid: string): MasterProfile => ({
 
 export default function EditProfilePage() {
  const router = useRouter();
+ const auth = requireAuth();
  const user = auth.currentUser;
  const [loading, setLoading] = useState(true);
  const [saving, setSaving] = useState(false);
@@ -68,6 +68,7 @@ export default function EditProfilePage() {
  setLoading(true);
  setError(null);
  try {
+ const db = requireDb();
  const snap = await getDoc(doc(db, "masters", uid));
  if (snap.exists()) {
  const data = snap.data() as Partial<MasterProfile>;
@@ -134,6 +135,7 @@ export default function EditProfilePage() {
  }
 
  async function onSave(profileData: any) {
+ const db = requireDb();
  await setDoc(doc(db, "profiles", uid), profileData, { merge: true });
  router.refresh(); // force revalidate
  }

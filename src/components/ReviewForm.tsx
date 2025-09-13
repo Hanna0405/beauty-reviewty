@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { db } from '@/lib/firebase';
+import { requireDb } from '@/lib/firebase';
 import {
  addDoc, collection, serverTimestamp,
  getDocs, query, where
@@ -27,6 +27,7 @@ export default function ReviewForm({ profileId, clientId, clientName }: Props) {
  // проверяем: есть ли у клиента завершённая бронь ('done') по этой анкете
  useEffect(() => {
  (async () => {
+ const db = requireDb();
  const q1 = query(
  collection(db, 'bookings'),
  where('clientId', '==', clientId),
@@ -40,7 +41,7 @@ export default function ReviewForm({ profileId, clientId, clientName }: Props) {
  setEligible({ ok: false });
  }
  })();
- }, [db, clientId, profileId]);
+ }, [clientId, profileId]);
 
  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
  const f = e.target.files?.[0] || null;
@@ -62,9 +63,11 @@ export default function ReviewForm({ profileId, clientId, clientName }: Props) {
  return;
  }
  
- if (!db) {
- setMsg('Database is not available. Please check your configuration.');
- return;
+ try {
+   const db = requireDb();
+ } catch (error) {
+   setMsg('Database is not available. Please check your configuration.');
+   return;
  }
  
  setLoading(true);
@@ -73,6 +76,7 @@ export default function ReviewForm({ profileId, clientId, clientName }: Props) {
  let photoUrl: string | null = null;
  if (file) photoUrl = await uploadReviewImage(file);
 
+ const db = requireDb();
  await addDoc(collection(db, 'reviews'), {
  profileId,
  bookingId: eligible.bookingId,
