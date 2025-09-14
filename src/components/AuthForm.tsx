@@ -8,12 +8,10 @@ import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
 } from "firebase/auth";
-import { getFirebaseClientAuth } from "@/lib/firebase-client";
+import { auth } from "@/lib/firebase-client";
 import { signInWithGoogle } from "@/lib/auth-helpers";
 import { registerUser } from "@/lib/auth/registerUser";
 import { useAuth } from "@/context/AuthContext";
-
-const auth = getFirebaseClientAuth();
 import { ensureUserDoc } from "@/lib/users";
 import { useRouter } from "next/navigation";
 import { Field } from "@/components/auth/Field";
@@ -26,7 +24,7 @@ type Variant = "full" | "emailOnly";
 
 export default function AuthForm({ mode, variant = "full" }: { mode: Mode; variant?: Variant }) {
  const router = useRouter();
- const { user, isAuthReady } = useAuth();
+ const { user, loading } = useAuth();
  const [tab, setTab] = useState<"email" | "phone">("email");
  const [pending, setPending] = useState(false);
  const [error, setError] = useState<string | null>(null);
@@ -49,12 +47,12 @@ export default function AuthForm({ mode, variant = "full" }: { mode: Mode; varia
 
  // If already signed in, don't render the signup form
  useEffect(() => {
-   if (!isAuthReady) return;
+   if (loading) return;
    if (user && mode === "signup") {
      // User is already signed in, redirect or show message
      router.replace("/");
    }
- }, [isAuthReady, user, mode, router]);
+ }, [loading, user, mode, router]);
 
  async function afterLogin(user: any, maybeRole?: "client" | "master") {
  await ensureUserDoc(user, maybeRole);
@@ -126,10 +124,10 @@ export default function AuthForm({ mode, variant = "full" }: { mode: Mode; varia
  const showPhone = variant === "full" && enablePhone;
 
  // If already signed in, show message instead of form
- if (isAuthReady && user && mode === "signup") {
+ if (!loading && user && mode === "signup") {
    return (
      <div className="p-6">
-       <p>You are already signed in as <b>{user.email ?? user.displayName ?? "user"}</b>.</p>
+       <p>You are already signed in as <b>{user.email ?? "user"}</b>.</p>
        <p>Sign out first if you want to create a new account.</p>
      </div>
    );

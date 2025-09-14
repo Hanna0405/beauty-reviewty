@@ -22,10 +22,10 @@ const SERVICE_OPTIONS = [
 
 export default function MasterForm() {
  const router = useRouter();
- const { user } = useAuth();
+ const { user, profile, role } = useAuth();
  const uid = user?.uid ?? null; // <-- берём uid отдельно
 
- const [displayName, setDisplayName] = useState<string>(user?.displayName || '');
+ const [displayName, setDisplayName] = useState<string>(profile?.displayName || '');
  const [service, setService] = useState<string>(''); // одна услуга (обязательно)
  const [city, setCity] = useState<string>(''); // CityAutocomplete -> string
  const [languages, setLanguages] = useState<string[]>([]);
@@ -37,7 +37,7 @@ export default function MasterForm() {
  const [err, setErr] = useState<string | null>(null);
 
  // Дополнительная защита
- if (!user || user.role !== 'master') {
+ if (!user || role !== 'master') {
  return <div className="p-4">Only <b>master</b> can create a profile.</div>;
  }
 

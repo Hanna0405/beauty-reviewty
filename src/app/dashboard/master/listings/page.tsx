@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { collection, onSnapshot, orderBy, query, where } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firebase-client";
 import { useAuth } from "@/contexts/AuthContext";
 
 type PhotoRef = { url: string; path: string };
@@ -26,6 +26,7 @@ export default function ListingsIndexPage() {
 
  useEffect(() => {
  if (!user) { setItems([]); setLoading(false); return; }
+ if (!db) { setLoading(false); return; }
  const col = collection(db, "listings");
  // Requires composite index (ownerUid ASC, createdAt DESC)
  const q = query(col, where("ownerUid", "==", user.uid), orderBy("createdAt", "desc"));

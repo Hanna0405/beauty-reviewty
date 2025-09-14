@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { setDoc, doc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase-client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -36,6 +36,12 @@ export default function SignupPage() {
  setError(null);
  setLoading(true);
  try {
+ if (!auth) {
+ throw new Error("Auth is not initialized");
+ }
+ if (!db) {
+ throw new Error("Database is not initialized");
+ }
  const cred = await createUserWithEmailAndPassword(auth, form.email, form.password);
  if (form.displayName) {
  await updateProfile(cred.user, { displayName: form.displayName });

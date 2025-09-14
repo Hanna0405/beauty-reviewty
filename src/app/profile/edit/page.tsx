@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firebase-client";
 import { useAuth } from "@/contexts/AuthContext";
 import CityAutocompleteNew from "@/components/CityAutocompleteNew";
 import ServiceAutocomplete from "@/components/ServiceAutocomplete";
@@ -34,6 +34,7 @@ export default function ProfileEditPage() {
 
  useEffect(() => {
  if (!user) return;
+ if (!db) return;
  (async () => {
  const snap = await getDoc(doc(db, "users", user.uid));
  const data = snap.exists() ? (snap.data() as any) : {};
@@ -51,6 +52,7 @@ export default function ProfileEditPage() {
  async function onSave(e: React.FormEvent) {
  e.preventDefault();
  if (!user) return;
+ if (!db) return;
  setSaving(true);
  await updateDoc(doc(db, "users", user.uid), {
  displayName: form.displayName || null,

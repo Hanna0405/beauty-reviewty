@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { setDoc, doc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase-client";
 
 type Role = "master" | "client";
 
@@ -22,6 +22,12 @@ export default function SignupPage() {
  if (!canSubmit) return setErr("Please fill all fields correctly");
  setErr(null); setLoading(true);
  try {
+ if (!auth) {
+ throw new Error("Auth is not initialized");
+ }
+ if (!db) {
+ throw new Error("Database is not initialized");
+ }
  const cred = await createUserWithEmailAndPassword(auth, form.email, form.password);
  if (form.displayName) await updateProfile(cred.user, { displayName: form.displayName });
  await setDoc(doc(db, "users", cred.user.uid), {
