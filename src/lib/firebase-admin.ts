@@ -9,7 +9,7 @@ function getPrivateKey() {
   return raw.replace(/\\n/g, '\n');
 }
 
-const adminApp = getApps().length
+const app = getApps().length
   ? getApps()[0]
   : initializeApp({
       credential: process.env.FIREBASE_ADMIN_PRIVATE_KEY
@@ -22,6 +22,7 @@ const adminApp = getApps().length
       storageBucket: process.env.FIREBASE_STORAGE_BUCKET, // optional
     });
 
-export const adminAuth = getAuth(adminApp);
-export const adminDb = getFirestore(adminApp);
-export const adminStorage = getStorage(adminApp);
+export const adminApp = app;
+export const adminAuth = getAuth(app);
+export const adminDb = getFirestore(app);
+export const adminStorage = getStorage(app);

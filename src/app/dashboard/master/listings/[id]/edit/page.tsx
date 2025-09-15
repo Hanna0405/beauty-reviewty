@@ -123,20 +123,21 @@ export default function EditListingPage() {
  setSaving(true);
       
       const listingRef = doc(requireDb(), "listings", id);
-      const formData = {
-        title,
-        city,
-        services,
-        languages,
-        minPrice: priceMin ? parseFloat(priceMin) : null,
-        maxPrice: priceMax ? parseFloat(priceMax) : null,
-        description,
-        photos: photos.map(p => p.url),
-        status: "draft", // Keep as draft for now
-      };
+ const formData = {
+ title,
+ city,
+ services,
+ languages,
+ priceMin: priceMin ? parseFloat(priceMin) : null,
+ priceMax: priceMax ? parseFloat(priceMax) : null,
+ description,
+ photos: photos.map(p => ({ url: p.url, path: p.path || '', width: null, height: null })),
+ };
 
       // Save using standardized helper
-      await updateListing(listingRef, requireAuth().currentUser?.uid || "", formData);
+      const auth = requireAuth();
+ if (!auth.currentUser) throw new Error('User not authenticated');
+ await updateListing(auth.currentUser, id, formData);
       console.info("[BR][EditListing] Updated successfully:", id);
       
       showToast("Listing updated successfully", "success");

@@ -1,91 +1,78 @@
-"use client";
+'use client';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { db } from '@/lib/firebase-client';
+import { useAuthUser } from '@/lib/useAuthUser';
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { collection, onSnapshot, orderBy, query, where } from "firebase/firestore";
-import { db } from "@/lib/firebase-client";
-import { useAuth } from "@/contexts/AuthContext";
-
-type PhotoRef = { url: string; path: string };
 type Listing = {
  id: string;
- ownerUid: string;
  title: string;
- service: string;
- city: string;
- languages: string[];
- priceFrom: number;
- photos?: PhotoRef[];
- createdAt?: any;
+ city?: string;
+ services?: string[];
+ priceFrom?: number | null;
+ priceMin?: number | null;
+ priceMax?: number | null;
+ status?: 'active' | 'draft';
+ photos?: { url: string; path: string }[];
 };
 
-export default function ListingsIndexPage() {
- const { user } = useAuth();
+export default function MyListingsPage() {
+ const { user } = useAuthUser();
  const [items, setItems] = useState<Listing[]>([]);
- const [loading, setLoading] = useState(true);
 
  useEffect(() => {
- if (!user) { setItems([]); setLoading(false); return; }
- if (!db) { setLoading(false); return; }
- const col = collection(db, "listings");
- // Requires composite index (ownerUid ASC, createdAt DESC)
- const q = query(col, where("ownerUid", "==", user.uid), orderBy("createdAt", "desc"));
- const unsub = onSnapshot(q, (snap) => {
+ if (!user) return;
+ const q = query(
+ collection(db, 'listings'),
+ where('ownerId', '==', user.uid),
+ orderBy('updatedAt', 'desc')
+ );
+ return onSnapshot(q, (snap) => {
  setItems(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
- setLoading(false);
- }, () => setLoading(false));
- return () => unsub();
+ });
  }, [user]);
 
  return (
- <div className="mx-auto max-w-5xl px-4 py-8">
- <div className="flex items-center justify-between">
- <h1 className="text-2xl font-bold">My listings</h1>
- <Link
- href="/dashboard/master/listings/new"
- className="rounded-md bg-pink-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-pink-700"
- >
+ <div className="max-w-5xl mx-auto p-6">
+ <div className="flex items-center justify-between mb-6">
+ <h1 className="text-2xl font-semibold">My listings</h1>
+ <Link href="/dashboard/master/listings/new" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-pink-600 text-white hover:bg-pink-700 transition">
  + Add listing
  </Link>
  </div>
 
- {loading ? (
- <p className="mt-6 text-sm text-gray-500">Loading…</p>
- ) : items.length === 0 ? (
- <p className="mt-6 text-sm text-gray-600">No listings yet. Click "Add listing".</p>
+ <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+ {items.map((it) => (
+ <div key={it.id} className="rounded-xl border bg-white shadow-sm hover:shadow-md transition overflow-hidden">
+ <div className="aspect-[4/3] bg-gray-100">
+ {it.photos?.[0]?.url ? (
+ // eslint-disable-next-line @next/next/no-img-element
+ <img src={it.photos[0].url} alt={it.title} className="h-full w-full object-cover" />
  ) : (
- <ul className="mt-6 divide-y rounded-md border">
- {items.map((l) => (
- <li key={l.id} className="flex items-center justify-between gap-3 px-3 py-2">
- <div>
- <div className="font-medium">{l.title || "(untitled)"}</div>
- <div className="text-xs text-gray-500">
- {l.service || "-"} • {l.city || "-"} • from ${Number(l.priceFrom ?? 0)}
+ <div className="h-full w-full flex items-center justify-center text-gray-400">No photo</div>
+ )}
+ </div>
+ <div className="p-4 space-y-2">
+ <div className="flex items-center justify-between">
+ <h2 className="text-lg font-semibold truncate">{it.title || 'Untitled'}</h2>
+ <span className={`text-xs px-2 py-1 rounded-full ${it.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+ {it.status ?? 'draft'}
+ </span>
+ </div>
+ <div className="text-sm text-gray-600 truncate">— {it.city ?? '—'} • from {it.priceFrom ?? it.priceMin ?? '—'}</div>
+ <div className="flex gap-2 pt-2">
+ <Link href={`/masters/${it.id}`} className="px-3 py-1.5 rounded-lg border hover:bg-gray-50">View</Link>
+ <Link href={`/dashboard/master/listings/${it.id}/edit`} className="px-3 py-1.5 rounded-lg bg-pink-600 text-white hover:bg-pink-700">Edit</Link>
+ <Link href={`/api/listings/${it.id}/delete`} className="px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100">Delete</Link>
  </div>
  </div>
- <div className="flex items-center gap-2">
- <Link
- href={`/dashboard/master/listings/${l.id}`}
- className="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
- >
- View
- </Link>
- <Link
- href={`/dashboard/master/listings/edit/${l.id}`}
- className="rounded-md bg-gray-900 px-2.5 py-1.5 text-xs font-medium text-white hover:opacity-90"
- >
- Edit
- </Link>
- <Link
- href={`/dashboard/master/listings/delete/${l.id}`}
- className="rounded-md bg-red-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-red-700"
- >
- Delete
- </Link>
  </div>
- </li>
  ))}
- </ul>
+ </div>
+
+ {items.length === 0 && (
+ <div className="mt-16 text-center text-gray-500">No listings yet — create your first one!</div>
  )}
  </div>
  );

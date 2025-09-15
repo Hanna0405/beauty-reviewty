@@ -1,70 +1,72 @@
-"use client";
+// src/lib/firestore-listings.ts
+'use client';
+import { addDoc, setDoc, doc, collection, serverTimestamp, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase-client';
+import type { User } from 'firebase/auth';
 
-import { doc, setDoc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
-import { requireDb } from "@/lib/firebase/client";
-
-export async function createListing(listingRef: ReturnType<typeof doc>, userUid: string, data: any) {
-  const payload = {
-    title: data.title.trim(),
-    city: data.city,
-    services: data.services, // string[]
-    languages: data.languages, // string[]
-    minPrice: data.minPrice ?? null,
-    maxPrice: data.maxPrice ?? null,
-    description: data.description ?? "",
-    photos: data.photos ?? [], // [{url,path,w,h}]
-    status: data.status ?? "draft", // "draft" or "published"
-    ownerUid: userUid, // REQUIRED by rules
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  };
-  
-  console.info("[BR][CreateListing] Saving with payload:", { 
-    ownerUid: payload.ownerUid, 
-    status: payload.status, 
-    photosCount: payload.photos.length 
-  });
-  
-  await setDoc(listingRef, payload, { merge: false });
-  return listingRef.id;
-}
-
-export async function updateListing(listingRef: ReturnType<typeof doc>, userUid: string, data: any) {
-  const payload = {
-    title: data.title.trim(),
-    city: data.city,
-    services: data.services,
-    languages: data.languages,
-    minPrice: data.minPrice ?? null,
-    maxPrice: data.maxPrice ?? null,
-    description: data.description ?? "",
-    photos: data.photos ?? [],
-    status: data.status ?? "draft",
-    ownerUid: userUid, // keep invariant for rules
-    updatedAt: serverTimestamp(),
-  };
-  
-  console.info("[BR][UpdateListing] Updating with payload:", { 
-    ownerUid: payload.ownerUid, 
-    status: payload.status, 
-    photosCount: payload.photos.length 
-  });
-  
-  await updateDoc(listingRef, payload);
-}
-
-export async function deleteListingCascade(listingId: string) {
-  const listingRef = doc(requireDb(), "listings", listingId);
-  
-  console.info("[BR][DeleteListing] Deleting listing:", listingId);
-  
-  await deleteDoc(listingRef);
-}
-
-// Export compatibility functions
-export const listenAllMasters = (callback: (docs: any[]) => void) => {
-  // Placeholder for compatibility - returns a no-op unsubscribe function
-  return () => {};
+export type Photo = { url: string; path: string; width?: number | null; height?: number | null };
+export type NewListing = {
+ title: string;
+ city: string;
+ services: string[];
+ languages: string[];
+ priceMin?: number | null;
+ priceMax?: number | null;
+ description?: string;
+ photos: Photo[];
 };
-export const createListingInBoth = createListing; // Alias for compatibility
-export const patchListingPhotos = updateListing; // Alias for compatibility
+
+type AppUser = { uid: string; email: string | null };
+
+export async function createListing(user: User | AppUser, data: NewListing) {
+ const payload = {
+ title: (data.title ?? '').trim(),
+ city: data.city ?? '',
+ services: data.services ?? [],
+ languages: data.languages ?? [],
+ priceMin: data.priceMin ?? null,
+ priceMax: data.priceMax ?? null,
+ description: (data.description ?? '').trim(),
+ photos: data.photos ?? [],
+ ownerId: user.uid, // required by rules
+ ownerUid: user.uid, // extra safety (some rules check this)
+ createdAt: serverTimestamp(),
+ updatedAt: serverTimestamp(),
+ };
+ console.info('[BR][CreateListing] payload:', payload);
+ return await addDoc(collection(db, 'listings'), payload);
+}
+
+export async function updateListing(user: User | AppUser, id: string, data: Partial<NewListing>) {
+ // Ensure we never change owner on update
+ const ref = doc(db, 'listings', id);
+ const snap = await getDoc(ref);
+ if (!snap.exists()) throw new Error('Listing not found');
+ const existing = snap.data() as any;
+ const payload = {
+ title: data.title?.trim(),
+ city: data.city,
+ services: data.services,
+ languages: data.languages,
+ priceMin: data.priceMin,
+ priceMax: data.priceMax,
+ description: data.description?.trim(),
+ photos: data.photos,
+ updatedAt: serverTimestamp(),
+ ownerId: existing.ownerId, // keep owner
+ ownerUid: existing.ownerUid, // keep owner
+ };
+ console.info('[BR][UpdateListing] payload:', payload);
+ await setDoc(ref, payload, { merge: true });
+}
+
+// Legacy compatibility functions
+export async function createListingInBoth(user: User | AppUser, data: NewListing) {
+ console.warn('[BR][Deprecated] createListingInBoth is deprecated, use createListing instead');
+ return await createListing(user, data);
+}
+
+export async function patchListingPhotos(user: User | AppUser, id: string, photos: Photo[]) {
+ console.warn('[BR][Deprecated] patchListingPhotos is deprecated, use updateListing instead');
+ return await updateListing(user, id, { photos });
+}

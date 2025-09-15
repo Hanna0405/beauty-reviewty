@@ -10,7 +10,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { useToast } from "@/components/ui/Toast";
 import CityAutocompleteNew from "@/components/CityAutocompleteNew";
 import SmartAutocomplete from "@/components/SmartAutocomplete";
-import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/options";
+import { SERVICES_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/options";
 import { saveMyProfile, uploadAvatar } from "@/lib/db";
 
 
@@ -268,8 +268,8 @@ export default function EditProfilePage() {
      <label className="block text-sm font-medium text-gray-700 mb-2">Services</label>
      <SmartAutocomplete
       placeholder="Type to search services..."
-      options={SERVICE_OPTIONS.map(o => ({ ...o, leftIcon: <span>{o.label.split(" ").slice(-1)}</span> }))}
-      value={(form.services ?? []).map((s: string) => ({ value: s, label: SERVICE_OPTIONS.find(o => o.value === s)?.label || s }))}
+      options={SERVICES_OPTIONS.map(o => ({ ...o, leftIcon: <span>{o.label.split(" ").slice(-1)}</span> }))}
+      value={(form.services ?? []).map((s: string) => ({ value: s, label: SERVICES_OPTIONS.find(o => o.value === s)?.label || s }))}
       onChange={(val) => setField("services", Array.isArray(val) ? val.map(v => v.value) : (val ? [val.value] : []))}
       multi
      />

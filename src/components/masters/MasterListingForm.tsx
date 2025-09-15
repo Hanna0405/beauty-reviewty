@@ -222,19 +222,20 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
 
       // 1) Create listing doc (in both collections)
       const listingRef = doc(requireDb(), "listings", "");
-      id = await createListingInBoth(listingRef, u.uid, stripUndefined({
+      const docRef = await createListingInBoth(u, stripUndefined({
         title,
-        description: description || null,
+        description: description || '',
         city, 
         services, 
         languages,
-        minPrice, 
-        maxPrice,
+ priceMin: minPrice, 
+ priceMax: maxPrice,
         photos: [], 
         status: "active" as const
-      }));
+ }));
+ id = docRef.id;
 
-      // 2) Upload photos using new API
+ // 2) Upload photos using new API
       let urls: string[] = [];
       if (files?.length) {
         const candid = files.filter(f => (f.size || 0) <= 8 * 1024 * 1024);
@@ -246,7 +247,7 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
       // 3) Patch photos (if any)
       if (id && urls.length) {
         const updateRef = doc(requireDb(), "listings", id);
-        await patchListingPhotos(updateRef, u.uid, { photos: urls });
+        await patchListingPhotos(u, id, urls.map(url => ({ url, path: '', width: null, height: null })));
       }
 
       alert(urls.length ? "Listing created with photos!" : "Listing created (no photos uploaded).");

@@ -21,11 +21,17 @@ export default function AppHeader() {
  <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
  {/* LEFT: Logo + Masters */}
  <div className="flex items-center gap-6">
- <Link href="/" className="text-lg font-bold text-gray-900 hover:opacity-90">
- BeautyReviewty
+ <Link href="/" className="group relative w-10 h-10 flex items-center justify-center rounded-full bg-pink-500 text-white font-bold hover:bg-pink-600 transition-colors">
+ BR
+ <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-white text-gray-900 text-xs px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+  BeautyReviewty
+ </span>
  </Link>
  <Link href="/masters" className="text-sm font-medium text-gray-700 hover:text-gray-900">
- Masters
+  Masters
+ </Link>
+ <Link href="/reviewty" className="text-sm font-medium text-gray-700 hover:text-gray-900">
+  Reviewty
  </Link>
  </div>
 

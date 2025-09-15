@@ -92,21 +92,20 @@ export default function NewListingPage() {
       const listingRef = doc(collection(db, "listings"));
       
       // Prepare form data
-      const formData = {
-        title,
-        city,
-        services,
-        languages,
-        minPrice: priceMin ? parseFloat(priceMin) : null,
-        maxPrice: priceMax ? parseFloat(priceMax) : null,
-        description,
-        photos: photos.map(p => p.url),
-        status: "draft", // Start as draft, can be published later
-      };
+ const formData = {
+ title,
+ city,
+ services,
+ languages,
+ priceMin: priceMin ? parseFloat(priceMin) : null,
+ priceMax: priceMax ? parseFloat(priceMax) : null,
+ description,
+ photos: photos.map(p => ({ url: p.url, path: p.path || '', width: null, height: null })),
+ };
 
       // Save using standardized helper
-      await createListing(listingRef, user.uid, formData);
-      console.info("[BR][NewListing] Saved successfully:", listingRef.id);
+      const docRef = await createListing(user, formData);
+      console.info("[BR][NewListing] Saved successfully:", docRef.id);
       
       showToast("Listing created successfully", "success");
  router.push("/dashboard/master/listings");

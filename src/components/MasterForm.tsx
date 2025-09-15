@@ -2,11 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
+import { createListing } from '@/lib/firestore-listings';
 import CityAutocomplete from '@/components/CityAutocomplete';
-import LanguagesField from '@/components/LanguagesField';
+import AutocompleteMulti from '@/components/AutocompleteMulti';
+import { SERVICES_OPTIONS, LANGUAGE_OPTIONS } from '@/constants/options';
 import { uploadFilesAndGetURLs } from '@/lib/services/storage';
 
 const SERVICE_OPTIONS = [
@@ -25,12 +25,13 @@ export default function MasterForm() {
  const { user, profile, role } = useAuth();
  const uid = user?.uid ?? null; // <-- берём uid отдельно
 
- const [displayName, setDisplayName] = useState<string>(profile?.displayName || '');
- const [service, setService] = useState<string>(''); // одна услуга (обязательно)
+ const [title, setTitle] = useState<string>(profile?.displayName || '');
+ const [services, setServices] = useState<string[]>([]); // массив услуг
  const [city, setCity] = useState<string>(''); // CityAutocomplete -> string
  const [languages, setLanguages] = useState<string[]>([]);
- const [price, setPrice] = useState<string>(''); // опционально
- const [bio, setBio] = useState<string>('');
+ const [priceMin, setPriceMin] = useState<string>(''); // опционально
+ const [priceMax, setPriceMax] = useState<string>(''); // опционально
+ const [description, setDescription] = useState<string>('');
  const [files, setFiles] = useState<File[]>([]); // опционально
 
  const [busy, setBusy] = useState(false);
@@ -43,57 +44,42 @@ export default function MasterForm() {
 
  const canSubmit =
  !busy &&
- !!uid && // обязателен uid
- displayName.trim().length >= 2 &&
- !!service &&
+ !!user && // обязателен user
+ title.trim().length >= 2 &&
+ services.length > 0 &&
  city.trim().length > 0;
 
  async function onSubmit(e: React.FormEvent) {
  e.preventDefault();
- if (!canSubmit || !uid) return; // <-- страховка для TS
-
- if (!db) {
- setErr('Database is not available. Please check your configuration.');
- return;
- }
+ if (!canSubmit || !user) return; // <-- страховка для TS
 
  setBusy(true);
  setErr(null);
 
  try {
  // загрузка фото (если выбраны)
- let photoUrls: string[] = [];
+ let photos: { url: string; path: string; width: null; height: null }[] = [];
  if (files.length) {
- const result = await uploadFilesAndGetURLs(`profiles/${uid}`, files);
- photoUrls = result.urls;
+ const result = await uploadFilesAndGetURLs(`listings/${user.uid}`, files);
+ photos = result.urls.map(url => ({ url, path: '', width: null, height: null }));
  }
 
- const priceNum = price.trim() === '' ? null : Number(price.trim());
-
- // создаём анкету (источник правды — profiles)
- const docRef = await addDoc(collection(db, 'profiles'), {
- ownerId: uid,
- displayName: displayName.trim(),
- service, // одна услуга
- city: city.trim(),
+ const docRef = await createListing(user, {
+ title,
+ city,
+ services,
  languages,
- price: Number.isFinite(priceNum as number) ? priceNum : null,
- currency: 'CAD',
- bio: bio.trim() || null,
-
- photoURL: photoUrls[0] || null,
- photos: photoUrls,
-
- avgRating: 0,
- reviewsCount: 0,
-
- createdAt: serverTimestamp(),
- updatedAt: serverTimestamp(),
+ priceMin: priceMin.trim() === '' ? null : Number(priceMin.trim()),
+ priceMax: priceMax.trim() === '' ? null : Number(priceMax.trim()),
+ description,
+ photos,
  });
 
- router.replace(`/masters/${docRef.id}`);
+ console.info('[BR][MasterForm] Created listing:', docRef.id);
+ router.replace('/dashboard/master/listings');
  } catch (e: any) {
- setErr(e.message ?? 'Failed to create profile');
+ console.error('[BR][MasterForm] Failed to create listing:', e);
+ setErr(e.message ?? 'Failed to create listing');
  } finally {
  setBusy(false);
  }
@@ -106,8 +92,8 @@ export default function MasterForm() {
  <label className="block text-sm font-medium">Display name *</label>
  <input
  className="mt-1 w-full border rounded px-3 py-2"
- value={displayName}
- onChange={(e) => setDisplayName(e.target.value)}
+ value={title}
+ onChange={(e) => setTitle(e.target.value)}
  placeholder="Two Jewelry"
  required
  />
@@ -115,20 +101,14 @@ export default function MasterForm() {
 
  {/* Услуга (обязательно) */}
  <div>
- <div className="flex items-center gap-2">
- <label className="block text-sm font-medium">Service *</label>
- {!service && <span className="text-xs text-red-600">choose one</span>}
- </div>
- <select
- className="mt-1 w-full border rounded px-3 py-2"
- value={service}
- onChange={(e) => setService(e.target.value)}
- >
- <option value="">— select service —</option>
- {SERVICE_OPTIONS.map((s) => (
- <option key={s} value={s}>{s}</option>
- ))}
- </select>
+ <label className="block text-sm font-medium mb-2">Services *</label>
+ <AutocompleteMulti
+ value={services}
+ onChange={setServices}
+ options={SERVICES_OPTIONS}
+ placeholder="Select services..."
+ />
+ {services.length === 0 && <span className="text-xs text-red-600">choose at least one</span>}
  </div>
 
  {/* Город через Google Maps */}
@@ -143,7 +123,12 @@ export default function MasterForm() {
  {/* Языки (множественный выбор) */}
  <div>
  <label className="block text-sm font-medium">Languages</label>
- <LanguagesField value={languages} onChange={setLanguages} />
+ <AutocompleteMulti
+ value={languages}
+ onChange={setLanguages}
+ options={LANGUAGE_OPTIONS}
+ placeholder="Add languages..."
+ />
  </div>
 
  {/* Цена и Фото */}
@@ -154,8 +139,8 @@ export default function MasterForm() {
  type="number"
  min={0}
  className="mt-1 w-full border rounded px-3 py-2"
- value={price}
- onChange={(e) => setPrice(e.target.value)}
+ value={priceMin}
+ onChange={(e) => setPriceMin(e.target.value)}
  placeholder="e.g. 50"
  />
  </div>
@@ -180,8 +165,8 @@ export default function MasterForm() {
  <label className="block text-sm font-medium">Bio</label>
  <textarea
  className="mt-1 w-full border rounded px-3 py-2 min-h-[120px]"
- value={bio}
- onChange={(e) => setBio(e.target.value)}
+ value={description}
+ onChange={(e) => setDescription(e.target.value)}
  placeholder="Short description about you and your experience…"
  />
  </div>
@@ -194,7 +179,7 @@ export default function MasterForm() {
  disabled={!canSubmit}
  className="px-4 py-2 border rounded bg-black text-white disabled:opacity-60"
  >
- {busy ? 'Saving…' : 'Create profile'}
+ {busy ? 'Creating...' : 'Create Listing'}
  </button>
  <button
  type="button"
