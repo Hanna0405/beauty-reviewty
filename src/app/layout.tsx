@@ -16,7 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <GoogleMapsProvider>
           <ToastProvider>
             <Providers>
-              <header className="border-b">
+              <header className="relative z-50 border-b">
                 <AppHeader />
               </header>
               {children}

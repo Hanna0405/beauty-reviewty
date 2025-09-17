@@ -5,27 +5,10 @@ import { doc, collection } from "firebase/firestore";
 import { requireDb, requireAuth } from "@/lib/firebase";
 import { createListing } from "@/lib/firestore-listings";
 import { useToast } from "@/components/ui/Toast";
-import CityAutocomplete from "@/components/CityAutocomplete";
-import MultiSelectChips from "@/components/MultiSelectChips";
+import { CityAutocomplete, ServicesSelect, LanguagesSelect } from "@/components/selects";
 import ListingPhotos from "@/components/ListingPhotos";
 
-const SERVICE_OPTIONS = [
-  "Tattoo - Brows", "Brow Lamination", "Hair Braids", "Nails", 
-  "Makeup", "Hair Stylist", "Lashes", "Cosmetologist", "Botox",
-  "Lip augmentation", "Filler", "Biorevitalization", "Chemical peel",
-  "Microneedling", "PRP", "Facial cleansing", "Haircut", "Coloring",
-  "Balayage", "Keratin treatment", "Extensions", "Styling",
-  "Manicure", "Pedicure", "Gel polish", "Acrylic", "Nail extensions",
-  "Nail art", "Brow shaping", "Brow tint", "Lamination", "Lash lift",
-  "Lash extensions", "Day makeup", "Evening makeup", "Wedding makeup",
-  "Photoshoot makeup"
-];
-
-const LANGUAGE_OPTIONS = [
-  "English", "Ukrainian", "Russian", "Polish", "French", 
-  "Spanish", "German", "Italian", "Portuguese", "Chinese",
-  "Japanese", "Korean", "Arabic", "Hindi", "Turkish"
-];
+import { SERVICES_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/options";
 
 interface PhotoData {
   url: string;
@@ -41,7 +24,7 @@ export default function NewListingPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
  const [title, setTitle] = useState("");
-  const [city, setCity] = useState("");
+  const [city, setCity] = useState<any>(null);
  const [services, setServices] = useState<string[]>([]);
  const [languages, setLanguages] = useState<string[]>([]);
  const [priceMin, setPriceMin] = useState<string>("");
@@ -53,7 +36,7 @@ export default function NewListingPage() {
     const newErrors: Record<string, string> = {};
     
     if (!title.trim()) newErrors.title = "Title is required";
-    if (!city.trim()) newErrors.city = "City is required";
+    if (!city) newErrors.city = "City is required";
     if (services.length === 0) newErrors.services = "At least one service is required";
     if (languages.length === 0) newErrors.languages = "At least one language is required";
     
@@ -94,7 +77,7 @@ export default function NewListingPage() {
       // Prepare form data
  const formData = {
  title,
- city,
+ city: city?.slug ?? city?.label ?? "",
  services,
  languages,
  priceMin: priceMin ? parseFloat(priceMin) : null,
@@ -155,41 +138,39 @@ export default function NewListingPage() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">City *</label>
           <CityAutocomplete 
-            value={city} 
-            onChange={setCity} 
-            required
-            error={errors.city}
+            value={city?.label || city || ""} 
+            placeholder="City"
+            autoOpenOnType={true}
+            autoCloseOnSelect={true}
+            onChange={(cityStr) => setCity(cityStr ? { label: cityStr, slug: cityStr } : null)}
           />
+          {errors.city && <p className="text-red-500 text-sm mt-1">{errors.city}</p>}
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Services *</label>
-          <MultiSelectChips
-            value={services} 
-            onChange={setServices} 
-            options={SERVICE_OPTIONS}
-            placeholder="Type to search services..."
-            min={1}
-            max={20}
-            allowCustom={true}
-            required
-            error={errors.services}
+          <ServicesSelect
+            value={services}
+            onChange={(vals: string[]) => setServices(vals ?? [])}
+            options={SERVICES_OPTIONS}
+            placeholder="Services (start typing...)"
+            autoOpenOnType={true}
+            autoCloseOnSelect={true}
           />
+          {errors.services && <p className="text-red-500 text-sm mt-1">{errors.services}</p>}
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Languages *</label>
-          <MultiSelectChips
-            value={languages} 
-            onChange={setLanguages} 
+          <LanguagesSelect
+            value={languages}
+            onChange={(vals: string[]) => setLanguages(vals ?? [])}
             options={LANGUAGE_OPTIONS}
-            placeholder="Type to search languages..."
-            min={1}
-            max={10}
-            allowCustom={true}
-            required
-            error={errors.languages}
+            placeholder="Languages"
+            autoOpenOnType={true}
+            autoCloseOnSelect={true}
           />
+          {errors.languages && <p className="text-red-500 text-sm mt-1">{errors.languages}</p>}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

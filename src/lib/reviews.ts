@@ -26,6 +26,7 @@ export async function createReview(payload: {
  // Denormalized fields
  city?: string;
  services?: string[];
+ languages?: string[];
  masterRef?: { type: 'listing'|'community', id: string, slug?: string, listingId?: string };
 }) {
  const docData = {
@@ -38,6 +39,7 @@ export async function createReview(payload: {
  // Denormalized fields
  city: payload.city || null,
  services: payload.services || null,
+ languages: payload.languages || null,
  masterRef: payload.masterRef || null,
  createdAt: serverTimestamp(),
  updatedAt: serverTimestamp(),

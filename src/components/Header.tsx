@@ -5,6 +5,27 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 
+function BrandLogo() {
+  return (
+    <Link
+      href="/"
+      className="relative inline-flex items-center justify-center w-10 h-10 rounded-full bg-rose-600 text-white font-bold select-none group focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300"
+      aria-label="BeautyReviewty"
+    >
+      BR
+      {/* tooltip ABOVE */}
+      <span
+        className="pointer-events-none absolute left-1/2 bottom-[calc(100%+6px)] -translate-x-1/2 whitespace-nowrap
+                   rounded-md bg-rose-700 text-white text-[11px] px-2 py-1 opacity-0 -translate-y-1
+                   group-hover:opacity-100 group-hover:translate-y-0 transition"
+        role="tooltip"
+      >
+        BeautyReviewty
+      </span>
+    </Link>
+  );
+}
+
 export default function Header() {
  const { user, profile, loading } = useAuth();
 
@@ -14,9 +35,9 @@ export default function Header() {
  return (
  <header className="w-full">
  <nav className="mx-auto flex items-center justify-between gap-4 px-4 py-3">
- {/* LEFT: keep your logo/brand */}
+ {/* LEFT: BR logo with tooltip */}
  <div className="flex items-center gap-2">
- <Link href="/" className="font-semibold text-white">BeautyReviewty</Link>
+ <BrandLogo />
  </div>
 
  {/* RIGHT: Auth area (non-blocking) */}

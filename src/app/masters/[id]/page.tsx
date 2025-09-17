@@ -4,21 +4,36 @@ import { useParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase-client';
 import { ReviewsSection } from '@/components/ReviewsSection';
+import { fetchProfileByUid } from '@/lib/data/profiles';
 
 type Photo = { url: string; path: string; width?: number; height?: number };
 type Listing = {
- title: string;
- city?: string;
- services?: string[];
- languages?: string[];
- status?: string;
- photos?: Photo[];
+  title: string;
+  city?: string;
+  citySlug?: string;
+  masterUid?: string;
+  services?: string[];
+  languages?: string[];
+  status?: string;
+  photos?: Photo[];
+};
+type Profile = {
+  uid: string;
+  displayName?: string;
+  avatarUrl?: string;
+  city?: string;
+  cityLabel?: string;
+  services?: string[];
+  ratingAvg?: number;
+  reviewsCount?: number;
+  slug?: string;
 };
 
 export default function ListingView() {
  const params = useParams();
  const id = params?.id as string;
  const [data, setData] = useState<Listing | null>(null);
+ const [master, setMaster] = useState<Profile | null>(null);
  const [idx, setIdx] = useState(0);
 
  useEffect(() => {
@@ -28,6 +43,16 @@ export default function ListingView() {
  const d = snap.data() as any;
  setData(d);
  setIdx(0);
+ 
+        // Load master profile if masterUid is available
+        if (d.masterUid) {
+          try {
+            const masterProfile = await fetchProfileByUid(d.masterUid);
+            setMaster(masterProfile);
+          } catch (error) {
+            console.error('Error loading master profile:', error);
+          }
+        }
  }
  }
  load();
@@ -48,7 +73,18 @@ export default function ListingView() {
  const active = photos[idx];
 
  return (
- <div className="max-w-6xl mx-auto p-6 grid lg:grid-cols-[2fr,1fr] gap-8">
+ <div className="max-w-6xl mx-auto p-6">
+ {/* Breadcrumbs */}
+ <nav className="breadcrumbs text-sm mb-3">
+ <ul>
+ <li><a href="/masters">Masters</a></li>
+ {data?.citySlug && <li><a href={`/masters?city=${data.citySlug}`}>{data.city || 'City'}</a></li>}
+ {master?.slug && <li><a href={`/masters/${master.slug}`}>{master.displayName}</a></li>}
+ <li>Listing</li>
+ </ul>
+ </nav>
+
+ <div className="grid lg:grid-cols-[2fr,1fr] gap-8">
  {/* GALLERY */}
  <div>
  <div className="relative aspect-[4/3] bg-gray-100 rounded-xl overflow-hidden">
@@ -116,7 +152,27 @@ export default function ListingView() {
  </a>
  </aside>
 
+ {/* About the Master Card */}
+ {master && (
+ <aside className="card bg-base-100 border p-4 mt-4">
+ <div className="flex items-center gap-3">
+ <img src={master.avatarUrl || '/placeholder.jpg'} alt={master.displayName} className="w-12 h-12 rounded-full object-cover" />
+ <div>
+ <a href={`/masters/${master.slug || master.uid}`} className="font-medium hover:underline">{master.displayName}</a>
+ <div className="text-sm opacity-70">{master.city || 'City'}</div>
+ <div className="text-sm">★ {master.ratingAvg?.toFixed?.(1) ?? "—"} ({master.reviewsCount ?? 0})</div>
+ </div>
+ </div>
+ <div className="mt-3 flex flex-wrap gap-2">
+ {/* show up to 3 service tags from the master profile */}
+ {master.services?.slice(0,3).map(s => <span key={s} className="badge">{s}</span>)}
+ </div>
+ <a href={`/masters/${master.slug || master.uid}`} className="btn btn-sm btn-outline mt-3">View profile</a>
+ </aside>
+ )}
+
  <ReviewsSection listingId={id} />
+ </div>
  </div>
  );
 }

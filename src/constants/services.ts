@@ -85,6 +85,17 @@ export const SERVICE_GROUPS: ServiceGroup[] = [
       { value: 'massage-face', label: 'Face Massage' },
     ],
   },
+  {
+    id: 'tattoo',
+    label: 'Tattoo',
+    icon: '🖊️',
+    children: [
+      { value: 'tattoo', label: 'Tattoo' },
+      { value: 'fine-line-tattoo', label: 'Fine Line Tattoo' },
+      { value: 'sleeve-tattoo', label: 'Sleeve Tattoo' },
+      { value: 'tattoo-removal-laser', label: 'Tattoo Removal (Laser)' },
+    ],
+  },
 ];
 
 export function findServiceLabel(value: string): string {

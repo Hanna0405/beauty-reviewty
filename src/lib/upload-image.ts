@@ -12,11 +12,34 @@ export async function uploadViaApi(params: {
 
   const res = await fetch('/api/upload', { method: 'POST', body: form });
   if (!res.ok) {
-    let msg = 'API upload failed';
-    try { const j = await res.json(); msg += `: ${j.error ?? res.statusText}`; } catch {}
-    throw new Error(msg);
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Upload failed (${res.status}) ${txt}`);
   }
   return (await res.json()) as { ok: true; path: string; url: string };
+}
+
+/**
+ * Upload multiple images via API and return array of results
+ * @param files - Array of files to upload
+ * @returns Promise<Array<{url: string, path: string, w?: number, h?: number}>>
+ */
+export async function uploadImagesViaApi(files: File[]): Promise<Array<{url: string, path: string, w?: number, h?: number}>> {
+  const uploadPromises = files.map(async (file) => {
+    // Use a temporary scope for review photos
+    const result = await uploadViaApi({ 
+      file, 
+      scope: 'listing', 
+      id: 'temp', 
+      dir: 'reviews' 
+    });
+    return {
+      url: result.url,
+      path: result.path,
+      // Note: w/h would need to be added by the API if needed
+    };
+  });
+  
+  return Promise.all(uploadPromises);
 }
 
 /**

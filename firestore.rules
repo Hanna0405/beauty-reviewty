@@ -18,6 +18,17 @@ service cloud.firestore {
  allow read: if true;
  allow create, update: if isOwner(userId);
  allow delete: if false;
+ 
+ // Master reviews subcollection
+ match /reviews/{reviewId} {
+   allow read: if true; // anyone can read master reviews
+   allow create: if request.auth != null && 
+     request.resource.data.authorUid == request.auth.uid &&
+     request.resource.data.rating >= 1 && 
+     request.resource.data.rating <= 5;
+   allow update, delete: if request.auth != null && 
+     request.auth.uid == resource.data.authorUid;
+ }
  }
 
  match /profiles/{uid} {
@@ -35,15 +46,9 @@ service cloud.firestore {
 
  // Reviews
  match /reviews/{reviewId} {
- function isSignedIn() { return request.auth != null; }
- function newAuthor() { return request.resource.data.authorId ?? request.resource.data.authorUid; }
- function oldAuthor() { return resource.data.authorId ?? resource.data.authorUid; }
-
- allow read: if true;
- allow create: if isSignedIn() && newAuthor() == request.auth.uid;
- allow update, delete: if isSignedIn()
- && oldAuthor() == request.auth.uid
- && newAuthor() == oldAuthor(); // forbid changing author
+   allow read: if true; // anyone can read reviews
+   allow create: if request.auth != null;
+   allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
  }
 
  // Community Masters
@@ -53,6 +58,22 @@ service cloud.firestore {
  && request.resource.data.createdByUid == request.auth.uid;
  allow update, delete: if request.auth != null
  && resource.data.createdByUid == request.auth.uid;
+ }
+
+ // Public feed of people's reviews shown on /reviewty
+ match /publicReviews/{pubId} {
+   // Anyone can read the public feed
+   allow read: if true;
+
+   // Only authenticated users can create; basic validation
+   allow create: if request.auth != null
+     && request.resource.data.masterId is string
+     && request.resource.data.rating is int
+     && request.resource.data.rating >= 1
+     && request.resource.data.rating <= 5;
+
+   // Disallow updates/deletes from clients for now (optional: allow if authorUid == request.auth.uid)
+   allow update, delete: if false;
  }
  }
 }
