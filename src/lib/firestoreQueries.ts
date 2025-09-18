@@ -4,6 +4,7 @@ import { matchesAllFilters } from '@/lib/filtering';
 
 export type MasterFilters = {
   city?: string;
+  cityKey?: string;
   cityPlaceId?: string;
   services?: string[];
   languages?: string[];
@@ -43,6 +44,7 @@ export async function fetchMastersOnce(filters: MasterFilters, pageSize = 60, cu
 
 export type ListingFilters = {
   city?: string;
+  cityKey?: string;
   cityPlaceId?: string;
   services?: string[];
   languages?: string[];

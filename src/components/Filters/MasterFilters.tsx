@@ -5,14 +5,21 @@ import MultiSelectAutocomplete from '@/components/inputs/MultiSelectAutocomplete
 import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from '@/constants/catalog'; // ← use shared options
 
 type Props = {
-  value: { city?: string; services: string[]; languages: string[]; minRating?: number; name?: string };
+  value: { 
+    city?: string; 
+    cityPlaceId?: string;
+    services: string[]; 
+    languages: string[]; 
+    minRating?: number; 
+    name?: string 
+  };
   onChange: (v: Props['value']) => void;
   showName?: boolean;
 };
 
 export default function MasterFilters({ value, onChange, showName }: Props) {
   const [city, setCity] = useState<string | undefined>(value.city);
-  const [cityPlaceId, setCityPlaceId] = useState<string | undefined>((value as any).cityPlaceId);
+  const [cityPlaceId, setCityPlaceId] = useState<string | undefined>(value.cityPlaceId);
   const [services, setServices] = useState<string[]>(value.services ?? []);
   const [languages, setLanguages] = useState<string[]>(value.languages ?? []);
   const [minRating, setMinRating] = useState<number | undefined>(value.minRating);
