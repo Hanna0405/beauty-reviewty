@@ -323,10 +323,12 @@ export async function deleteListing(id: string): Promise<void> {
 }
 
 // Save master profile
+type CityObj = { name: string; placeId?: string } | null;
+
 type MasterProfilePayload = {
   name: string;
   about: string;
-  city: string;
+  city: string | CityObj;
   services: string[];
   languages: string[];
   avatarUrl?: string;
@@ -344,8 +346,8 @@ type MasterProfilePayload = {
   certifications?: string[];
   specialties?: string[];
   priceRange?: {
-    min: number;
-    max: number;
+    min: number | null;
+    max: number | null;
   };
   availability?: string;
   travelRadius?: number;
@@ -420,6 +422,13 @@ type MasterProfilePayload = {
   };
 };
 
+// Normalize city data before saving to Firestore
+function normalizeCity(c: string | CityObj): CityObj {
+  if (!c) return null;
+  if (typeof c === 'string') return { name: c };
+  return c; // already object {name, placeId?}
+}
+
 export async function saveMasterProfile(uid: string, data: MasterProfilePayload): Promise<void> {
   const db = requireDb();
   
@@ -428,7 +437,7 @@ export async function saveMasterProfile(uid: string, data: MasterProfilePayload)
     const payload: any = {
       name: data.name,
       about: data.about,
-      city: data.city,
+      city: normalizeCity(data.city),
       services: data.services,
       languages: data.languages,
       avatarUrl: data.avatarUrl,

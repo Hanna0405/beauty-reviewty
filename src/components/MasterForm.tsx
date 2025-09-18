@@ -65,7 +65,7 @@ export default function MasterForm() {
  photos = result.urls.map(url => ({ url, path: '', width: null, height: null }));
  }
 
- const cityObj = city ? { name: city, placeId: cityPlaceId } : null;
+ const cityObj: { name: string; placeId?: string } | null = city ? { name: city, placeId: cityPlaceId } : null;
 
  const docRef = await createListing(user, {
    title,
