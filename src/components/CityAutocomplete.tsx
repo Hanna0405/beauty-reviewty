@@ -81,57 +81,73 @@ export default function CityAutocomplete({ value, onChange, label = 'City', plac
     );
   }, [onChange, ensureServices, country]);
 
-  // Init standard Autocomplete
+  // ---- Init standard Autocomplete (safe for TS & runtime) ----
   useEffect(() => {
     let cleanup = () => {};
-    loadGoogleMaps().then((g) => {
-      if (!inputRef.current) return;
-      acRef.current = new g.maps.places.Autocomplete(inputRef.current!, {
-        types: ['(cities)'],
-        fields: ['address_components','formatted_address','place_id'],
-        ...(country ? { componentRestrictions: { country } as any } : {}),
-      });
+    loadGoogleMaps()
+      .then((g) => {
+        const el = inputRef.current;
+        if (!el) return;
 
-      const listener = acRef.current.addListener('place_changed', async () => {
-        const place = acRef.current!.getPlace();
-        const placeId = place?.place_id;
+        const ac = new g.maps.places.Autocomplete(el, {
+          types: ['(cities)'],
+          fields: ['address_components', 'formatted_address', 'place_id'],
+          ...(country ? { componentRestrictions: { country } as any } : {}),
+        });
 
-        // If Google didn't include components, fetch details by place_id
-        if (!place || !placeId) {
-          // fallback to resolving whatever is in the input
-          await resolveFreeText();
-          return;
-        }
+        acRef.current = ac; // keep in ref
 
-        let components = place.address_components;
-        let formatted = place.formatted_address;
+        const listener = ac.addListener('place_changed', async () => {
+          const place = typeof ac.getPlace === 'function' ? ac.getPlace() : ({} as any);
+          const placeId: string | undefined = (place as any)?.place_id;
 
-        if (!components) {
-          const g2 = await ensureServices();
-          await new Promise<void>((done) => {
-            psRef.current!.getDetails(
-              { placeId, fields: ['address_components','formatted_address','place_id'] },
-              (pl, status) => {
-                if (status === g2.maps.places.PlacesServiceStatus.OK && pl) {
-                  components = pl.address_components!;
-                  formatted = pl.formatted_address!;
+          if (!placeId) {
+            await resolveFreeText();
+            return;
+          }
+
+          let components: google.maps.GeocoderAddressComponent[] | undefined = place.address_components;
+          let formatted: string | undefined = place.formatted_address;
+
+          if (!components || !formatted) {
+            const g2 = await ensureServices();
+            await new Promise<void>((done) => {
+              psRef.current!.getDetails(
+                { placeId, fields: ['address_components','formatted_address','place_id'] },
+                (pl, status) => {
+                  if (status === g2.maps.places.PlacesServiceStatus.OK && pl) {
+                    components = pl.address_components ?? components;
+                    formatted = pl.formatted_address ?? formatted;
+                  }
+                  done();
                 }
-                done();
-              }
-            );
+              );
+            });
+          }
+
+          const norm = buildCityFromComponents(components, placeId);
+          const labelVal =
+            norm?.name ||
+            formatted ||
+            inputRef.current?.value ||
+            '';
+
+          onChange(labelVal || undefined, {
+            placeId: norm?.placeId ?? placeId,
+            key: norm?.key,
+            countryCode: norm?.countryCode,
+            adminCode: norm?.adminCode,
           });
-        }
 
-        const norm = buildCityFromComponents(components!, placeId);
-        const labelVal = norm?.name || formatted || inputRef.current!.value || '';
-        onChange(labelVal || undefined, { placeId: norm?.placeId ?? placeId, key: norm?.key, countryCode: norm?.countryCode, adminCode: norm?.adminCode });
-        if (inputRef.current) inputRef.current.value = labelVal;
-        inputRef.current?.blur();
-      });
+          if (inputRef.current) inputRef.current.value = labelVal;
+          inputRef.current?.blur();
+        });
 
-      cleanup = () => g.maps.event.removeListener(listener);
-    }).catch(() => {});
+        cleanup = () => g.maps.event.removeListener(listener);
+      })
+      .catch(() => {});
     return cleanup;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onChange, country, ensureServices, resolveFreeText]);
 
   // reflect external value
