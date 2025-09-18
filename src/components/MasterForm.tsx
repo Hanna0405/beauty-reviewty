@@ -20,6 +20,8 @@ const SERVICE_OPTIONS = [
  'Massage',
 ];
 
+type CityField = string | { name?: string; placeId?: string } | null | undefined;
+
 export default function MasterForm() {
  const router = useRouter();
  const { user, profile, role } = useAuth();
@@ -27,13 +29,15 @@ export default function MasterForm() {
 
  const [title, setTitle] = useState<string>(profile?.displayName || '');
  const [services, setServices] = useState<string[]>([]); // массив услуг
+
+ const c0 = (profile?.city as CityField);
+
  const [city, setCity] = useState<string | undefined>(
-   typeof profile?.city === 'string'
-     ? profile.city
-     : profile?.city?.name
+   !c0 ? undefined : (typeof c0 === 'string' ? c0 : c0.name)
  );
+
  const [cityPlaceId, setCityPlaceId] = useState<string | undefined>(
-   typeof profile?.city === 'object' ? profile.city?.placeId : undefined
+   (c0 && typeof c0 === 'object') ? c0.placeId : undefined
  );
  const [languages, setLanguages] = useState<string[]>([]);
  const [priceMin, setPriceMin] = useState<string>(''); // опционально
@@ -71,9 +75,8 @@ export default function MasterForm() {
  photos = result.urls.map(url => ({ url, path: '', width: null, height: null }));
  }
 
- const cityObj = city
-   ? { name: city, placeId: cityPlaceId }
-   : null;
+ const cityObj: { name: string; placeId?: string } | null =
+   city ? { name: city, placeId: cityPlaceId } : null;
 
  const docRef = await createListing(user, {
    title,
@@ -128,8 +131,8 @@ export default function MasterForm() {
  <CityAutocomplete
    value={city}
    onChange={(label, meta) => {
-     setCity(label || ''); // ensure always string
-     setCityPlaceId(meta?.placeId);
+     setCity(label); // string | undefined is OK
+     setCityPlaceId(meta?.placeId); // keep placeId in state
    }}
  />
  <p className="text-xs text-gray-500 mt-1">
