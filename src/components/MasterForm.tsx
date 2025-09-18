@@ -28,6 +28,7 @@ export default function MasterForm() {
  const [title, setTitle] = useState<string>(profile?.displayName || '');
  const [services, setServices] = useState<string[]>([]); // массив услуг
  const [city, setCity] = useState<string>(''); // CityAutocomplete -> string
+ const [cityPlaceId, setCityPlaceId] = useState<string | undefined>(undefined);
  const [languages, setLanguages] = useState<string[]>([]);
  const [priceMin, setPriceMin] = useState<string>(''); // опционально
  const [priceMax, setPriceMax] = useState<string>(''); // опционально
@@ -64,15 +65,17 @@ export default function MasterForm() {
  photos = result.urls.map(url => ({ url, path: '', width: null, height: null }));
  }
 
+ const cityObj = city ? { name: city, placeId: cityPlaceId } : null;
+
  const docRef = await createListing(user, {
- title,
- city,
- services,
- languages,
- priceMin: priceMin.trim() === '' ? null : Number(priceMin.trim()),
- priceMax: priceMax.trim() === '' ? null : Number(priceMax.trim()),
- description,
- photos,
+   title,
+   city: cityObj,
+   services,
+   languages,
+   priceMin: priceMin.trim() === '' ? null : Number(priceMin.trim()),
+   priceMax: priceMax.trim() === '' ? null : Number(priceMax.trim()),
+   description,
+   photos,
  });
 
  console.info('[BR][MasterForm] Created listing:', docRef.id);
@@ -114,7 +117,13 @@ export default function MasterForm() {
  {/* Город через Google Maps */}
  <div>
  <label className="block text-sm font-medium">City *</label>
- <CityAutocomplete value={city} onChange={setCity} />
+ <CityAutocomplete
+   value={city}
+   onChange={(label, meta) => {
+     setCity(label); // keep city name in state
+     setCityPlaceId(meta?.placeId); // add this new useState for placeId
+   }}
+ />
  <p className="text-xs text-gray-500 mt-1">
  Начните вводить и выберите город из выпадающего списка.
  </p>
