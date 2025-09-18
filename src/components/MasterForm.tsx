@@ -27,8 +27,14 @@ export default function MasterForm() {
 
  const [title, setTitle] = useState<string>(profile?.displayName || '');
  const [services, setServices] = useState<string[]>([]); // массив услуг
- const [city, setCity] = useState<string>(''); // CityAutocomplete -> string
- const [cityPlaceId, setCityPlaceId] = useState<string | undefined>(undefined);
+ const [city, setCity] = useState<string | undefined>(
+   typeof profile?.city === 'string'
+     ? profile.city
+     : profile?.city?.name
+ );
+ const [cityPlaceId, setCityPlaceId] = useState<string | undefined>(
+   typeof profile?.city === 'object' ? profile.city?.placeId : undefined
+ );
  const [languages, setLanguages] = useState<string[]>([]);
  const [priceMin, setPriceMin] = useState<string>(''); // опционально
  const [priceMax, setPriceMax] = useState<string>(''); // опционально
@@ -65,7 +71,9 @@ export default function MasterForm() {
  photos = result.urls.map(url => ({ url, path: '', width: null, height: null }));
  }
 
- const cityObj: { name: string; placeId?: string } | null = city ? { name: city, placeId: cityPlaceId } : null;
+ const cityObj = city
+   ? { name: city, placeId: cityPlaceId }
+   : null;
 
  const docRef = await createListing(user, {
    title,
@@ -120,8 +128,8 @@ export default function MasterForm() {
  <CityAutocomplete
    value={city}
    onChange={(label, meta) => {
-     setCity(label); // keep city name in state
-     setCityPlaceId(meta?.placeId); // add this new useState for placeId
+     setCity(label || ''); // ensure always string
+     setCityPlaceId(meta?.placeId);
    }}
  />
  <p className="text-xs text-gray-500 mt-1">
