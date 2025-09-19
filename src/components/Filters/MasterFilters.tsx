@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import CityAutocomplete from '@/components/CityAutocomplete';
 import MultiSelectAutocomplete from '@/components/inputs/MultiSelectAutocomplete';
 import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from '@/constants/catalog'; // ← use shared options
+import { NormalizedCity } from '@/lib/cityNormalize';
 
 type Props = {
   value: { 
@@ -18,20 +19,27 @@ type Props = {
 };
 
 export default function MasterFilters({ value, onChange, showName }: Props) {
-  const [city, setCity] = useState<string | undefined>(value.city);
-  const [cityPlaceId, setCityPlaceId] = useState<string | undefined>(value.cityPlaceId);
+  const [city, setCity] = useState<NormalizedCity | null>(null);
   const [services, setServices] = useState<string[]>(value.services ?? []);
   const [languages, setLanguages] = useState<string[]>(value.languages ?? []);
   const [minRating, setMinRating] = useState<number | undefined>(value.minRating);
   const [name, setName] = useState<string>(value.name ?? '');
 
-  useEffect(() => { onChange({ city, cityPlaceId, services, languages, minRating, name }); }, [city, cityPlaceId, services, languages, minRating, name, onChange]);
+  useEffect(() => { 
+    onChange({ 
+      city: city?.formatted, 
+      cityPlaceId: city?.placeId, 
+      services, 
+      languages, 
+      minRating, 
+      name 
+    }); 
+  }, [city, services, languages, minRating, name, onChange]);
 
   const clearAll = () => {
     onChange({ city: undefined, cityPlaceId: undefined, services: [], languages: [], minRating: undefined, name: '' });
     // sync local states so inputs reflect immediately
-    setCity(undefined);
-    setCityPlaceId(undefined);
+    setCity(null);
     setServices([]);
     setLanguages([]);
     setMinRating(undefined);
@@ -41,8 +49,11 @@ export default function MasterFilters({ value, onChange, showName }: Props) {
   return (
     <div className="flex w-full flex-col gap-4">
       <CityAutocomplete 
-        value={city} 
-        onChange={(label, meta) => { setCity(label); setCityPlaceId(meta?.placeId); }} 
+        apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY!}
+        label="City"
+        value={city}
+        onChange={setCity}
+        region="CA"
       />
 
       {/* Services — SAME dataset & UX as New Listing */}

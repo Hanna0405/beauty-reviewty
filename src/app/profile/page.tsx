@@ -92,7 +92,7 @@ export default function ProfilePage() {
  )}
  <div>
  <div className="text-2xl font-semibold">{p.displayName || 'Unnamed'}</div>
- <div className="text-gray-500">{p.city}</div>
+ <div className="text-gray-500">{p.cityName ?? p.city?.formatted ?? ''}</div>
  </div>
  </div>
  <div className="flex gap-2">

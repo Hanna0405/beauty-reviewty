@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { SafeText } from '@/lib/safeText';
 
 type Props = { master: any };
 
@@ -18,9 +19,15 @@ export default function MasterCard({ master }: Props) {
           <h3 className="truncate font-medium">{master.displayName ?? 'Master'}</h3>
           <Link href={`/master/${master.id}`} className="text-sm underline">Open</Link>
         </div>
-        <div className="text-sm text-gray-600">{master?.city?.name ?? master?.city ?? ''}</div>
-        <div className="mt-1 line-clamp-1 text-sm">{(master?.services ?? []).join(' • ')}</div>
-        <div className="text-xs text-gray-500">{(master?.languages ?? []).join(', ')}</div>
+        <div className="text-sm text-gray-600">
+          <SafeText value={master?.cityName ?? master?.city} />
+        </div>
+        <div className="mt-1 line-clamp-1 text-sm">
+          <SafeText value={master?.serviceNames ?? master?.services?.map((s: any) => s.name || s) ?? []} />
+        </div>
+        <div className="text-xs text-gray-500">
+          <SafeText value={master?.languageNames ?? master?.languages?.map((l: any) => l.name || l) ?? []} />
+        </div>
       </div>
     </div>
   );

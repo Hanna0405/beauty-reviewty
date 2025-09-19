@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useForm, Controller } from 'react-hook-form';
-import CityAutocompleteStandalone from './CityAutocompleteStandalone';
+import CityAutocomplete from './CityAutocomplete';
+import { NormalizedCity } from '@/lib/cityNormalize';
 import ServiceAutocomplete from './ServiceAutocomplete';
 import Portal from './ui/Portal';
 import FilterChips from './masters/FilterChips';
@@ -43,6 +44,7 @@ type Props = {
 export default function SearchFilters({ value, onChange, className }: Props) {
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [selectedService, setSelectedService] = useState(value.service);
+  const [city, setCity] = useState<NormalizedCity | null>(null);
   const languageDropdownRef = useRef<HTMLDivElement>(null);
   const debounceTimeoutRef = useRef<NodeJS.Timeout>();
 
@@ -154,15 +156,15 @@ export default function SearchFilters({ value, onChange, className }: Props) {
           City
         </label>
         <div data-testid="filter-city">
-          <Controller
-            name="city"
-            control={control}
-            render={({ field }) => (
-              <CityAutocompleteStandalone
-                value={field.value}
-                onChange={(city) => field.onChange(city)}
-              />
-            )}
+          <CityAutocomplete
+            apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY!}
+            label="City"
+            value={city}
+            onChange={(selectedCity) => {
+              setCity(selectedCity);
+              setValue('city', selectedCity?.formatted || '');
+            }}
+            region="CA"
           />
         </div>
       </div>

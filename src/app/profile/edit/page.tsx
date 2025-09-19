@@ -4,10 +4,14 @@ import { useEffect, useState } from "react";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase-client";
 import { useAuth } from "@/contexts/AuthContext";
-import CityAutocompleteNew from "@/components/CityAutocompleteNew";
-import AutocompleteMulti from "@/components/AutocompleteMulti";
+import CityAutocomplete from "@/components/CityAutocomplete";
+import { NormalizedCity } from "@/lib/cityNormalize";
+import { ensureSelectedCity } from "@/lib/ensureCity";
+import ServicesSelect from "@/components/ServicesSelect";
+import LanguagesSelect from "@/components/LanguagesSelect";
+import type { CatalogItem } from "@/catalog/services";
+import { ensureSelectedArray, deriveMirrors } from "@/lib/ensureLists";
 import { useRouter } from "next/navigation";
-import { SERVICES_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/options";
 
 type ProfileForm = {
  displayName: string;
@@ -39,6 +43,9 @@ export default function ProfileEditPage() {
  languages: [],
  socials: {}
  });
+ const [city, setCity] = useState<NormalizedCity | null>(null);
+ const [services, setServices] = useState<CatalogItem[]>([]);
+ const [languages, setLanguages] = useState<CatalogItem[]>([]);
  const [localAvatarFile, setLocalAvatarFile] = useState<File | null>(null);
  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
  const [currentAvatarPath, setCurrentAvatarPath] = useState<string | null>(null);
@@ -104,12 +111,27 @@ export default function ProfileEditPage() {
  avatarPath = up.path;
  }
 
+ // Enforce city selection from autocomplete
+ const selected = ensureSelectedCity(city);
+
+ // Enforce services and languages selection
+ const selServices = ensureSelectedArray(services);
+ const selLanguages = ensureSelectedArray(languages);
+ const svc = deriveMirrors(selServices);
+ const lng = deriveMirrors(selLanguages);
+
  await setDoc(doc(db, "profiles", user.uid), {
  uid: user.uid,
  displayName: form.displayName?.trim() || '',
- city: form.city || '',
- services: form.services || [],
- languages: form.languages || [],
+ city: selected, // full normalized object
+ cityKey: selected.slug, // for queries/filters
+ cityName: selected.formatted, // for UI display
+ services: selServices,
+ serviceKeys: svc.keys,
+ serviceNames: svc.names,
+ languages: selLanguages,
+ languageKeys: lng.keys,
+ languageNames: lng.names,
  instagram: form.socials?.instagram ?? null,
  tiktok: form.socials?.tiktok ?? null,
  website: form.socials?.website ?? null,
@@ -170,33 +192,27 @@ export default function ProfileEditPage() {
  {/* City */}
  <div>
  <label className="block text-sm font-medium mb-2">City</label>
- <CityAutocompleteNew
- value={form.city}
- onChange={(city) => setForm(f => ({ ...f, city }))}
+ <CityAutocomplete
+ apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY!}
+ label="City"
+ value={city}
+ onChange={(selectedCity) => {
+   setCity(selectedCity);
+   setForm(f => ({ ...f, city: selectedCity?.formatted || '' }));
+ }}
  placeholder="Select your city"
+ region="CA"
  />
  </div>
 
  {/* Services */}
  <div>
- <label className="block text-sm font-medium mb-2">Services</label>
- <AutocompleteMulti
- value={form.services}
- onChange={(services) => setForm(f => ({ ...f, services }))}
- options={SERVICES_OPTIONS}
- placeholder="Select services you offer"
- />
+ <ServicesSelect value={services} onChange={setServices} />
  </div>
 
  {/* Languages */}
  <div>
- <label className="block text-sm font-medium mb-2">Languages</label>
- <AutocompleteMulti
- value={form.languages}
- onChange={(languages) => setForm(f => ({ ...f, languages }))}
- options={LANGUAGE_OPTIONS}
- placeholder="Add a language..."
- />
+ <LanguagesSelect value={languages} onChange={setLanguages} />
  </div>
 
  {/* Social Links */}

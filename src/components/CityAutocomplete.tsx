@@ -1,178 +1,157 @@
 'use client';
-import { useEffect, useRef, useCallback } from 'react';
-import { loadGoogleMaps } from '@/lib/mapsLoader';
+import React, { useEffect, useRef, useState } from 'react';
+import { loadGoogleMaps } from '@/lib/gmapsLoader';
+import { normalizeFromPlace, NormalizedCity } from '@/lib/cityNormalize';
 
 type Props = {
-  value?: string; // display (localized ok)
-  onChange: (city: string | undefined, meta?: { placeId?: string; key?: string; countryCode?: string; adminCode?: string }) => void;
+  apiKey: string;
   label?: string;
+  value?: NormalizedCity | null;
+  onChange: (city: NormalizedCity | null) => void;
   placeholder?: string;
-  country?: string | undefined; // optional ISO-2 restriction (CA/US/…)
+  disabled?: boolean;
+  required?: boolean;
+  className?: string;
+  region?: string;
 };
 
-function buildCityFromComponents(components: google.maps.GeocoderAddressComponent[] | undefined, placeId?: string) {
-  if (!components) return undefined;
+type Prediction = google.maps.places.AutocompletePrediction;
 
-  const get = (type: string) => components.find(c => c.types.includes(type));
-  // City can be 'locality' or sometimes 'postal_town' or 'sublocality_level_1'
-  const locality = get('locality') || get('postal_town') || get('sublocality') || get('sublocality_level_1');
-  const admin1 = get('administrative_area_level_1'); // province/state
-  const country = get('country');
+export default function CityAutocomplete({
+  apiKey,
+  label = 'City',
+  value,
+  onChange,
+  placeholder = 'Start typing your city…',
+  disabled,
+  required,
+  className,
+  region = 'CA',
+}: Props) {
+  const [ready, setReady] = useState(false);
+  const [input, setInput] = useState(value?.formatted || '');
+  const [preds, setPreds] = useState<Prediction[]>([]);
+  const [open, setOpen] = useState(false);
+  const [touched, setTouched] = useState(false);
+  const serviceRef = useRef<google.maps.places.AutocompleteService | null>(null);
+  const placesRef = useRef<google.maps.places.PlacesService | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const city = locality?.long_name || '';
-  const st = admin1?.short_name || '';
-  const cc = country?.short_name || '';
-
-  if (!city) return undefined;
-  const parts = [city, st, cc].filter(Boolean);
-  return {
-    name: parts.join(', '),
-    key: `${city}-${st}-${cc}`.toLowerCase(),
-    countryCode: cc,
-    adminCode: st,
-    placeId
-  };
-}
-
-export default function CityAutocomplete({ value, onChange, label = 'City', placeholder = 'Start typing a city…', country }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const acRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const psRef = useRef<google.maps.places.PlacesService | null>(null);
-  const asRef = useRef<google.maps.places.AutocompleteService | null>(null);
-
-  // ensure services
-  const ensureServices = useCallback(async () => {
-    const g = await loadGoogleMaps();
-    if (!psRef.current) psRef.current = new g.maps.places.PlacesService(document.createElement('div'));
-    if (!asRef.current) asRef.current = new g.maps.places.AutocompleteService();
-    return g;
-  }, []);
-
-  // Resolve free text on blur/enter (still useful)
-  const resolveFreeText = useCallback(async () => {
-    const el = inputRef.current;
-    if (!el) return;
-    const text = el.value.trim();
-    if (!text) { onChange(undefined); return; }
-
-    const g = await ensureServices();
-    const preds: google.maps.places.AutocompletePrediction[] = await new Promise((res) => {
-      asRef.current!.getPlacePredictions(
-        { input: text, types: ['(cities)'], ...(country ? { componentRestrictions: { country } as any } : {}) },
-        (p) => res(p ?? [])
-      );
-    });
-    if (!preds.length) { onChange(text); return; }
-
-    const best = preds[0];
-    psRef.current!.getDetails(
-      { placeId: best.place_id!, fields: ['address_components','formatted_address','place_id'] },
-      (pl, status) => {
-        if (status === g.maps.places.PlacesServiceStatus.OK && pl) {
-          const norm = buildCityFromComponents(pl.address_components!, pl.place_id!);
-          const labelVal = norm?.name || pl.formatted_address || best.description || text;
-          onChange(labelVal, { placeId: norm?.placeId, key: norm?.key, countryCode: norm?.countryCode, adminCode: norm?.adminCode });
-          if (inputRef.current) inputRef.current.value = labelVal;
-        } else {
-          onChange(best.description || text, { placeId: best.place_id! });
-          if (inputRef.current) inputRef.current.value = best.description || text;
-        }
-      }
-    );
-  }, [onChange, ensureServices, country]);
-
-  // ---- Init standard Autocomplete (safe for TS & runtime) ----
   useEffect(() => {
-    let cleanup = () => {};
-    loadGoogleMaps()
+    loadGoogleMaps(apiKey, 'en', region || 'CA')
       .then((g) => {
-        const el = inputRef.current;
-        if (!el) return;
+        serviceRef.current = new g.maps.places.AutocompleteService();
+        const el = document.createElement('div');
+        placesRef.current = new g.maps.places.PlacesService(el);
+        setReady(true);
+      })
+      .catch(console.error);
+  }, [apiKey, region]);
 
-        const ac = new g.maps.places.Autocomplete(el, {
-          types: ['(cities)'],
-          fields: ['address_components', 'formatted_address', 'place_id'],
-          ...(country ? { componentRestrictions: { country } as any } : {}),
-        });
+  useEffect(() => {
+    if (value?.formatted) setInput(value.formatted);
+    if (!value) setInput('');
+  }, [value]);
 
-        acRef.current = ac; // keep in ref
+  useEffect(() => {
+    if (!ready || !serviceRef.current) return;
+    if (!open) return;
 
-        const listener = ac.addListener('place_changed', async () => {
-          const place = typeof ac.getPlace === 'function' ? ac.getPlace() : ({} as any);
-          const placeId: string | undefined = (place as any)?.place_id;
-
-          if (!placeId) {
-            await resolveFreeText();
+    if (!input || input.trim().length < 1) {
+      setPreds([]);
             return;
           }
 
-          let components: google.maps.GeocoderAddressComponent[] | undefined = place.address_components;
-          let formatted: string | undefined = place.formatted_address;
+    serviceRef.current.getPlacePredictions(
+      {
+        input,
+        types: ['(cities)'],
+        language: 'en',
+        ...(region ? { componentRestrictions: { country: [region.toLowerCase()] } } : {}),
+      },
+      (res) => setPreds(res || [])
+    );
+  }, [input, open, ready, region]);
 
-          if (!components || !formatted) {
-            const g2 = await ensureServices();
-            await new Promise<void>((done) => {
-              psRef.current!.getDetails(
-                { placeId, fields: ['address_components','formatted_address','place_id'] },
-                (pl, status) => {
-                  if (status === g2.maps.places.PlacesServiceStatus.OK && pl) {
-                    components = pl.address_components ?? components;
-                    formatted = pl.formatted_address ?? formatted;
-                  }
-                  done();
-                }
-              );
-            });
-          }
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (!containerRef.current) return;
+      if (!containerRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
 
-          const norm = buildCityFromComponents(components, placeId);
-          const labelVal =
-            norm?.name ||
-            formatted ||
-            inputRef.current?.value ||
-            '';
+  function handleSelect(p: Prediction) {
+    if (!placesRef.current) return;
+    const placeId = p.place_id;
+    if (!placeId) return;
+    placesRef.current.getDetails(
+      { placeId, language: 'en', fields: ['address_component', 'geometry.location', 'name', 'place_id'] },
+      (details, status) => {
+        if (!details || status !== google.maps.places.PlacesServiceStatus.OK) return;
+        const normalized = normalizeFromPlace(details);
+        setInput(normalized.formatted);
+        onChange(normalized);
+        setOpen(false);
+        setPreds([]);
+      }
+    );
+  }
 
-          onChange(labelVal || undefined, {
-            placeId: norm?.placeId ?? placeId,
-            key: norm?.key,
-            countryCode: norm?.countryCode,
-            adminCode: norm?.adminCode,
-          });
-
-          if (inputRef.current) inputRef.current.value = labelVal;
-          inputRef.current?.blur();
-        });
-
-        cleanup = () => g.maps.event.removeListener(listener);
-      })
-      .catch(() => {});
-    return cleanup;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onChange, country, ensureServices, resolveFreeText]);
-
-  // reflect external value
-  useEffect(() => { if (inputRef.current) inputRef.current.value = value ?? ''; }, [value]);
-
-  // handle Enter + Blur for manual text
-  const onKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
+  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') {
       e.preventDefault();
-      resolveFreeText();
+      if (preds[0]) handleSelect(preds[0]);
     }
-  };
+    if (e.key === 'ArrowDown') setOpen(true);
+  }
+
+  const showError = touched && required && !value;
 
   return (
-    <div className="w-full">
-      <label className="mb-1 block text-sm">{label}</label>
+    <div ref={containerRef} className={`w-full ${className || ''}`}>
+      {label && (
+        <label className="block mb-1 text-sm font-medium text-gray-700">
+          {label} {required ? <span className="text-red-500">*</span> : null}
+        </label>
+      )}
       <input
-        ref={inputRef}
-        defaultValue={value ?? ''}
-        onChange={(e) => onChange(e.target.value || undefined)}
+        type="text"
+        inputMode="search"
+        autoComplete="off"
+        spellCheck={false}
+        value={input}
+        onChange={(e) => {
+          setTouched(true);
+          setInput(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
-        onBlur={resolveFreeText}
+        className={`w-full rounded-md border ${showError ? 'border-red-400' : 'border-gray-300'} px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300`}
         placeholder={placeholder}
-        className="w-full rounded-md border px-3 py-2"
+        disabled={!ready || disabled}
       />
+      {open && preds.length > 0 && (
+        <ul className="mt-1 max-h-56 overflow-auto rounded-md border border-gray-200 bg-white shadow-lg">
+          {preds.map((p) => (
+            <li
+              key={p.place_id}
+              className="cursor-pointer px-3 py-2 text-sm hover:bg-gray-100"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => handleSelect(p)}
+            >
+              {p.structured_formatting?.main_text}
+              <span className="text-gray-500">, {p.structured_formatting?.secondary_text}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {showError && <p className="mt-1 text-xs text-red-500">Please choose a city from the list.</p>}
+      {!value && touched && (
+        <p className="mt-1 text-xs text-gray-500">Select a city from suggestions — free text will not be saved.</p>
+      )}
     </div>
   );
 }

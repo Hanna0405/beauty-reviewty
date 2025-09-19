@@ -65,7 +65,7 @@ export default function FeaturedMasters() {
                 <p className="text-pink-600 font-medium text-sm mb-2">{master.specialization}</p>
                 <p className="text-gray-600 text-sm mb-4 line-clamp-2">{master.description}</p>
                 <Link 
-                  href={`/masters/${master.id}`}
+                  href={`/masters/${String(master.id)}`}
                   className="inline-block bg-pink-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-pink-700 transition-colors duration-200"
                 >
                   View Profile

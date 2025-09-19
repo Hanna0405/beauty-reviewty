@@ -197,7 +197,7 @@ export default function ReviewtyPage() {
               <div className="mt-1">
                 {/* Link to master */}
                 {r.masterRef?.type === 'listing' && r.masterRef.id && (
-                  <Link href={`/masters/${r.masterRef.id}`} className="text-pink-600 underline">
+                  <Link href={`/masters/${String(r.masterRef.id)}`} className="text-pink-600 underline">
                     Master card — {r.masterDisplay || personLabel || "Unknown"}
                   </Link>
                 )}

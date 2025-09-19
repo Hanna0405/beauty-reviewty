@@ -5,7 +5,14 @@ import { doc, collection } from "firebase/firestore";
 import { requireDb, requireAuth } from "@/lib/firebase";
 import { createListing } from "@/lib/firestore-listings";
 import { useToast } from "@/components/ui/Toast";
-import { CityAutocomplete, ServicesSelect, LanguagesSelect } from "@/components/selects";
+import { toDisplayText } from "@/lib/safeText";
+import CityAutocomplete from "@/components/CityAutocomplete";
+import { NormalizedCity } from "@/lib/cityNormalize";
+import { ensureSelectedCity } from "@/lib/ensureCity";
+import ServicesSelect from "@/components/ServicesSelect";
+import LanguagesSelect from "@/components/LanguagesSelect";
+import type { CatalogItem } from "@/catalog/services";
+import { ensureSelectedArray, deriveMirrors } from "@/lib/ensureLists";
 import ListingPhotos from "@/components/ListingPhotos";
 
 import { SERVICES_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/options";
@@ -24,9 +31,9 @@ export default function NewListingPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
  const [title, setTitle] = useState("");
-  const [city, setCity] = useState<any>(null);
- const [services, setServices] = useState<string[]>([]);
- const [languages, setLanguages] = useState<string[]>([]);
+  const [city, setCity] = useState<NormalizedCity | null>(null);
+ const [services, setServices] = useState<CatalogItem[]>([]);
+ const [languages, setLanguages] = useState<CatalogItem[]>([]);
  const [priceMin, setPriceMin] = useState<string>("");
  const [priceMax, setPriceMax] = useState<string>("");
  const [description, setDescription] = useState("");
@@ -70,27 +77,39 @@ export default function NewListingPage() {
  try {
  setSaving(true);
       
-      // Create document reference first
-      const db = requireDb();
-      const listingRef = doc(collection(db, "listings"));
+      // Enforce city selection from autocomplete
+      const selected = ensureSelectedCity(city);
       
-      // Prepare form data
+      // Enforce services and languages selection
+      const selServices = ensureSelectedArray(services);
+      const selLanguages = ensureSelectedArray(languages);
+      const svc = deriveMirrors(selServices);
+      const lng = deriveMirrors(selLanguages);
+      
+      // Prepare form data with string mirrors
  const formData = {
  title,
- city: city?.slug ?? city?.label ?? "",
- services,
- languages,
+ city: selected, // full normalized object
+ services: selServices,
+ languages: selLanguages,
  priceMin: priceMin ? parseFloat(priceMin) : null,
  priceMax: priceMax ? parseFloat(priceMax) : null,
  description,
  photos: photos.map(p => ({ url: p.url, path: p.path || '', width: null, height: null })),
+ // Add string mirrors for safe rendering
+ cityKey: selected.slug, // slug for Firestore queries
+ cityName: selected.formatted, // easy string for UI
+ serviceKeys: svc.keys,
+ serviceNames: svc.names,
+ languageKeys: lng.keys,
+ languageNames: lng.names,
  };
 
       // Save using standardized helper
       const docRef = await createListing(user, formData);
       console.info("[BR][NewListing] Saved successfully:", docRef.id);
       
-      showToast("Listing created successfully", "success");
+      showToast(`Listing created successfully: ${toDisplayText(title)} in ${toDisplayText(formData.cityName)}`, "success");
  router.push("/dashboard/master/listings");
  } catch (err) {
  console.error(err);
@@ -136,40 +155,24 @@ export default function NewListingPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">City *</label>
-          <CityAutocomplete 
-            value={city?.label || city || ""} 
-            placeholder="City"
-            autoOpenOnType={true}
-            autoCloseOnSelect={true}
-            onChange={(cityStr) => setCity(cityStr ? { label: cityStr, slug: cityStr } : null)}
+          <CityAutocomplete
+            apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY!}
+            label="City"
+            value={city}
+            onChange={setCity}
+            required
+            region="CA"
           />
           {errors.city && <p className="text-red-500 text-sm mt-1">{errors.city}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Services *</label>
-          <ServicesSelect
-            value={services}
-            onChange={(vals: string[]) => setServices(vals ?? [])}
-            options={SERVICES_OPTIONS}
-            placeholder="Services (start typing...)"
-            autoOpenOnType={true}
-            autoCloseOnSelect={true}
-          />
+          <ServicesSelect value={services} onChange={setServices} required />
           {errors.services && <p className="text-red-500 text-sm mt-1">{errors.services}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Languages *</label>
-          <LanguagesSelect
-            value={languages}
-            onChange={(vals: string[]) => setLanguages(vals ?? [])}
-            options={LANGUAGE_OPTIONS}
-            placeholder="Languages"
-            autoOpenOnType={true}
-            autoCloseOnSelect={true}
-          />
+          <LanguagesSelect value={languages} onChange={setLanguages} required />
           {errors.languages && <p className="text-red-500 text-sm mt-1">{errors.languages}</p>}
         </div>
 

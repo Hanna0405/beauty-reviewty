@@ -4,12 +4,17 @@ import { useEffect, useState } from 'react';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase-client';
 import { useAuthUser } from '@/lib/useAuthUser';
+import { SafeText } from '@/lib/safeText';
 
 type Listing = {
  id: string;
  title: string;
  city?: string;
+ cityName?: string;
  services?: string[];
+ serviceNames?: string[];
+ languages?: string[];
+ languageNames?: string[];
  priceFrom?: number | null;
  priceMin?: number | null;
  priceMax?: number | null;
@@ -60,9 +65,11 @@ export default function MyListingsPage() {
  {it.status ?? 'draft'}
  </span>
  </div>
- <div className="text-sm text-gray-600 truncate">— {it.city ?? '—'} • from {it.priceFrom ?? it.priceMin ?? '—'}</div>
+ <div className="text-sm text-gray-600 truncate">
+   — <SafeText value={it.cityName ?? it.city} /> • from {it.priceFrom ?? it.priceMin ?? '—'}
+ </div>
  <div className="flex gap-2 pt-2">
- <Link href={`/masters/${it.id}`} className="px-3 py-1.5 rounded-lg border hover:bg-gray-50">View</Link>
+        <Link href={`/masters/${String(it.id)}`} className="px-3 py-1.5 rounded-lg border hover:bg-gray-50">View</Link>
  <Link href={`/dashboard/master/listings/${it.id}/edit`} className="px-3 py-1.5 rounded-lg bg-pink-600 text-white hover:bg-pink-700">Edit</Link>
  <Link href={`/api/listings/${it.id}/delete`} className="px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100">Delete</Link>
  </div>

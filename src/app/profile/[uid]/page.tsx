@@ -112,7 +112,7 @@ export default function PublicProfilePage() {
             )}
             
             <div className="card-actions mt-3">
-              <a className="btn btn-sm btn-outline" href={`/masters/${listing.id}`}>View</a>
+              <a className="btn btn-sm btn-outline" href={`/masters/${String(listing.id)}`}>View</a>
             </div>
           </div>
         </div>

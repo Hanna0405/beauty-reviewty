@@ -82,7 +82,7 @@ export default function PopularMasters() {
  return (
  <Link
  key={m.id}
- href={`/masters/${m.id}`}
+  href={`/masters/${String(m.id)}`}
  className="group rounded-lg border p-3 transition hover:shadow-md"
  >
  <div className="aspect-[4/3] w-full overflow-hidden rounded bg-gray-100">

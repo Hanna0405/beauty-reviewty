@@ -1,30 +1,24 @@
 'use client';
 
 import { useState } from 'react';
-import CityAutocompleteStandalone from './CityAutocompleteStandalone';
+import CityAutocomplete from './CityAutocomplete';
+import { NormalizedCity } from '@/lib/cityNormalize';
 
 /**
  * Minimal profile form example using CityAutocomplete
  * Demonstrates proper usage with city and coordinates state management
  */
 export default function ProfileFormWithCityAutocomplete() {
-  const [city, setCity] = useState('');
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [placeId, setPlaceId] = useState<string | null>(null);
+  const [city, setCity] = useState<NormalizedCity | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     about: '',
   });
 
-  const handleCityChange = (value: string, meta?: { 
-    coords?: { lat: number; lng: number }; 
-    placeId?: string 
-  }) => {
-    setCity(value);
-    setCoords(meta?.coords || null);
-    setPlaceId(meta?.placeId || null);
+  const handleCityChange = (selectedCity: NormalizedCity | null) => {
+    setCity(selectedCity);
     
-    console.log('City changed:', { value, coords: meta?.coords, placeId: meta?.placeId });
+    console.log('City changed:', selectedCity);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -32,9 +26,9 @@ export default function ProfileFormWithCityAutocomplete() {
     
     const profileData = {
       ...formData,
-      city,
-      coords,
-      placeId,
+      city: city?.formatted,
+      coords: city ? { lat: city.lat, lng: city.lng } : null,
+      placeId: city?.placeId,
     };
     
     console.log('Profile data to save:', profileData);
@@ -66,23 +60,22 @@ export default function ProfileFormWithCityAutocomplete() {
           <label className="block text-sm font-medium text-gray-700 mb-1">
             City *
           </label>
-          <CityAutocompleteStandalone
+          <CityAutocomplete
+            apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY!}
+            label="City"
             value={city}
             onChange={handleCityChange}
             placeholder="Start typing a city name..."
             className="w-full"
+            region="CA"
           />
           
           {/* Display selected city info */}
           {city && (
             <div className="mt-2 p-2 bg-blue-50 rounded-md text-sm">
-              <p><strong>Selected:</strong> {city}</p>
-              {coords && (
-                <p><strong>Coordinates:</strong> {coords.lat.toFixed(6)}, {coords.lng.toFixed(6)}</p>
-              )}
-              {placeId && (
-                <p><strong>Place ID:</strong> {placeId}</p>
-              )}
+              <p><strong>Selected:</strong> {city.formatted}</p>
+              <p><strong>Coordinates:</strong> {city.lat.toFixed(6)}, {city.lng.toFixed(6)}</p>
+              <p><strong>Place ID:</strong> {city.placeId}</p>
             </div>
           )}
         </div>
@@ -114,7 +107,7 @@ export default function ProfileFormWithCityAutocomplete() {
       <div className="mt-6 p-4 bg-gray-50 rounded-md">
         <h3 className="font-medium text-gray-700 mb-2">Debug Information:</h3>
         <pre className="text-xs text-gray-600 overflow-auto">
-          {JSON.stringify({ city, coords, placeId }, null, 2)}
+          {JSON.stringify({ city }, null, 2)}
         </pre>
       </div>
     </div>
