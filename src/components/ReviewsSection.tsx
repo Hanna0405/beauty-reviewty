@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import { useAuthUser } from '@/lib/useAuthUser';
+import { useAuth } from '@/contexts/AuthContext';
 import { listenPublicReviews, createReview, deleteReview, uploadReviewPhoto } from '@/lib/reviews';
 import type { Review, ReviewPhoto } from '@/types/reviews';
 
@@ -16,7 +16,7 @@ function Stars({ value }: { value: number }) {
 }
 
 function AddReviewForm({ listingId, onCreated }:{ listingId: string; onCreated: () => void }) {
- const { user } = useAuthUser();
+ const { user } = useAuth();
  const [rating, setRating] = useState<1|2|3|4|5>(5);
  const [text, setText] = useState('');
  const [files, setFiles] = useState<File[]>([]);
@@ -104,7 +104,7 @@ function AddReviewForm({ listingId, onCreated }:{ listingId: string; onCreated: 
 }
 
 export function ReviewsSection({ listingId }:{ listingId: string }) {
- const { user } = useAuthUser();
+ const { user } = useAuth();
  const [items, setItems] = useState<Review[]>([]);
  useEffect(() => {
  return listenPublicReviews(listingId, setItems);

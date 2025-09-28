@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '@/lib/firebase-client';
+import EnvProbe from '@/components/EnvProbe';
+import { auth } from '@/lib/firebase.client';
 
 export default function LoginPage() {
  const router = useRouter();
@@ -24,7 +25,7 @@ export default function LoginPage() {
  setLoading(true);
  try {
  await signInWithEmailAndPassword(auth, form.email.trim(), form.password);
- router.push('/profile');
+ router.push('/');
  } catch (e: any) {
  setErr(e?.message ?? 'Login failed');
  } finally {
@@ -33,6 +34,8 @@ export default function LoginPage() {
  };
 
  return (
+ <>
+ <EnvProbe />
  <div className="min-h-[calc(100dvh-64px)] bg-gradient-to-b from-pink-500 via-pink-500 to-pink-600 flex items-center justify-center px-4 py-10">
  <div className="w-full max-w-md">
  <div className="rounded-2xl bg-white/95 shadow-xl ring-1 ring-black/5 backdrop-blur p-6 sm:p-8">
@@ -104,5 +107,6 @@ export default function LoginPage() {
  </div>
  </div>
  </div>
+ </>
  );
 }

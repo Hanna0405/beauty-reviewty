@@ -14,16 +14,14 @@ import {
  getIdToken,
  User,
 } from "firebase/auth";
-import { requireAuth } from "./firebase/client";
-
-const googleProvider = new GoogleAuthProvider();
+import { auth, googleProvider, requireAuth } from "./firebase.client";
 // При необходимости:
 // googleProvider.setCustomParameters({ prompt: "select_account" });
 
 export async function signInWithGoogle(): Promise<void> {
- await setPersistence(requireAuth(), browserLocalPersistence);
+ await setPersistence(auth, browserLocalPersistence);
  try {
- await signInWithPopup(requireAuth(), googleProvider);
+ await signInWithPopup(auth, googleProvider);
  } catch (err: any) {
  const code = err?.code ?? "";
  const popupProblem =
@@ -32,7 +30,7 @@ export async function signInWithGoogle(): Promise<void> {
  code.includes("cancelled") ||
  code.includes("unavailable");
  if (popupProblem) {
- await signInWithRedirect(requireAuth(), googleProvider);
+ await signInWithRedirect(auth, googleProvider);
  return;
  }
  throw err;

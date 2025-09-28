@@ -1,80 +1,72 @@
-"use client";
+'use client';
+import { createContext, useContext, useEffect, useState } from 'react';
+import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 
-import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase-client";
-import { createContext, useContext, useEffect, useState } from "react";
-
-type Role = "master" | "client" | "admin";
-type AppUser = { uid: string; email: string | null };
-type UserProfile = {
- displayName?: string;
- role?: Role;
- avatarUrl?: string | null;
- city?: string;
- services?: string[];
- languages?: string[];
+// Lazy import Firebase to prevent server-side execution
+let auth: any = null;
+const getAuth = async () => {
+  if (typeof window === 'undefined') return null;
+  if (!auth) {
+    const { auth: firebaseAuth } = await import('@/lib/firebase.client');
+    auth = firebaseAuth;
+  }
+  return auth;
 };
 
-type Ctx = {
- user: AppUser | null;
- profile: UserProfile | null;
- role: Role;
+type AuthContextType = {
+ user: User | null;
  loading: boolean;
  logout: () => Promise<void>;
+ profile?: any; // For backward compatibility
+ role?: string; // For backward compatibility
 };
 
-const AuthContext = createContext<Ctx>({
+const AuthContext = createContext<AuthContextType>({
  user: null,
- profile: null,
- role: "client",
  loading: true,
  logout: async () => {},
+ profile: undefined,
+ role: undefined,
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
- const [user, setUser] = useState<AppUser | null>(null);
- const [profile, setProfile] = useState<UserProfile | null>(null);
- const [role, setRole] = useState<Role>("client");
+ const [user, setUser] = useState<User | null>(null);
  const [loading, setLoading] = useState(true);
 
  useEffect(() => {
- const unsub = onAuthStateChanged(auth, async (fbUser) => {
- setLoading(true);
- try {
- if (!fbUser) {
- setUser(null);
- setProfile(null);
- setRole("client");
- return;
- }
- const u: AppUser = { uid: fbUser.uid, email: fbUser.email };
- setUser(u);
- const snap = await getDoc(doc(db, "users", fbUser.uid));
- if (snap.exists()) {
- const data = snap.data() as UserProfile;
- setProfile(data);
- setRole((data.role as Role) || "client");
- } else {
- setProfile(null);
- setRole("client");
- }
- } catch {
- setProfile(null);
- setRole("client");
- } finally {
- setLoading(false);
- }
- });
- return () => unsub();
+ let unsub: (() => void) | undefined;
+ let mounted = true;
+
+ (async () => {
+   const authInstance = await getAuth();
+   if (!authInstance || !mounted) {
+     if (mounted) setLoading(false);
+     return;
+   }
+
+   unsub = onAuthStateChanged(authInstance, (u) => {
+     if (mounted) {
+       setUser(u);
+       setLoading(false);
+     }
+   });
+ })();
+
+ return () => {
+   mounted = false;
+   if (unsub) unsub();
+ };
  }, []);
 
- async function logout() {
- await signOut(auth);
+ const logout = async () => {
+ const authInstance = await getAuth();
+ if (authInstance) {
+   await signOut(authInstance);
  }
+ };
 
  return (
- <AuthContext.Provider value={{ user, profile, role, loading, logout }}>
+ <AuthContext.Provider value={{ user, loading, logout, profile: undefined, role: undefined }}>
  {children}
  </AuthContext.Provider>
  );

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase-client';
+import { db, auth } from '@/lib/firebase.client';
 import { uploadFileToStorage } from '@/lib/upload';
 import { sanitizeProfileData, type SanitizedProfileData } from '@/lib/utils/sanitizeProfileData';
 

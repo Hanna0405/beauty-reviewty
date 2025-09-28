@@ -10,7 +10,7 @@ export default function ListingCard({ listing }: Props) {
   const cover = listing?.photos?.[0]?.url ?? null;
   return (
     <div className="flex gap-3 rounded-lg border p-3">
-      <div className="relative h-16 w-16 overflow-hidden rounded-md border">
+      <div className="relative w-full aspect-[16/10] rounded-lg overflow-hidden bg-neutral-100">
         {cover ? (
           <Image src={cover} alt={listing.title ?? 'Listing'} fill className="object-cover" />
         ) : (

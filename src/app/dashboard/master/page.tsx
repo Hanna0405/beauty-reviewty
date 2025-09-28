@@ -1,20 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { useAuth } from "@/contexts/AuthContext";
+import { useUserProfile } from "@/hooks/useUserProfile";
 
 export default function MasterDashboardPage() {
- const { user, profile, role } = useAuth();
+ const { user, profile, role, loading } = useUserProfile();
  const name = profile?.displayName || user?.email || "master";
+
+ if (loading) {
+  return <div className="text-sm text-gray-500 px-4 py-2">Loading profile…</div>;
+ }
 
  return (
  <div className="mx-auto max-w-3xl px-4 py-6 sm:py-8">
  <header className="mb-5 sm:mb-6">
  <h1 className="text-2xl font-bold text-gray-900">Welcome, {name}</h1>
  <p className="mt-1 text-sm text-gray-600">Your master workspace</p>
- <span className="mt-3 inline-flex items-center rounded-full bg-pink-50 px-3 py-1 text-xs font-medium text-pink-700 ring-1 ring-inset ring-pink-200">
+ <div className="mt-3 space-y-2">
+ <span className="inline-flex items-center rounded-full bg-pink-50 px-3 py-1 text-xs font-medium text-pink-700 ring-1 ring-inset ring-pink-200">
  Role: {role ?? "—"}
  </span>
+ <div className="text-xs text-gray-500">
+ <div><b>Email:</b> {user?.email ?? '—'}</div>
+ <div><b>UID:</b> {user?.uid ? user.uid.slice(0, 8) + '...' : '—'}</div>
+ </div>
+ </div>
  </header>
 
  {/* Cards grid – mobile 1col, tablet 2col */}
@@ -34,11 +44,11 @@ export default function MasterDashboardPage() {
  cta="Edit Profile"
  />
  <DashCard
- emoji="⭐"
- title="Reviews"
- text="See what clients say and reply to feedback."
- href="/dashboard/master/reviews"
- cta="View Reviews"
+ emoji="📅"
+ title="Bookings"
+ text="Manage booking requests"
+ href="/dashboard/bookings"
+ cta="Open"
  />
  <DashCard
  emoji="⚙️"

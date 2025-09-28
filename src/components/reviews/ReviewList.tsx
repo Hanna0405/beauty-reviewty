@@ -1,8 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { collection, doc, onSnapshot, orderBy, query, where } from 'firebase/firestore';
-import { useAuthUser } from '@/lib/useAuthUser';
-import { db } from '@/lib/firebase';
+import { useAuth } from '@/contexts/AuthContext';
+import { db } from '@/lib/firebase.client';
 
 function Stars({ value }: { value: number }) {
   return (
@@ -21,7 +21,7 @@ interface ReviewListProps {
 }
 
 export function ReviewList({ subjectType, subjectId }: ReviewListProps) {
-  const { user } = useAuthUser();
+  const { user } = useAuth();
   const [items, setItems] = useState<any[]>([]);
 
   if (!subjectId || typeof subjectId !== 'string') {
@@ -61,7 +61,7 @@ export function ReviewList({ subjectType, subjectId }: ReviewListProps) {
                     onClick={async () => {
                       if (confirm('Delete this review?')) {
                         const { deleteDoc, doc } = await import('firebase/firestore');
-                        const { db } = await import('@/lib/firebase-client');
+                        const { db } = await import('@/lib/firebase');
                         
                         if (subjectType === 'master') {
                           await deleteDoc(doc(db, 'masters', subjectId, 'reviews', r.id));

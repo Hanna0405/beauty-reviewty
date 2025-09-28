@@ -1,4 +1,4 @@
-import { db } from "@/lib/firebase-client";
+import { db } from "@/lib/firebase.client";
 import { getDocs, query, collection, where } from "firebase/firestore";
 
 export type MinimalMaster = {

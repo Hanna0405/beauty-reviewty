@@ -1,5 +1,5 @@
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firebase.client";
 import { buildMasterDisplay } from "@/lib/masterDisplay";
 
 type CreatePublicReviewInput = {

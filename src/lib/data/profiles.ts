@@ -1,4 +1,4 @@
-import { db } from "@/lib/firebase-client";
+import { db } from "@/lib/firebase.client";
 import { collection, getDocs, query, where, limit } from "firebase/firestore";
 
 export async function fetchProfileBySlug(slug: string) {

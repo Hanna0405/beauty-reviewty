@@ -8,7 +8,7 @@ import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
 } from "firebase/auth";
-import { auth } from "@/lib/firebase-client";
+import { auth } from "@/lib/firebase.client";
 import { signInWithGoogle } from "@/lib/auth-helpers";
 import { registerUser } from "@/lib/auth/registerUser";
 import { useAuth } from "@/context/AuthContext";

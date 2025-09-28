@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { setDoc, doc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase-client";
+import { auth, db } from "@/lib/firebase.client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 

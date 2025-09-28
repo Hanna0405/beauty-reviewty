@@ -3,6 +3,27 @@ service cloud.firestore {
  match /databases/{database}/documents {
  function isSignedIn() { return request.auth != null; }
  function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+ 
+ /* --- booking helpers --- */
+ function isParticipant() {
+   return isSignedIn() &&
+   (request.auth.uid == resource.data.clientId || request.auth.uid == resource.data.masterUid);
+ }
+ function newParticipant() {
+   return isSignedIn() &&
+   (request.auth.uid == request.resource.data.clientId || request.auth.uid == request.resource.data.masterUid);
+ }
+ function isValidStatus(s) {
+   return s in ['pending','confirmed','declined','canceled','completed'];
+ }
+ function unchangedCoreFields() {
+   // forbid changing immutable fields
+   return request.resource.data.clientId == resource.data.clientId
+   && request.resource.data.masterUid == resource.data.masterUid
+   && request.resource.data.listingId == resource.data.listingId
+   && request.resource.data.startsAt == resource.data.startsAt
+   && request.resource.data.durationMin == resource.data.durationMin;
+ }
 
  match /services/{docId} { allow read: if true; allow write: if false; }
  match /cities/{docId} { allow read: if true; allow write: if false; }
@@ -34,6 +55,13 @@ service cloud.firestore {
  match /profiles/{uid} {
  allow read: if true;
  allow create, update, delete: if request.auth != null && request.auth.uid == uid;
+ 
+ // Allow owner to edit added notification fields only
+ allow update: if isOwner(uid)
+   && request.resource.data.diff(resource.data).changedKeys().hasOnly(['notifyEmail','notifyOnBooking','role','updatedAt'])
+   && (request.resource.data.notifyEmail == null || request.resource.data.notifyEmail is string)
+   && (request.resource.data.notifyOnBooking == null || request.resource.data.notifyOnBooking is bool)
+   && (request.resource.data.role == null || request.resource.data.role in ['client','master']);
  }
 
  match /listings/{id} {
@@ -42,6 +70,23 @@ service cloud.firestore {
  && request.resource.data.ownerId == request.auth.uid;
  allow update, delete: if request.auth != null
  && resource.data.ownerId == request.auth.uid;
+ }
+
+ // -------- Bookings --------
+ match /bookings/{bookingId} {
+   allow create: if request.auth != null
+   && request.resource.data.clientId == request.auth.uid
+   && request.resource.data.masterId is string
+   && request.resource.data.startISO is string
+   && request.resource.data.endISO is string
+   && request.resource.data.durationMin is number;
+   allow read: if request.auth != null
+   && (resource.data.clientId == request.auth.uid
+   || resource.data.masterId == request.auth.uid);
+   allow update: if request.auth != null
+   && ((resource.data.clientId == request.auth.uid && resource.data.status == 'pending')
+   || resource.data.masterId == request.auth.uid);
+   allow delete: if false;
  }
 
  // Reviews

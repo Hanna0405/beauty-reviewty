@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { auth, db } from '@/lib/firebase-client';
+import { auth, db } from '@/lib/firebase.client';
 import { doc, setDoc } from 'firebase/firestore';
 import { uploadImage } from "@/lib/upload-image";
 

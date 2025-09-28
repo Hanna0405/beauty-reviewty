@@ -1,8 +1,8 @@
 'use client';
 import { useState } from 'react';
 import { addDoc, collection, doc, serverTimestamp } from 'firebase/firestore';
-import { useAuthUser } from '@/lib/useAuthUser';
-import { db } from '@/lib/firebase';
+import { useAuth } from '@/contexts/AuthContext';
+import { db } from '@/lib/firebase.client';
 import { uploadImagesViaApi } from '@/lib/upload-image';
 import { createPublicReview } from '@/lib/createPublicReview';
 
@@ -30,7 +30,7 @@ interface ReviewFormProps {
 }
 
 export function ReviewForm({ subjectType, subjectId, onSubmitted }: ReviewFormProps) {
-  const { user } = useAuthUser();
+  const { user } = useAuth();
   const [rating, setRating] = useState<number>(5);
   const [text, setText] = useState('');
   const [files, setFiles] = useState<File[]>([]);

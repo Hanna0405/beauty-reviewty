@@ -1,5 +1,5 @@
 import { doc, getDoc, serverTimestamp, updateDoc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firebase.client";
 import type { AppUser } from "@/types/user";
 
 export async function getOrInitUser(uid: string, fallbackAuthData?: {displayName: string|null, email: string|null, photoURL: string|null}): Promise<AppUser> {

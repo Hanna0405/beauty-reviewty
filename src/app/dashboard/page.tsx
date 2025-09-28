@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { SafeText } from '@/components/ui/SafeText';
 
 import { requireAuth, requireDb } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -167,10 +168,10 @@ sizes="64px"
 
 {/* инфо */}
 <div className="min-w-0 flex-1">
-<div className="truncate font-medium">{p.displayName}</div>
+<div className="truncate font-medium"><SafeText value={p.displayName} /></div>
 <div className="truncate text-sm text-gray-600">
-{p.city}
-{p.service ? ` • ${p.service}` : ''}
+<SafeText value={p.city} />
+{p.service ? ` • ` : ''}<SafeText value={p.service} />
 {typeof p.price === 'number' ? ` • $${p.price} CAD` : ''}
 </div>
 </div>

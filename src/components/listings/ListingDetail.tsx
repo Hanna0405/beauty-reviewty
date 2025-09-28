@@ -2,7 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { SafeText } from '@/lib/safeText';
-import BookingButton from '@/components/booking/BookingButton';
+import Modal from '@/components/ui/Modal';
+import BookingForm from '@/components/booking/BookingForm';
 import { ReviewsSection } from '@/components/ReviewsSection';
 import { fetchProfileByUid } from '@/lib/data/profiles';
 
@@ -39,6 +40,7 @@ type Profile = {
 export default function ListingDetail({ listing }: { listing: Listing }) {
   const [master, setMaster] = useState<Profile | null>(null);
   const [idx, setIdx] = useState(0);
+  const [open, setOpen] = useState(false);
 
   if (!listing) return null;
 
@@ -85,10 +87,16 @@ export default function ListingDetail({ listing }: { listing: Listing }) {
       <div className="grid lg:grid-cols-[2fr,1fr] gap-8">
         {/* GALLERY */}
         <div>
-          <div className="relative aspect-[4/3] bg-gray-100 rounded-xl overflow-hidden">
+          <div className="w-full h-[420px] sm:h-[480px] rounded-xl overflow-hidden bg-neutral-100">
             {active?.url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={active.url} alt={`${listing.title} ${idx+1}`} className="h-full w-full object-cover select-none" />
+              <Image
+                src={active.url}
+                alt={`${listing.title} ${idx+1}`}
+                fill
+                sizes="(max-width: 640px) 100vw, 960px"
+                className="object-cover"
+                priority
+              />
             ) : (
               <div className="h-full w-full flex items-center justify-center text-gray-400">No photos yet</div>
             )}
@@ -145,12 +153,7 @@ export default function ListingDetail({ listing }: { listing: Listing }) {
             </div>
           ) : null}
 
-          <BookingButton 
-            listingId={listing.id}
-            masterUid={listing.masterUid || ''}
-            serviceKey="general"
-            serviceName="General Service"
-          />
+          <button className="btn btn-primary" onClick={()=>setOpen(true)}>Book now</button>
         </aside>
 
         {/* About the Master Card */}
@@ -174,6 +177,14 @@ export default function ListingDetail({ listing }: { listing: Listing }) {
 
         <ReviewsSection listingId={listing.id} />
       </div>
+
+      <Modal open={open} onClose={()=>setOpen(false)} title="Request booking">
+        <BookingForm
+          listingId={String(listing.id || '')}
+          masterUid={String(listing.masterUid || listing.ownerId || listing.ownerUid || '')}
+          onSuccess={()=>{ setOpen(false); }}
+        />
+      </Modal>
     </div>
   );
 }

@@ -8,6 +8,8 @@ export type UserProfile = {
   name: string;
   phone?: string;
   avatar?: string;
+  notifyEmail?: string; // notification destination
+  notifyOnBooking?: boolean; // default true
   createdAt: any;
 };
 
@@ -102,8 +104,10 @@ export type BookingStatus = 'pending' | 'confirmed' | 'declined' | 'canceled' | 
 export type Booking = {
  id: string;
  profileId: string; // анкета мастера
- masterUid: string;
+ masterUid: string; // owner of listing
+ masterEmail: string; // where to notify
  clientUid: string;
+ clientEmail?: string; // fallback for notifications
  serviceId: string;
  serviceName: string;
  price: number;

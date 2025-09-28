@@ -3,7 +3,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { requireAuth, requireDb } from '@/lib/firebase';
+import { db, auth, requireAuth } from '@/lib/firebase.client';
 
 export default function BookPage() {
 const params = useParams<{ id: string }>(); // profileId
@@ -14,7 +14,6 @@ const [loading, setLoading] = useState(false);
 
 async function handleBook() {
 const auth = requireAuth();
-const db = requireDb();
 if (!auth.currentUser) { alert('Please login first'); return; }
 if (!date) { alert('Select date'); return; }
 

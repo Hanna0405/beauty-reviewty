@@ -1,12 +1,37 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { collection, getDocs, limit, orderBy, query, startAfter, where } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db } from '@/lib/firebase.client';
 import Link from 'next/link';
 import ReviewtyCreateModal from './ReviewtyCreateModal';
 import Filters, { ReviewtyFilters } from './Filters';
 import { fetchMastersByUids, type MinimalMaster } from './lib/joinMasters';
 import { buildPersonLabel } from './lib/personLabel';
+
+type CityValue = string | { name?: string; placeId?: string; lat?: number; lng?: number } | undefined | null;
+
+function cityName(v: CityValue): string {
+  if (!v) return '';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'object' && v.name) return String(v.name);
+  return '';
+}
+
+function safeJoin(v: any): string {
+  if (!v) return '';
+  if (Array.isArray(v)) return v.filter(Boolean).join(', ');
+  return String(v);
+}
+
+function safeText(v: any): string {
+  if (v == null) return '';
+  if (typeof v === 'object') {
+    // Do NOT render objects; try to stringify most common cases
+    if ('name' in v) return String((v as any).name ?? '');
+    return '';
+  }
+  return String(v);
+}
 
 type ReviewDoc = {
   id: string;
@@ -94,11 +119,41 @@ export default function ReviewtyPage() {
       const q = query(collection(db, 'publicReviews'), ...constraints);
 
       const snap = await getDocs(reset ? query(q, limit(PAGE_SIZE)) : (cursor ? query(q, startAfter(cursor)) : q));
-      const docs = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })) as ReviewDoc[];
+      
+      // Normalize data before setState
+      const normalized = snap.docs.map(d => {
+        const data = d.data() as any;
+        return {
+          id: d.id,
+          rating: Number(data.rating ?? 0),
+          text: safeText(data.text),
+          photos: Array.isArray(data.photos) ? data.photos : [],
+          city: data.city, // keep as-is, render via cityName()
+          services: data.services, // can be string[] or string
+          languages: data.languages,
+          listingId: data.listingId,
+          createdAt: data.createdAt,
+          author: data.author ?? data.authorMasked ?? null,
+          masterRef: data.masterRef,
+          masterUid: data.masterUid,
+          displayName: data.displayName,
+          nickname: data.nickname,
+          contactName: data.contactName,
+          phone: data.phone,
+          masterId: data.masterId,
+          masterCity: data.masterCity,
+          masterServices: data.masterServices,
+          masterLanguages: data.masterLanguages,
+          masterDisplay: data.masterDisplay,
+          masterKeywords: data.masterKeywords,
+          masterSlug: data.masterSlug,
+        };
+      }) as ReviewDoc[];
+      
       const last = snap.docs[snap.docs.length - 1] ?? null;
 
-      // client-side filter for rating only (since it's easier to do client-side)
-      let filtered = docs;
+      // client-side filtering with safe utilities
+      let filtered = normalized;
       if (queryParams.ratingGte != null) {
         filtered = filtered.filter(d => (d.rating ?? 0) >= queryParams.ratingGte);
       }
@@ -179,9 +234,9 @@ export default function ReviewtyPage() {
             <li key={r.id} className="rounded-xl border bg-white p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="font-medium">{'★'.repeat(Math.round(r.rating || 0))}</div>
-                <div className="text-sm text-gray-500">{r.masterCity || r.city || '—'}</div>
+                <div className="text-sm text-gray-500">{safeText(r.masterCity) || cityName(r.city) || '—'}</div>
               </div>
-              <p className="text-gray-800 line-clamp-4">{r.text}</p>
+              <p className="text-gray-800 line-clamp-4">{safeText(r.text)}</p>
               {!!r.photos?.length && (
                 <div className="flex gap-2">
                   {r.photos.slice(0,3).map((p,i)=>(
@@ -192,23 +247,23 @@ export default function ReviewtyPage() {
               )}
               {/* Master info and link */}
               <div className="mt-2 text-sm text-zinc-600">
-                <span className="font-medium">{r.masterCity || "—"}</span>
+                <span className="font-medium">{safeText(r.masterCity) || "—"}</span>
               </div>
               <div className="mt-1">
                 {/* Link to master */}
                 {r.masterRef?.type === 'listing' && r.masterRef.id && (
                   <Link href={`/masters/${String(r.masterRef.id)}`} className="text-pink-600 underline">
-                    Master card — {r.masterDisplay || personLabel || "Unknown"}
+                    Master card — {safeText(r.masterDisplay) || safeText(personLabel) || "Unknown"}
                   </Link>
                 )}
                 {r.masterRef?.type === 'community' && r.masterRef.slug && (
                   <Link href={`/reviewty/m/${r.masterRef.slug}`} className="text-pink-600 underline">
-                    Master card — {r.masterDisplay || personLabel || "Unknown"}
+                    Master card — {safeText(r.masterDisplay) || safeText(personLabel) || "Unknown"}
                   </Link>
                 )}
                 {!r.masterRef && r.masterId && (
                   <Link href={`/reviewty/m/${r.masterSlug || r.masterId}`} className="text-pink-600 underline">
-                    Master card — {r.masterDisplay || "Unknown"}
+                    Master card — {safeText(r.masterDisplay) || "Unknown"}
                   </Link>
                 )}
               </div>

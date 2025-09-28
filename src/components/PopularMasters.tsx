@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { db } from '@/lib/firebase';
+import { db } from '@/lib/firebase.client';
 import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
 import RatingStars from './RatingStars';
 

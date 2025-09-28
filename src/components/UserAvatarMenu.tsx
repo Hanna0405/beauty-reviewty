@@ -1,16 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { initialsFrom } from "@/lib/initials";
+import { useNotificationsBadge } from "@/components/notifications/useNotificationsBadge";
 
 export default function UserAvatarMenu() {
  const { user, profile, loading } = useAuth();
  const [open, setOpen] = useState(false);
+ const { count } = useNotificationsBadge(user?.uid, profile?.role);
+ const [details, setDetails] = useState<{pendingBookings:number;unreadMessages:number} | null>(null);
 
  // Pick displayName first, fallback to email
  const nameOrEmail = profile?.displayName || user?.email || "";
+
+ useEffect(() => {
+ if (!user?.uid) return;
+ fetch("/api/notifications/count", {
+ method:"POST",
+ headers:{"Content-Type":"application/json"},
+ body: JSON.stringify({ userId: user.uid, role: profile?.role })
+ }).then(r=>r.json()).then(d=>{
+ if (d?.ok) setDetails({ pendingBookings: d.pendingBookings || 0, unreadMessages: d.unreadMessages || 0 });
+ }).catch(()=>{});
+ }, [user?.uid, profile?.role]);
 
  if (!user) {
  // If not logged in → show login/signup buttons
@@ -47,7 +61,12 @@ export default function UserAvatarMenu() {
  <div className="absolute right-0 mt-2 w-44 rounded-lg border border-gray-200 bg-white shadow-lg">
  <div className="px-3 py-2 text-sm font-medium text-gray-900 truncate">{nameOrEmail}</div>
  <div className="h-px bg-gray-100" />
- <Link href="/dashboard/master" className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Dashboard</Link>
+ <Link href="/dashboard/master" className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between">
+ Dashboard {count ? <span className="ml-2 inline-flex items-center justify-center min-w-5 h-5 text-xs px-1.5 rounded-full bg-red-600 text-white">{count}</span> : null}
+ </Link>
+ <Link href="/dashboard/bookings" className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center justify-between">
+ Bookings {details?.pendingBookings ? <span className="ml-2 inline-flex items-center justify-center min-w-5 h-5 text-xs px-1.5 rounded-full bg-red-600 text-white">{details.pendingBookings}</span> : null}
+ </Link>
  <Link href="/profile" className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">My profile</Link>
  <Link href="/auth/logout" className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Log out</Link>
  </div>

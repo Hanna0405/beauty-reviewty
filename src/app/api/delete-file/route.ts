@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminApp } from '@/lib/firebase-admin'; // your Admin SDK init (reuse from upload API)
+import { getAdminApp } from '@/lib/firebase-admin'; // your Admin SDK init (reuse from upload API)
 import { getStorage } from 'firebase-admin/storage';
 
 export async function POST(req: Request) {
@@ -7,7 +7,7 @@ export async function POST(req: Request) {
  const { path } = await req.json();
  if (!path) return NextResponse.json({ error: 'Missing path' }, { status: 400 });
 
- const bucket = getStorage(adminApp).bucket();
+ const bucket = getStorage(getAdminApp()).bucket();
  await bucket.file(path).delete({ ignoreNotFound: true });
 
  return NextResponse.json({ ok: true });

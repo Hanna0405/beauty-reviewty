@@ -2,8 +2,8 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
-import { db } from '@/lib/firebase-client';
-import { useAuthUser } from '@/lib/useAuthUser';
+import { db } from '@/lib/firebase';
+import { useAuth } from '@/contexts/AuthContext';
 import { SafeText } from '@/lib/safeText';
 
 type Listing = {
@@ -23,7 +23,7 @@ type Listing = {
 };
 
 export default function MyListingsPage() {
- const { user } = useAuthUser();
+ const { user } = useAuth();
  const [items, setItems] = useState<Listing[]>([]);
 
  useEffect(() => {

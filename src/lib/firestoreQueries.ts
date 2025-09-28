@@ -1,5 +1,6 @@
+'use client';
 import { collection, getDocs, query, where, orderBy, limit, startAfter, DocumentData, QueryConstraint } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db } from '@/lib/firebase.client';
 import { matchesAllFilters } from '@/lib/filtering';
 
 export type MasterFilters = {

@@ -1,7 +1,7 @@
 // src/lib/firestore-listings.ts
 'use client';
 import { addDoc, setDoc, doc, collection, serverTimestamp, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase-client';
+import { db } from '@/lib/firebase.client';
 import type { User } from 'firebase/auth';
 
 export type Photo = { url: string; path: string; width?: number | null; height?: number | null };

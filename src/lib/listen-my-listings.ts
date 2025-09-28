@@ -1,4 +1,4 @@
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firebase.client";
 import {
  collection, onSnapshot, orderBy, query, where, DocumentData, Query
 } from "firebase/firestore";

@@ -1,17 +1,14 @@
-export type CityRef = { name: string; lat: number; lng: number };
+export type BookingStatus = "pending" | "confirmed" | "declined" | "canceled" | "completed";
 
-export type Listing = {
- id?: string;
- uid: string;
- title: string;
- city: CityRef | null; // store object
- services: string[]; // chip list
- languages: string[]; // chip list
- priceMin?: number | null;
- priceMax?: number | null;
- description?: string;
- photos?: string[];
- status?: "active" | "hidden";
- createdAt?: any;
- updatedAt?: any;
+export type Booking = {
+  id?: string;
+  listingId: string;
+  masterUid: string; // owner of listing
+  clientId: string; // current user uid
+  startsAt: string; // ISO string in UTC
+  durationMin: number; // 15..600
+  note?: string;
+  status: BookingStatus;
+  createdAt?: any;
+  updatedAt?: any;
 };

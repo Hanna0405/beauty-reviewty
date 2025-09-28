@@ -1,41 +1,30 @@
-import * as admin from 'firebase-admin';
+// Safe optional Firebase Admin bootstrap
+import { getApps as getAdminApps, getApp as getAdminApp, initializeApp as initAdminApp, cert, App as AdminApp } from 'firebase-admin/app';
+import { getFirestore as getAdminFirestore, Firestore as AdminFirestore } from 'firebase-admin/firestore';
 
-let app: admin.app.App | null = null;
+let cachedAdminDb: AdminFirestore | null | undefined;
 
-export function initAdmin() {
-  if (app) return app;
-
+function initSafeAdmin(): AdminFirestore | null {
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   let privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
   if (!projectId || !clientEmail || !privateKey) {
-    throw new Error('Missing Firebase Admin env vars');
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[admin] Missing envs — Admin SDK disabled');
+    }
+    return null;
   }
-
-  // Replace escaped newlines from env
   privateKey = privateKey.replace(/\\n/g, '\n');
 
-  if (admin.apps.length) {
-    app = admin.app();
-    return app;
-  }
+  const app: AdminApp =
+    getAdminApps().length ? getAdminApp() :
+    initAdminApp({ credential: cert({ projectId, clientEmail, privateKey }) });
 
-  app = admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId,
-      clientEmail,
-      privateKey,
-    }),
-  });
-
-  return app;
+  return getAdminFirestore(app);
 }
 
-export function getAdminFirestore() {
-  return admin.firestore(initAdmin());
-}
-
-export function getAdminAuth() {
-  return admin.auth(initAdmin());
+export function getAdminDb(): AdminFirestore | null {
+  if (cachedAdminDb === undefined) cachedAdminDb = initSafeAdmin();
+  return cachedAdminDb ?? null;
 }

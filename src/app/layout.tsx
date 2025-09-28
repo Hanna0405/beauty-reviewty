@@ -3,6 +3,7 @@ import Providers from "./providers";
 import { ToastProvider } from '@/components/ui/Toast';
 import AppHeader from "@/components/layout/AppHeader";
 import GoogleMapsProvider from '@/providers/GoogleMapsProvider';
+import ToasterClient from '@/components/system/ToasterClient';
 
 export const metadata = {
   title: "BeautyReviewty",
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               {children}
             </Providers>
           </ToastProvider>
+          <ToasterClient />
         </GoogleMapsProvider>
       </body>
     </html>

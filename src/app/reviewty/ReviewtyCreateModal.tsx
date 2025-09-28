@@ -1,8 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { addDoc, collection, doc, getDoc, serverTimestamp, getDocs, limit, orderBy, query } from 'firebase/firestore';
-import { db } from '@/lib/firebase-client';
-import { useAuthUser } from '@/lib/useAuthUser';
+import { db } from '@/lib/firebase.client';
+import { useAuth } from '@/contexts/AuthContext';
 import { createReview } from '@/lib/reviews';
 import type { CommunityMaster } from '@/types/community';
 import AutocompleteList from '@/components/AutocompleteList';
@@ -30,7 +30,7 @@ type Props = {
 
 export default function ReviewtyCreateModal({ open: controlledOpen, onClose, presetMaster }: Props = {}) {
   const [internalOpen, setInternalOpen] = useState(false);
-  const { user } = useAuthUser();
+  const { user } = useAuth();
   
   // Use controlled open if provided, otherwise use internal state
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;

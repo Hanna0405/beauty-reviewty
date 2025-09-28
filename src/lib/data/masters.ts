@@ -1,7 +1,8 @@
-import { getFirestore, collection, getDocs } from 'firebase/firestore';
+'use client';
+import { db } from '@/lib/firebase.client';
+import { collection, getDocs } from 'firebase/firestore';
 import { normalizeMasters } from '@/lib/normalizeMaster';
 import { Master } from '@/types/master';
-import { db } from '@/lib/firebase';
 
 export async function fetchPublicMasters(): Promise<Master[]> {
   if (!db) {

@@ -2,6 +2,8 @@ import { Timestamp } from "firebase/firestore";
 export type Listing = {
  id?: string;
  uid: string;
+ ownerId?: string; // uid of the listing owner (master)
+ profileId?: string; // alternative field name for owner
  title: string;
  description?: string;
  city: string;

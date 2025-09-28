@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { auth } from '@/lib/firebase-client';
+import { auth } from '@/lib/firebase.client';
 import type { User } from 'firebase/auth';
 
 export function useCurrentUserOrRedirect() {

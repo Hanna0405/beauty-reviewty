@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase-client';
+import { db } from '@/lib/firebase.client';
 import { fetchListingsByMasterUid, type Listing } from '@/lib/data/listings';
 import { useAuth } from '@/contexts/AuthContext';
 import { renderServiceTag, renderLanguageTag } from '@/lib/tags';

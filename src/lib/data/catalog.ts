@@ -1,5 +1,5 @@
 import { collection, getDocs, query, where, limit, orderBy } from "firebase/firestore";
-import { db } from "@/lib/firebase-client";
+import { db } from "@/lib/firebase.client";
 
 export type Profile = {
   uid: string;

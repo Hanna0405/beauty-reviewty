@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
-import { initAdmin } from '@/lib/firebaseAdmin';
-initAdmin();
+import { adminDb } from '@/lib/firebaseAdmin';
 
 type Body = { bookingId: string; action: 'confirm'|'decline'|'cancel'|'complete' };
 
@@ -16,7 +15,7 @@ export async function POST(req: Request) {
     const { bookingId, action } = (await req.json()) as Body;
     if (!bookingId || !action) return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
 
-    const ref = db.collection('bookings').doc(bookingId);
+    const ref = adminDb.collection('bookings').doc(bookingId);
     const snap = await ref.get();
     if (!snap.exists) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     const b = snap.data() as any;
@@ -27,12 +26,12 @@ export async function POST(req: Request) {
     if (action === 'confirm') {
       if (!isMaster) return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
       if (b.status !== 'pending') return NextResponse.json({ error: 'Invalid state' }, { status: 400 });
-      await db.runTransaction(async tx => {
+      await adminDb.runTransaction(async tx => {
         const s2 = await tx.get(ref);
         const bb = s2.data() as any;
         if (bb.status !== 'pending') throw new Error('State changed');
         const q = await tx.get(
-          db.collection('bookings')
+          adminDb.collection('bookings')
             .where('masterUid','==', bb.masterUid)
             .where('status','==','confirmed')
             .where('startMs','<', bb.endMs)

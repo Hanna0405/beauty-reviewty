@@ -3,15 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-
-function initialsFrom(nameOrEmail?: string | null) {
- if (!nameOrEmail) return "U";
- const base = nameOrEmail.includes("@") ? nameOrEmail.split("@")[0] : nameOrEmail;
- const parts = base.trim().split(/[.\s_-]+/).filter(Boolean);
- const two = (parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "");
- const one = parts[0]?.slice(0, 2) ?? "U";
- return (two || one).toUpperCase();
-}
+import { AvatarWithBadge } from "@/components/notifications/AvatarWithBadge";
 
 export default function AppHeader() {
  const { user, profile, loading, logout } = useAuth();
@@ -56,24 +48,19 @@ export default function AppHeader() {
  </>
  )}
 
- {user && <AccountMenu nameOrEmail={nameOrEmail} onLogout={logout} />}
+ {user && <AccountMenu nameOrEmail={nameOrEmail} onLogout={logout} user={user} profile={profile} />}
  </div>
  </div>
  );
 }
 
-function AccountMenu({ nameOrEmail, onLogout }: { nameOrEmail?: string | null; onLogout: () => Promise<void> }) {
+function AccountMenu({ nameOrEmail, onLogout, user, profile }: { nameOrEmail?: string | null; onLogout: () => Promise<void>; user: any; profile: any }) {
  const [open, setOpen] = useState(false);
- const initials = initialsFrom(nameOrEmail || "");
 
  return (
  <div className="relative">
- <button
- onClick={() => setOpen(v => !v)}
- aria-label="Account menu"
- className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-900 text-sm font-semibold text-white ring-1 ring-black/10 hover:opacity-90"
- >
- {initials}
+ <button onClick={() => setOpen(v => !v)} aria-label="Account menu" className="focus:outline-none">
+ <AvatarWithBadge user={{ uid: user.uid, role: profile?.role || "client", name: nameOrEmail }} />
  </button>
  {open && (
  <div className="absolute right-0 mt-2 w-44 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
