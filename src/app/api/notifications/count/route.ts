@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getAdminDb } from "@/lib/firebaseAdmin";
+import { adminDb } from "@/lib/firebaseAdmin";
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,11 +12,7 @@ export async function POST(req: NextRequest) {
  // keep any production logs if you really need them
  }
  
- const adminDb = getAdminDb();
- if (!adminDb) {
- // Skip admin-only work when disabled; return OK instead of throwing
- return new Response(JSON.stringify({ ok: true, adminDisabled: true }), { status: 200 });
- }
+// adminDb is already a Firestore instance, no need to call it as a function
  
  try {
  const { userId, role } = await req.json();

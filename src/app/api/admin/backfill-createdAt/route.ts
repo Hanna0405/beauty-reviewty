@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase/admin';
+import { adminDb } from '@/lib/firebaseAdmin';
 import { FieldValue } from 'firebase-admin/firestore';
 
 function isAllowed() {
@@ -38,7 +38,7 @@ export async function POST() {
     
     while (hasMore) {
       // Query for listings without createdAt field
-      const q = adminDb().collection('listings')
+      const q = adminDb.collection('listings')
         .where('createdAt', '==', null)
         .limit(BATCH_SIZE);
       
@@ -51,10 +51,10 @@ export async function POST() {
       }
       
       // Create batch update
-      const batch = adminDb().batch();
+      const batch = adminDb.batch();
       
       docs.forEach((docSnapshot) => {
-        const docRef = adminDb().collection('listings').doc(docSnapshot.id);
+        const docRef = adminDb.collection('listings').doc(docSnapshot.id);
         batch.update(docRef, {
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp()
@@ -78,7 +78,7 @@ export async function POST() {
     // Also check for listings where createdAt is undefined (not just null)
     console.log('Checking for listings with undefined createdAt...');
     
-    const allListingsQuery = adminDb().collection('listings')
+    const allListingsQuery = adminDb.collection('listings')
       .limit(1000); // Reasonable limit for this check
     
     const allListingsSnapshot = await allListingsQuery.get();
@@ -92,11 +92,11 @@ export async function POST() {
       
       // Process in batches
       for (let i = 0; i < undefinedCreatedAtDocs.length; i += BATCH_SIZE) {
-        const batch = adminDb().batch();
+        const batch = adminDb.batch();
         const batchDocs = undefinedCreatedAtDocs.slice(i, i + BATCH_SIZE);
         
         batchDocs.forEach((docSnapshot) => {
-          const docRef = adminDb().collection('listings').doc(docSnapshot.id);
+          const docRef = adminDb.collection('listings').doc(docSnapshot.id);
           batch.update(docRef, {
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp()

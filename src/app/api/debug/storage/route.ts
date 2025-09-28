@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminBucket } from '@/lib/firebase/admin';
+import { adminBucket } from '@/lib/firebaseAdmin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

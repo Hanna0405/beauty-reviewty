@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase/admin';
+import { adminDb } from '@/lib/firebaseAdmin';
 import type { MastersSearchReq, MastersSearchRes, Master } from '@/types/masters';
 
 export const runtime = 'nodejs';
@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
  const body = (await req.json()) as MastersSearchReq;
  const pageSize = Math.min(Math.max(body.pageSize ?? 20, 1), 50);
 
- let query: FirebaseFirestore.Query = adminDb().collection('masters');
+ let query: FirebaseFirestore.Query = adminDb.collection('masters');
  if (body.city) query = query.where('city', '==', body.city);
  if (body.service) query = query.where('services', 'array-contains', body.service);
  if (body.language) query = query.where('languages', 'array-contains', body.language);
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
  // order & pagination
  query = query.orderBy('rating', 'desc').limit(pageSize + 1);
  if (body.cursor) {
- const snap = await adminDb().collection('masters').doc(body.cursor).get();
+ const snap = await adminDb.collection('masters').doc(body.cursor).get();
  if (snap.exists) query = query.startAfter(snap);
  }
 

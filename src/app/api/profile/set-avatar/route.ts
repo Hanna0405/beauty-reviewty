@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase/admin';
+import { adminDb } from '@/lib/firebaseAdmin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
  if (url !== undefined) updateData.photoUrl = url;
  if (path !== undefined) updateData.photoPath = path;
  
- await adminDb().collection('masters').doc(uid).set(updateData, { merge: true });
+ await adminDb.collection('masters').doc(uid).set(updateData, { merge: true });
  
  return NextResponse.json({ ok:true });
  } catch (e:any) {

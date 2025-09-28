@@ -1,4 +1,4 @@
-import { adminDb } from '@/lib/firebase/admin';
+import { adminDb } from '@/lib/firebaseAdmin';
 import { notFound } from 'next/navigation';
 import MasterCard from '@/components/MasterCard';
 
@@ -18,7 +18,7 @@ type MasterProfile = {
 
 export default async function PublicMasterPage({ params }: { params: { uid: string } }) {
   try {
-    const snap = await adminDb().collection('masters').doc(params.uid).get();
+    const snap = await adminDb.collection('masters').doc(params.uid).get();
   
     if (!snap.exists) {
       notFound();

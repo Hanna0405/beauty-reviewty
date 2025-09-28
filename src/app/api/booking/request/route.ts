@@ -1,6 +1,6 @@
 // src/app/api/booking/request/route.ts
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase-admin';
+import { adminDb } from '@/lib/firebaseAdmin';
 
 type Body = {
  // allow both new/old payload shapes

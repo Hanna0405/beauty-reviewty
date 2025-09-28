@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminBucket } from '@/lib/firebase/admin';
+import { adminBucket } from '@/lib/firebaseAdmin';
 import { randomUUID } from 'crypto';
 
 export const runtime = 'nodejs';

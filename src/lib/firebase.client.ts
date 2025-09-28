@@ -1,7 +1,7 @@
 'use client';
 
 import { getApps, initializeApp, FirebaseOptions, FirebaseApp } from 'firebase/app';
-import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
+import { getAuth, setPersistence, browserLocalPersistence, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
@@ -69,5 +69,19 @@ export function requireAuth(opts?: { assert?: boolean }) {
  }
  return auth;
 }
+
+export function requireDb() {
+ return db;
+}
+
+export function requireStorage() {
+ return storage;
+}
+
+// Google Auth Provider for compatibility
+export const googleProvider = new GoogleAuthProvider();
+
+// Storage helper for compatibility
+export const getStorageSafe = () => storage;
 
 export { app, auth, db, storage };
