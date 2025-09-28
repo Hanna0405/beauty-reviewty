@@ -47,7 +47,7 @@ export function sanitizeProfileData(rawData: any, uid: string, avatarUrl: string
 
   const sanitizedData: SanitizedProfileData = {
     displayName: safeString(rawData.name || rawData.displayName, ''),
-    city: safeString(rawData.city?.label || rawData.city, ''),
+    city: safeString(rawData.city?.cityName || rawData.city?.formatted || rawData.city, ''),
     services: safeArray(rawData.services),
     languages: safeArray(rawData.languages),
     avatarUrl: avatarUrl, // This should already be sanitized (string | null)

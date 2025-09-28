@@ -53,7 +53,7 @@ export default function MasterProfileForm({ initialUser }: Props) {
     resolver: zodResolver(MasterProfileSchema),
     defaultValues: {
       name: initialUser?.name ?? '',
-      city: initialUser?.city ?? { label: '', lat: undefined, lng: undefined },
+      city: initialUser?.city ?? { city: '', state: '', stateCode: '', country: '', countryCode: '', formatted: '', lat: 0, lng: 0, placeId: '', slug: '', cityName: '', cityKey: '' },
       services: initialUser?.services ?? [],
       languages: initialUser?.languages ?? [],
       priceFrom: initialUser?.priceFrom,
@@ -69,7 +69,7 @@ export default function MasterProfileForm({ initialUser }: Props) {
     if (initialUser) {
       reset({
         name: initialUser.name ?? '',
-        city: initialUser.city ?? { label: '', lat: undefined, lng: undefined },
+        city: initialUser.city ?? { city: '', state: '', stateCode: '', country: '', countryCode: '', formatted: '', lat: 0, lng: 0, placeId: '', slug: '', cityName: '', cityKey: '' },
         services: initialUser.services ?? [],
         languages: initialUser.languages ?? [],
         priceFrom: initialUser.priceFrom,

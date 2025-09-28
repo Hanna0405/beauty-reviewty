@@ -1,12 +1,12 @@
 // src/lib/filtering.ts
 export type CityLike = string | { name?: string } | null | undefined;
 
-export function normalizeCity(value: any): { label?: string; key?: string; placeId?: string } {
+export function normalizeCity(value: any): { cityName?: string; cityKey?: string; placeId?: string } {
   if (!value) return {};
-  if (typeof value === 'string') return { label: value };
+  if (typeof value === 'string') return { cityName: value, cityKey: value.toLowerCase().replace(/\s+/g, '-') };
   return {
-    label: value?.name ?? value?.label,
-    key: value?.key,
+    cityName: value?.name ?? value?.label ?? value?.cityName ?? value?.formatted,
+    cityKey: value?.key ?? value?.cityKey ?? value?.slug,
     placeId: value?.placeId ?? value?.place_id
   };
 }
@@ -42,7 +42,7 @@ export function matchesAllFilters(item: any, f: CommonFilters, isMaster: boolean
   // City
   const itemCity = normalizeCity(item?.city);
   if (f.cityPlaceId && itemCity.placeId && itemCity.placeId !== f.cityPlaceId) return false;
-  else if (!f.cityPlaceId && f.city && itemCity.label && itemCity.label !== f.city) return false;
+  else if (!f.cityPlaceId && f.city && itemCity.cityName && itemCity.cityName !== f.city) return false;
 
   // Rating
   if (typeof f.minRating === 'number') {

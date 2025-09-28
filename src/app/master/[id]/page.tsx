@@ -55,9 +55,9 @@ export default function MasterPublicPage({ params }: { params: { id: string } })
         </div>
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-semibold">{data.displayName ?? 'Master'}</h1>
-          <div className="text-sm text-gray-600"><SafeText value={data.cityName ?? data?.city?.name ?? data?.city} /></div>
-          <div className="mt-1 text-sm"><SafeText value={data.serviceNames ?? data.services} /></div>
-          <div className="text-xs text-gray-500"><SafeText value={data.languageNames ?? data.languages} /></div>
+          <div className="text-sm text-gray-600"><SafeText value={data?.city?.cityName ?? data?.city?.formatted ?? data?.city} /></div>
+          <div className="mt-1 text-sm"><SafeText value={data.services} /></div>
+          <div className="text-xs text-gray-500"><SafeText value={data.languages} /></div>
           {typeof data.rating === 'number' && <div className="mt-1 text-sm">Rating: {data.rating}★</div>}
         </div>
       </div>

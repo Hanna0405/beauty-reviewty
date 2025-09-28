@@ -52,7 +52,25 @@ export default function EditListingPage() {
         if (listingSnap.exists()) {
           const data = listingSnap.data();
  setTitle(data.title || "");
-          setCity(data.city ? { label: data.city, slug: data.citySlug || data.city } : null);
+          setCity(
+            data?.city
+              ? {
+                  city: data.city,
+                  state: data.state ?? "",
+                  stateCode: data.stateCode ?? "",
+                  country: data.country ?? "",
+                  countryCode: data.countryCode ?? "",
+                  formatted: data.formatted ?? data.city,
+                  lat: Number(data.lat ?? 0),
+                  lng: Number(data.lng ?? 0),
+                  placeId: data.placeId ?? "",
+                  slug: (data.citySlug ?? data.city)?.toLowerCase().replace(/\s+/g, "-"),
+                  // mirrors
+                  cityName: data.formatted ?? data.city,
+                  cityKey: (data.citySlug ?? data.city)?.toLowerCase().replace(/\s+/g, "-"),
+                }
+              : null
+          );
  setServices(data.services || []);
  setLanguages(data.languages || []);
  setPriceMin(data.priceMin != null ? String(data.priceMin) : "");

@@ -9,6 +9,9 @@ export type NormalizedCity = {
   lng: number;
   placeId: string;
   slug: string;
+  // mirrors for UI/filters
+  cityName: string; // == formatted
+  cityKey: string; // == slug
 };
 
 function slugify(s: string) {
@@ -46,5 +49,8 @@ export function normalizeFromPlace(details: google.maps.places.PlaceResult): Nor
     lng,
     placeId: details.place_id || '',
     slug,
+    // mirrors
+    cityName: formatted,
+    cityKey: slug,
   };
 }
