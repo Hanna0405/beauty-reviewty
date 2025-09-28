@@ -1,5 +1,5 @@
 import { getAuth } from 'firebase/auth';
-import app from './firebase';
+import { app } from './firebase.client';
 
 export async function getAuthIdToken(): Promise<string> {
   const auth = getAuth(app);

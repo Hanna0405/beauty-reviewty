@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import PhoneAuthBlock from '@/components/PhoneAuthBlock';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { updateProfile, sendPasswordResetEmail } from 'firebase/auth';
+import { updateProfile, sendPasswordResetEmail, updateEmail } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase.client';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import toast from 'react-hot-toast';
@@ -70,7 +70,9 @@ export default function SettingsPage() {
     if (!user?.email) return;
     
     try {
-      await updateProfile(auth.currentUser!, { email: notifyEmail });
+      if (auth.currentUser && notifyEmail) {
+        await updateEmail(auth.currentUser, String(notifyEmail));
+      }
       toast.success('Email updated successfully');
     } catch (error) {
       console.error('Error updating email:', error);

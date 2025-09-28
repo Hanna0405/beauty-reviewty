@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from "@/contexts/AuthContext";
 import { useSaveProfile } from "@/lib/hooks/useSaveProfile";
 import { MasterProfileSchema, type MasterProfileFormData } from '@/lib/schemas';
-import CityAutocomplete from "@/components/CityAutocomplete";
+import CityAutocomplete from "@/components/CityAutocompleteSimple";
 import ServiceAutocomplete from "@/components/ServiceAutocomplete";
 import LanguagesField from "@/components/LanguagesField";
 import { useToast } from "@/components/ui/Toast";
@@ -53,7 +53,7 @@ export default function MasterProfileForm({ initialUser }: Props) {
     resolver: zodResolver(MasterProfileSchema),
     defaultValues: {
       name: initialUser?.name ?? '',
-      city: initialUser?.city ?? { city: '', state: '', stateCode: '', country: '', countryCode: '', formatted: '', lat: 0, lng: 0, placeId: '', slug: '', cityName: '', cityKey: '' },
+      city: initialUser?.city ?? { label: '', lat: undefined, lng: undefined },
       services: initialUser?.services ?? [],
       languages: initialUser?.languages ?? [],
       priceFrom: initialUser?.priceFrom,
@@ -69,7 +69,7 @@ export default function MasterProfileForm({ initialUser }: Props) {
     if (initialUser) {
       reset({
         name: initialUser.name ?? '',
-        city: initialUser.city ?? { city: '', state: '', stateCode: '', country: '', countryCode: '', formatted: '', lat: 0, lng: 0, placeId: '', slug: '', cityName: '', cityKey: '' },
+        city: initialUser.city ?? { label: '', lat: undefined, lng: undefined },
         services: initialUser.services ?? [],
         languages: initialUser.languages ?? [],
         priceFrom: initialUser.priceFrom,
@@ -177,8 +177,6 @@ export default function MasterProfileForm({ initialUser }: Props) {
                   value={field.value?.label || ""}
                   onChange={(val) => field.onChange({ label: val })}
                   placeholder="Enter your city..."
-                  required
-                  error={fieldState.error?.message}
                 />
                 {fieldState.error && (
                   <p className="mt-1 text-sm text-red-600">{fieldState.error.message}</p>

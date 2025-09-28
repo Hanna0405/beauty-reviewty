@@ -48,7 +48,7 @@ export function useUserProfile() {
  setProfile({ uid: u.uid });
  } else {
  const data = snap.data() as UserProfile;
- setProfile({ uid: u.uid, ...data });
+      setProfile(data);
  }
  setLoading(false);
  },

@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
-import { initAdmin } from '@/lib/firebaseAdmin';
-initAdmin();
+import '@/lib/firebaseAdmin'; // Initialize admin SDK
 
 type Body = {
   listingId: string;

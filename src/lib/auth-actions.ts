@@ -32,7 +32,7 @@ export async function signInWithGoogle() {
 }
 
 async function ensureUserDoc(uid: string, email: string, displayName: string) {
- const db = requireDb();
+ // db is already imported from firebase.client
  const ref = doc(db, "users", uid);
  const snap = await getDoc(ref);
  if (!snap.exists()) {

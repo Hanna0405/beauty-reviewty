@@ -49,8 +49,10 @@ export default function ListingDetail({ listing }: { listing: Listing }) {
     if (listing.masterUid) {
       (async () => {
         try {
-          const masterProfile = await fetchProfileByUid(listing.masterUid);
-          setMaster(masterProfile);
+          if (listing.masterUid) {
+            const masterProfile = await fetchProfileByUid(listing.masterUid);
+            setMaster(masterProfile);
+          }
         } catch (error) {
           console.error('Error loading master profile:', error);
         }
@@ -163,7 +165,7 @@ export default function ListingDetail({ listing }: { listing: Listing }) {
               <img src={master.avatarUrl || '/placeholder.jpg'} alt={master.displayName} className="w-12 h-12 rounded-full object-cover" />
               <div>
                 <a href={`/masters/${master.slug || master.uid}`} className="font-medium hover:underline">{master.displayName}</a>
-                <div className="text-sm opacity-70"><SafeText value={master.cityName ?? master.city} />{!master.cityName && !master.city && 'City'}</div>
+                <div className="text-sm opacity-70"><SafeText value={master?.city} />{!master?.city && 'City'}</div>
                 <div className="text-sm">★ {master.ratingAvg?.toFixed?.(1) ?? "—"} ({master.reviewsCount ?? 0})</div>
               </div>
             </div>
@@ -181,7 +183,7 @@ export default function ListingDetail({ listing }: { listing: Listing }) {
       <Modal open={open} onClose={()=>setOpen(false)} title="Request booking">
         <BookingForm
           listingId={String(listing.id || '')}
-          masterUid={String(listing.masterUid || listing.ownerId || listing.ownerUid || '')}
+          masterUid={String(listing.masterUid || listing.ownerUid || '')}
           onSuccess={()=>{ setOpen(false); }}
         />
       </Modal>

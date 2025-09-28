@@ -100,7 +100,7 @@ function AccountMenu({ nameOrEmail, user, profile }: { nameOrEmail: string | nul
  return (
  <div className="relative" id="hdr-menu">
  <button onClick={() => setOpen(v => !v)} aria-label="Account menu" className="focus:outline-none">
- <AvatarWithBadge user={{ uid: user.uid, role: profile?.role || "client", name: nameOrEmail }} />
+ <AvatarWithBadge user={{ uid: user.uid, role: profile?.role || "client", name: nameOrEmail || undefined }} />
  </button>
  {open && (
  <div className="absolute right-0 mt-2 w-48 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg z-50">

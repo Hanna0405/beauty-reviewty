@@ -7,7 +7,7 @@ import Image from 'next/image';
 import Script from 'next/script';
 import dynamic from 'next/dynamic';
 
-const CityAutocomplete = dynamic(() => import('@/components/CityAutocomplete'), { ssr: false });
+const CityAutocomplete = dynamic(() => import('@/components/CityAutocompleteSimple'), { ssr: false });
 const ServiceAutocomplete = dynamic(() => import('@/components/masters/ServiceAutocomplete'), { ssr: false });
 const LanguageAutocomplete = dynamic(() => import('@/components/LanguageAutocomplete'), { ssr: false });
 

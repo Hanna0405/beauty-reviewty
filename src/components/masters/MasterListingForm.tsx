@@ -25,7 +25,7 @@ import { stripUndefined, toNumberOrNull } from "@/lib/object-helpers";
 import { useAuth } from '@/contexts/AuthContext';
 import type { Listing, GeoPoint } from '@/types';
 import { listingFormSchema, type ListingFormData } from '@/lib/schemas';
-import CityAutocomplete from '@/components/CityAutocomplete';
+import CityAutocomplete from '@/components/CityAutocompleteSimple';
 import ServiceAutocomplete from './ServiceAutocomplete';
 import LanguagesField from '@/components/LanguagesField';
 import { SERVICE_GROUPS } from '@/constants/services';
@@ -154,18 +154,10 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
         title: initialData.title || '',
         about: initialData.about || '',
         city: initialData.city ? {
-          city: initialData.city,
-          state: '',
-          stateCode: '',
-          country: '',
-          countryCode: '',
-          formatted: initialData.city,
-          lat: initialData.location?.lat ?? 0,
-          lng: initialData.location?.lng ?? 0,
-          placeId: '',
-          slug: initialData.city.toLowerCase().replace(/\s+/g, '-'),
-          cityName: initialData.city,
-          cityKey: initialData.city.toLowerCase().replace(/\s+/g, '-'),
+          label: initialData.city,
+          placeId: undefined,
+          lat: initialData.location?.lat,
+          lng: initialData.location?.lng,
         } : null,
         services: initialData.services || [],
         languages: initialData.languages || [],
@@ -211,7 +203,7 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
 
     const formData = watch();
     const title = (formData.title || "").trim();
-    const city = (formData.city?.cityName || formData.city?.formatted || "").trim();
+    const city = (formData.city?.label || "").trim();
     const services = formData.services || [];
     const languages = formData.languages || [];
     const description = (formData.about || "").trim();
