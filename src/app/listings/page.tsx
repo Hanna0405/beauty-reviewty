@@ -1,16 +1,17 @@
-'use client';
-export const dynamic = 'force-dynamic';
+"use client";
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import NextDynamic from 'next/dynamic';
-import MasterFilters from '@/components/Filters/MasterFilters';
-import ListingCard from '@/components/ListingCard';
-import { fetchListingsOnce, ListingFilters as LF } from '@/lib/firestoreQueries';
+export const dynamic = "force-dynamic";
 
-const MastersMap = NextDynamic(() => import('@/components/Map/MastersMap'), { ssr: false });
+import { useEffect, useState, Suspense } from "react";
+import Link from "next/link";
+import nextDynamic from "next/dynamic";
+import MasterFilters from "@/components/Filters/MasterFilters";
+import ListingCard from "@/components/ListingCard";
+import { fetchListingsOnce, ListingFilters as LF } from "@/lib/firestoreQueries";
 
-export default function ListingsPage() {
+const MastersMap = nextDynamic(() => import("@/components/Map/MastersMap"), { ssr: false });
+
+function PageContent() {
   const [filters, setFilters] = useState<LF>({ services: [], languages: [], minRating: undefined });
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -75,5 +76,13 @@ export default function ListingsPage() {
         </section>
       </div>
     </div>
+  );
+}
+
+export default function ListingsPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <PageContent />
+    </Suspense>
   );
 }

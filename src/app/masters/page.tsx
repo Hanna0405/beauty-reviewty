@@ -1,16 +1,17 @@
-'use client';
-export const dynamic = 'force-dynamic';
+"use client";
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import NextDynamic from 'next/dynamic';
-import MasterFilters from '@/components/Filters/MasterFilters';
-import MasterCard from '@/components/MasterCard';
-import { fetchMastersOnce, MasterFilters as FM } from '@/lib/firestoreQueries';
+export const dynamic = "force-dynamic";
 
-const MastersMap = NextDynamic(() => import('@/components/Map/MastersMap'), { ssr: false });
+import { useEffect, useState, Suspense } from "react";
+import Link from "next/link";
+import nextDynamic from "next/dynamic";
+import MasterFilters from "@/components/Filters/MasterFilters";
+import MasterCard from "@/components/MasterCard";
+import { fetchMastersOnce, MasterFilters as FM } from "@/lib/firestoreQueries";
 
-export default function MastersPage() {
+const MastersMap = nextDynamic(() => import("@/components/Map/MastersMap"), { ssr: false });
+
+function PageContent() {
   const [filters, setFilters] = useState<FM>({ services: [], languages: [], minRating: undefined, name: '' });
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -91,5 +92,13 @@ export default function MastersPage() {
         </section>
       </div>
     </div>
+  );
+}
+
+export default function MastersPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <PageContent />
+    </Suspense>
   );
 }
