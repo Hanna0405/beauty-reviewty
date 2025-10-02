@@ -1,14 +1,14 @@
-export const dynamic = "force-dynamic";
-
 'use client';
+export const dynamic = 'force-dynamic';
+
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
+import NextDynamic from 'next/dynamic';
 import MasterFilters from '@/components/Filters/MasterFilters';
 import ListingCard from '@/components/ListingCard';
 import { fetchListingsOnce, ListingFilters as LF } from '@/lib/firestoreQueries';
 
-const MastersMap = dynamic(() => import('@/components/Map/MastersMap'), { ssr: false });
+const MastersMap = NextDynamic(() => import('@/components/Map/MastersMap'), { ssr: false });
 
 export default function ListingsPage() {
   const [filters, setFilters] = useState<LF>({ services: [], languages: [], minRating: undefined });
