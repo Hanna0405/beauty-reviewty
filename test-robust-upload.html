@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Robust Upload Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        input[type="file"] { margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Robust Photo Upload Test</h1>
+    <p>This test verifies the new upload system with proper error handling and logging.</p>
+
+    <div class="test-section">
+        <h3>📁 File Selection</h3>
+        <input type="file" id="fileInput" multiple accept="image/*,.jpg,.jpeg,.png,.webp">
+        <p><small>Select JPG, PNG, or WebP images (max 10MB each)</small></p>
+    </div>
+
+    <div class="test-section">
+        <h3>🚀 Upload Test</h3>
+        <button onclick="testUpload()">Test Upload</button>
+        <button onclick="testMultipleFiles()">Test Multiple Files</button>
+        <button onclick="testLargeFile()">Test Large File (Error)</button>
+    </div>
+
+    <div class="test-section">
+        <h3>📊 Results</h3>
+        <div id="result"></div>
+    </div>
+
+    <div class="test-section info">
+        <h3>🔍 What to Check</h3>
+        <ul>
+            <li><strong>Server Logs:</strong> Look for <code>[upload] ENV bucket =</code> and <code>[upload] Using bucket =</code></li>
+            <li><strong>Error Messages:</strong> Server errors should be clearly displayed</li>
+            <li><strong>URL Pattern:</strong> Should return <code>{files: [{url, path, name, size, type}]}</code></li>
+            <li><strong>Fallback:</strong> If makePublic() fails, should fallback to token URL</li>
+        </ul>
+    </div>
+
+    <script>
+        async function testUpload() {
+            const fileInput = document.getElementById('fileInput');
+            const files = fileInput.files;
+            
+            if (!files.length) {
+                showResult('Please select files first', 'error');
+                return;
+            }
+
+            showResult('Uploading...', 'info');
+
+            try {
+                const formData = new FormData();
+                Array.from(files).forEach(file => {
+                    formData.append('files', file);
+                });
+                formData.append('listingId', 'test-robust-upload');
+
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const body = await response.json().catch(() => ({}));
+                
+                if (response.ok && body.files) {
+                    showResult(`
+                        <h4>✅ Upload Success!</h4>
+                        <p><strong>Files uploaded:</strong> ${body.files.length}</p>
+                        <p><strong>Check server logs for:</strong></p>
+                        <ul>
+                            <li><code>[upload] ENV bucket = beauty-reviewty.firebasestorage.app</code></li>
+                            <li><code>[upload] Using bucket = beauty-reviewty.firebasestorage.app</code></li>
+                            <li><code>[upload] response files = [...]</code></li>
+                        </ul>
+                        <details>
+                            <summary>Response Details</summary>
+                            <pre>${JSON.stringify(body, null, 2)}</pre>
+                        </details>
+                    `, 'success');
+                } else {
+                    showResult(`
+                        <h4>❌ Upload Failed</h4>
+                        <p><strong>Server Error:</strong> ${body?.error || 'Unknown error'}</p>
+                        <p><strong>Status:</strong> ${response.status}</p>
+                        <p><strong>Response Issue:</strong> ${body.files ? 'Missing files array' : 'No files in response'}</p>
+                        <details>
+                            <summary>Error Details</summary>
+                            <pre>${JSON.stringify(body, null, 2)}</pre>
+                        </details>
+                    `, 'error');
+                }
+            } catch (error) {
+                showResult(`
+                    <h4>❌ Network Error</h4>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <p>This usually means the server is not running or there's a network issue.</p>
+                `, 'error');
+            }
+        }
+
+        async function testMultipleFiles() {
+            // Create test files
+            const files = [
+                new File(['test1'], 'test1.jpg', { type: 'image/jpeg' }),
+                new File(['test2'], 'test2.png', { type: 'image/png' }),
+                new File(['test3'], 'test3.webp', { type: 'image/webp' })
+            ];
+
+            showResult('Testing multiple files...', 'info');
+
+            try {
+                const formData = new FormData();
+                files.forEach(file => formData.append('files', file));
+                formData.append('listingId', 'test-multiple');
+
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const body = await response.json().catch(() => ({}));
+                
+                if (response.ok) {
+                    showResult(`
+                        <h4>✅ Multiple Files Upload Success!</h4>
+                        <p><strong>Files uploaded:</strong> ${body.files?.length || 0}</p>
+                        <p><strong>Expected:</strong> 3 files</p>
+                        <details>
+                            <summary>Response Details</summary>
+                            <pre>${JSON.stringify(body, null, 2)}</pre>
+                        </details>
+                    `, 'success');
+                } else {
+                    showResult(`
+                        <h4>❌ Multiple Files Upload Failed</h4>
+                        <p><strong>Error:</strong> ${body?.error || 'Unknown error'}</p>
+                    `, 'error');
+                }
+            } catch (error) {
+                showResult(`<h4>❌ Network Error</h4><p>${error.message}</p>`, 'error');
+            }
+        }
+
+        async function testLargeFile() {
+            // Create a large file (11MB)
+            const largeContent = new Array(11 * 1024 * 1024).fill('a').join('');
+            const largeFile = new File([largeContent], 'large-file.txt', { type: 'text/plain' });
+
+            showResult('Testing large file (should fail)...', 'info');
+
+            try {
+                const formData = new FormData();
+                formData.append('files', largeFile);
+                formData.append('listingId', 'test-large');
+
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const body = await response.json().catch(() => ({}));
+                
+                if (response.ok) {
+                    showResult(`
+                        <h4>⚠️ Large File Upload Unexpectedly Succeeded</h4>
+                        <p>This should have failed due to size limit (10MB max)</p>
+                    `, 'error');
+                } else {
+                    showResult(`
+                        <h4>✅ Large File Correctly Rejected</h4>
+                        <p><strong>Expected Error:</strong> File too large</p>
+                        <p><strong>Server Response:</strong> ${body?.error || 'Unknown error'}</p>
+                        <p><strong>Status:</strong> ${response.status} (should be 413)</p>
+                    `, 'success');
+                }
+            } catch (error) {
+                showResult(`<h4>❌ Network Error</h4><p>${error.message}</p>`, 'error');
+            }
+        }
+
+        function showResult(html, type) {
+            const result = document.getElementById('result');
+            result.innerHTML = html;
+            result.className = `test-section ${type}`;
+        }
+    </script>
+</body>
+</html>

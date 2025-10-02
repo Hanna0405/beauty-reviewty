@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload Flow Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; border: 1px solid #bee5eb; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔧 Upload Flow Test</h1>
+    <p>This test verifies the complete upload flow with proper response parsing.</p>
+
+    <div>
+        <input type="file" id="fileInput" accept="image/*">
+        <button onclick="testUpload()">Test Upload</button>
+    </div>
+
+    <div id="result"></div>
+
+    <script>
+        async function testUpload() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showResult('Please select a file first', 'error');
+                return;
+            }
+
+            showResult('Uploading...', 'info');
+
+            try {
+                // Test the upload flow exactly as the client code does
+                const fd = new FormData();
+                fd.append('files', file); // plural
+                fd.append('listingId', 'test-flow');
+
+                const res = await fetch('/api/upload', { method: 'POST', body: fd });
+                const body = await res.json().catch(() => ({}));
+
+                // Check response exactly as client code does
+                if (!res.ok || !body.files) {
+                    console.error('[upload] failed:', body);
+                    showResult(`
+                        <h3>❌ Upload Failed</h3>
+                        <p><strong>Status:</strong> ${res.status}</p>
+                        <p><strong>Error:</strong> ${body?.error || 'Unknown error'}</p>
+                        <p><strong>Has files:</strong> ${body.files ? 'Yes' : 'No'}</p>
+                        <pre>${JSON.stringify(body, null, 2)}</pre>
+                    `, 'error');
+                    return;
+                }
+
+                // Success - parse files as client code does
+                const files = body.files.map((x) => ({ url: x.url, path: x.path }));
+                
+                showResult(`
+                    <h3>✅ Upload Success!</h3>
+                    <p><strong>Files uploaded:</strong> ${files.length}</p>
+                    <p><strong>First file URL:</strong> ${files[0]?.url || 'N/A'}</p>
+                    <p><strong>First file path:</strong> ${files[0]?.path || 'N/A'}</p>
+                    <details>
+                        <summary>Full Response</summary>
+                        <pre>${JSON.stringify(body, null, 2)}</pre>
+                    </details>
+                `, 'success');
+
+            } catch (error) {
+                showResult(`
+                    <h3>❌ Network Error</h3>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                `, 'error');
+            }
+        }
+
+        function showResult(html, type) {
+            const result = document.getElementById('result');
+            result.innerHTML = `<div class="test-result ${type}">${html}</div>`;
+        }
+    </script>
+</body>
+</html>

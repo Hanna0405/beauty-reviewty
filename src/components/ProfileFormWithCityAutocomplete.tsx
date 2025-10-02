@@ -2,20 +2,20 @@
 
 import { useState } from 'react';
 import CityAutocomplete from './CityAutocomplete';
-import { NormalizedCity } from '@/lib/cityNormalize';
+import type { CityNorm } from '@/lib/city';
 
 /**
  * Minimal profile form example using CityAutocomplete
  * Demonstrates proper usage with city and coordinates state management
  */
 export default function ProfileFormWithCityAutocomplete() {
-  const [city, setCity] = useState<NormalizedCity | null>(null);
+  const [city, setCity] = useState<CityNorm | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     about: '',
   });
 
-  const handleCityChange = (selectedCity: NormalizedCity | null) => {
+  const handleCityChange = (selectedCity: CityNorm | null) => {
     setCity(selectedCity);
     
     console.log('City changed:', selectedCity);
@@ -60,15 +60,12 @@ export default function ProfileFormWithCityAutocomplete() {
           <label className="block text-sm font-medium text-gray-700 mb-1">
             City *
           </label>
-          <CityAutocomplete
-            apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY!}
-            label="City"
-            value={city}
-            onChange={handleCityChange}
-            placeholder="Start typing a city name..."
-            className="w-full"
-            region="CA"
-          />
+            <CityAutocomplete
+              value={city}
+              onChange={handleCityChange}
+              placeholder="Start typing a city name..."
+              className="w-full"
+            />
           
           {/* Display selected city info */}
           {city && (

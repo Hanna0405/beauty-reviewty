@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload Test</title>
+</head>
+<body>
+    <h1>Upload Test</h1>
+    <input type="file" id="fileInput" multiple accept="image/*">
+    <button onclick="testUpload()">Test Upload</button>
+    <div id="result"></div>
+
+    <script>
+        async function testUpload() {
+            const fileInput = document.getElementById('fileInput');
+            const files = fileInput.files;
+            
+            if (!files.length) {
+                alert('Please select files');
+                return;
+            }
+
+            const formData = new FormData();
+            Array.from(files).forEach(file => {
+                formData.append('files', file);
+            });
+            formData.append('listingId', 'test');
+
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const body = await response.json().catch(() => ({}));
+                
+                if (response.ok && body.files) {
+                    document.getElementById('result').innerHTML = 
+                        '<h3>✅ Upload Success!</h3><p>Files uploaded: ' + body.files.length + '</p><p>Check server logs for bucket info and upload details.</p><pre>' + 
+                        JSON.stringify(body, null, 2) + '</pre>';
+                } else {
+                    document.getElementById('result').innerHTML = 
+                        '<h3>❌ Upload Failed</h3><p>Server error: ' + (body?.error || 'Unknown error') + '</p><p>Response: ' + (body.files ? 'Missing files array' : 'No files in response') + '</p><pre>' + 
+                        JSON.stringify(body, null, 2) + '</pre>';
+                }
+            } catch (error) {
+                document.getElementById('result').innerHTML = 
+                    '<h3>❌ Network Error</h3><pre>' + error.message + '</pre>';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,9 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import CityAutocomplete from '@/components/CityAutocomplete';
 import MultiSelectAutocomplete from '@/components/inputs/MultiSelectAutocomplete';
 import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from '@/constants/catalog'; // ← use shared options
-import { NormalizedCity } from '@/lib/cityNormalize';
+import type { CityNorm } from '@/lib/city';
 
 type Props = {
   value: { 
@@ -19,16 +20,26 @@ type Props = {
 };
 
 export default function MasterFilters({ value, onChange, showName }: Props) {
-  const [city, setCity] = useState<NormalizedCity | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [city, setCity] = useState<CityNorm | null>(null);
   const [services, setServices] = useState<string[]>(value.services ?? []);
   const [languages, setLanguages] = useState<string[]>(value.languages ?? []);
   const [minRating, setMinRating] = useState<number | undefined>(value.minRating);
   const [name, setName] = useState<string>(value.name ?? '');
 
+  // Handle city selection with URL updates
+  function onCityPicked(c: CityNorm | null) {
+    const sp = new URLSearchParams(window.location.search);
+    if (c?.slug) sp.set('city', c.slug); else sp.delete('city');
+    router.push(`?${sp.toString()}`);
+    setCity(c);
+  }
+
   useEffect(() => { 
     onChange({ 
       city: city?.formatted, 
-      cityPlaceId: city?.placeId, 
+      cityPlaceId: city?.placeId,
       services, 
       languages, 
       minRating, 
@@ -48,13 +59,14 @@ export default function MasterFilters({ value, onChange, showName }: Props) {
 
   return (
     <div className="flex w-full flex-col gap-4">
-      <CityAutocomplete 
-        apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY!}
-        label="City"
-        value={city}
-        onChange={setCity}
-        region="CA"
-      />
+      <div>
+        <label className="mb-1 block text-sm font-medium">City</label>
+        <CityAutocomplete 
+          value={city}
+          onChange={onCityPicked}
+          placeholder="Select city"
+        />
+      </div>
 
       {/* Services — SAME dataset & UX as New Listing */}
       <MultiSelectAutocomplete

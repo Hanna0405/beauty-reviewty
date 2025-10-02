@@ -1,15 +1,14 @@
 'use client';
 import { useState } from 'react';
 import CityAutocomplete from './CityAutocomplete';
-import { NormalizedCity } from '@/lib/cityNormalize';
-import { ensureSelectedCity } from '@/lib/ensureCity';
+import type { CityNorm } from '@/lib/city';
 
 /**
  * Example form showing how to use the unified CityAutocomplete
  * with proper validation and error handling
  */
 export default function ExampleCityForm() {
-  const [city, setCity] = useState<NormalizedCity | null>(null);
+  const [city, setCity] = useState<CityNorm | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -18,17 +17,14 @@ export default function ExampleCityForm() {
     setError(null);
     setSaving(true);
 
-    try {
-      // Ensure a city was selected from autocomplete (no free text)
-      const selectedCity = ensureSelectedCity(city);
-      
-      // Example: Save to Firestore
-      const profileData = {
-        city: selectedCity,
-        cityKey: selectedCity.slug,
-        cityName: selectedCity.formatted,
-        // ... other profile data
-      };
+      try {
+        // Example: Save to Firestore
+        const profileData = {
+          city: city,
+          cityKey: city?.slug || '',
+          cityName: city?.formatted || '',
+          // ... other profile data
+        };
 
       console.log('Saving profile with city:', profileData);
       
@@ -51,12 +47,9 @@ export default function ExampleCityForm() {
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* City Field */}
         <CityAutocomplete
-          apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY!}
-          label="City"
           value={city}
           onChange={setCity}
-          required
-          region="CA"
+          placeholder="Start typing a city..."
         />
 
         {/* Error Display */}

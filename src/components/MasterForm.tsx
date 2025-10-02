@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { createListing } from '@/lib/firestore-listings';
 import CityAutocomplete from '@/components/CityAutocomplete';
-import { NormalizedCity } from '@/lib/cityNormalize';
+import type { CityNorm } from '@/lib/city';
 import AutocompleteMulti from '@/components/AutocompleteMulti';
 import { SERVICES_OPTIONS, LANGUAGE_OPTIONS } from '@/constants/options';
 import { uploadFilesAndGetURLs } from '@/lib/services/storage';
@@ -33,8 +33,8 @@ export default function MasterForm() {
 
  const c0 = (profile?.city as CityField);
 
- const [city, setCity] = useState<NormalizedCity | null>(
-   !c0 ? null : (typeof c0 === 'string' ? { city: c0, state: '', stateCode: '', country: '', countryCode: '', formatted: c0, lat: 0, lng: 0, placeId: '', slug: c0.toLowerCase().replace(/\s+/g, '-'), cityName: c0, cityKey: c0.toLowerCase().replace(/\s+/g, '-') } : null)
+  const [city, setCity] = useState<CityNorm | null>(
+   !c0 ? null : (typeof c0 === 'string' ? { city: c0, state: '', stateCode: '', country: '', countryCode: '', formatted: c0, lat: 0, lng: 0, placeId: '', slug: c0.toLowerCase().replace(/\s+/g, '-') } : null)
  );
 
  const [cityPlaceId, setCityPlaceId] = useState<string | undefined>(
@@ -59,7 +59,7 @@ export default function MasterForm() {
  !!user && // обязателен user
  title.trim().length >= 2 &&
  services.length > 0 &&
- city && city.cityName && city.cityName.trim().length > 0;
+ city && city.formatted && city.formatted.trim().length > 0;
 
  async function onSubmit(e: React.FormEvent) {
  e.preventDefault();
@@ -77,7 +77,7 @@ export default function MasterForm() {
  }
 
  const cityObj: { name: string; placeId?: string } | null =
-   city ? { name: city.cityName || city.formatted, placeId: city.placeId || cityPlaceId } : null;
+   city ? { name: city.formatted, placeId: city.placeId || cityPlaceId } : null;
 
  const docRef = await createListing(user, {
    title,
@@ -129,14 +129,14 @@ export default function MasterForm() {
  {/* Город через Google Maps */}
  <div>
  <label className="block text-sm font-medium">City *</label>
- <CityAutocomplete
-   apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY!}
-   value={city}
-   onChange={(city) => {
-     setCity(city); // NormalizedCity | null
-     setCityPlaceId(city?.placeId); // keep placeId in state
-   }}
- />
+  <CityAutocomplete
+    value={city}
+    onChange={(city) => {
+      setCity(city); // CityNorm | null
+      setCityPlaceId(city?.placeId); // keep placeId in state
+    }}
+    placeholder="Start typing a city..."
+  />
  <p className="text-xs text-gray-500 mt-1">
  Начните вводить и выберите город из выпадающего списка.
  </p>

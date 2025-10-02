@@ -1,11 +1,15 @@
 export async function uploadImageViaApi(file: File, folder: string): Promise<string> {
  const fd = new FormData();
- fd.set('file', file);
- fd.set('folder', folder);
+ fd.append('files', file); // use plural
+ fd.append('listingId', folder);
  const res = await fetch('/api/upload', { method: 'POST', body: fd });
- const data = await res.json();
- if (!res.ok || !data?.ok || !data?.url) throw new Error(data?.error || 'Upload failed');
- return data.url as string;
+ const body = await res.json().catch(() => ({}));
+ 
+ if (!res.ok || !body.files) {
+   console.error('[upload] failed:', body);
+   throw new Error(body?.error || 'Upload failed');
+ }
+ return body.files[0]?.url || '';
 }
 
 export async function deleteFromStorage(path: string): Promise<void> {

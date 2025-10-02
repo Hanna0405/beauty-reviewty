@@ -7,13 +7,13 @@ import { updateListing } from "@/lib/firestore-listings";
 import { useToast } from "@/components/ui/Toast";
 import { toDisplayText } from "@/lib/safeText";
 import CityAutocomplete from "@/components/CityAutocomplete";
-import { NormalizedCity } from "@/lib/cityNormalize";
-import { ensureSelectedCity } from "@/lib/ensureCity";
+import type { CityNorm } from "@/lib/city";
 import ServicesSelect from "@/components/ServicesSelect";
 import LanguagesSelect from "@/components/LanguagesSelect";
 import type { CatalogItem } from "@/catalog/services";
 import { ensureSelectedArray, deriveMirrors } from "@/lib/ensureLists";
 import ListingPhotos from "@/components/ListingPhotos";
+import { normalizeListing } from "@/lib/listings-normalize";
 
 import { SERVICES_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/options";
 
@@ -35,7 +35,7 @@ export default function EditListingPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
  const [title, setTitle] = useState("");
-  const [city, setCity] = useState<NormalizedCity | null>(null);
+  const [city, setCity] = useState<CityNorm | null>(null);
  const [services, setServices] = useState<CatalogItem[]>([]);
  const [languages, setLanguages] = useState<CatalogItem[]>([]);
  const [priceMin, setPriceMin] = useState<string>("");
@@ -44,67 +44,72 @@ export default function EditListingPage() {
   const [photos, setPhotos] = useState<PhotoData[]>([]);
 
  useEffect(() => {
- (async () => {
+    let alive = true;
+    (async () => {
       try {
+        if (!id) throw new Error('Missing listing id');
         const listingRef = doc(requireDb(), "listings", id);
         const listingSnap = await getDoc(listingRef);
         
-        if (listingSnap.exists()) {
-          const data = listingSnap.data();
- setTitle(data.title || "");
-          setCity(
-            data?.city
-              ? {
-                  city: data.city,
-                  state: data.state ?? "",
-                  stateCode: data.stateCode ?? "",
-                  country: data.country ?? "",
-                  countryCode: data.countryCode ?? "",
-                  formatted: data.formatted ?? data.city,
-                  lat: Number(data.lat ?? 0),
-                  lng: Number(data.lng ?? 0),
-                  placeId: data.placeId ?? "",
-                  slug: (data.citySlug ?? data.city)?.toLowerCase().replace(/\s+/g, "-"),
-                  // mirrors
-                  cityName: data.formatted ?? data.city,
-                  cityKey: (data.citySlug ?? data.city)?.toLowerCase().replace(/\s+/g, "-"),
-                }
-              : null
-          );
- setServices(data.services || []);
- setLanguages(data.languages || []);
- setPriceMin(data.priceMin != null ? String(data.priceMin) : "");
- setPriceMax(data.priceMax != null ? String(data.priceMax) : "");
- setDescription(data.description || "");
-          
-          // Convert existing photos to PhotoData format
-          const existingPhotos: PhotoData[] = (data.photos || []).map((url: string) => ({
-            url,
-            path: url, // For existing photos, we don't have the storage path
-            w: 0, // We don't have dimensions for existing photos
-            h: 0,
-          }));
-          setPhotos(existingPhotos);
-        } else {
-          showToast("Listing not found", "error");
-          router.push("/dashboard/master/listings");
+        if (!listingSnap.exists()) {
+          console.warn('[EditListing] not found', id);
+          if (alive) {
+            // Render empty form instead of crashing
+            const safe = normalizeListing({});
+            setTitle(safe.title);
+            setCity(safe.city);
+            setServices(safe.services);
+            setLanguages(safe.languages);
+            setPriceMin(safe.minPrice ? String(safe.minPrice) : "");
+            setPriceMax(safe.maxPrice ? String(safe.maxPrice) : "");
+            setDescription(safe.description);
+            setPhotos(safe.photos.map(p => ({ url: p.url, path: p.path, w: 0, h: 0 })));
+            setLoading(false);
+          }
+          return;
         }
-      } catch (error) {
-        console.error("Failed to load listing:", error);
-        showToast("Failed to load listing", "error");
-      } finally {
- setLoading(false);
+        
+        const raw = { id: listingSnap.id, ...listingSnap.data() };
+        const safe = normalizeListing(raw);
+        
+        if (alive) {
+          setTitle(safe.title);
+          setCity(safe.city);
+          setServices(safe.services);
+          setLanguages(safe.languages);
+          setPriceMin(safe.minPrice ? String(safe.minPrice) : "");
+          setPriceMax(safe.maxPrice ? String(safe.maxPrice) : "");
+          setDescription(safe.description);
+          setPhotos(safe.photos.map(p => ({ url: p.url, path: p.path, w: 0, h: 0 })));
+          setLoading(false);
+        }
+      } catch (error: any) {
+        console.error('[EditListing] load error:', error?.message);
+        if (alive) {
+          // Render empty form instead of crashing
+          const safe = normalizeListing({});
+          setTitle(safe.title);
+          setCity(safe.city);
+          setServices(safe.services);
+          setLanguages(safe.languages);
+          setPriceMin(safe.minPrice ? String(safe.minPrice) : "");
+          setPriceMax(safe.maxPrice ? String(safe.maxPrice) : "");
+          setDescription(safe.description);
+          setPhotos(safe.photos.map(p => ({ url: p.url, path: p.path, w: 0, h: 0 })));
+          setLoading(false);
+        }
       }
- })();
+    })();
+    return () => { alive = false; };
   }, [id, showToast, router]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     
-    if (!title.trim()) newErrors.title = "Title is required";
-    if (!city) newErrors.city = "City is required";
-    if (services.length === 0) newErrors.services = "At least one service is required";
-    if (languages.length === 0) newErrors.languages = "At least one language is required";
+    if ((title?.trim?.().length ?? 0) < 2) newErrors.title = "Title is required";
+    if (!city || (city?.formatted?.trim?.().length ?? 0) === 0) newErrors.city = "City is required";
+    if ((Array.isArray(services) ? services.length : 0) === 0) newErrors.services = "At least one service is required";
+    if ((Array.isArray(languages) ? languages.length : 0) === 0) newErrors.languages = "At least one language is required";
     
     const minPrice = parseFloat(priceMin);
     const maxPrice = parseFloat(priceMax);
@@ -130,32 +135,29 @@ export default function EditListingPage() {
  try {
  setSaving(true);
       
-      // Enforce city selection from autocomplete
-      const selected = ensureSelectedCity(city);
-      
-      // Enforce services and languages selection
-      const selServices = ensureSelectedArray(services);
-      const selLanguages = ensureSelectedArray(languages);
-      const svc = deriveMirrors(selServices);
-      const lng = deriveMirrors(selLanguages);
-      
- const formData = {
- title,
- city: selected, // full normalized object
- services: selServices,
- languages: selLanguages,
- priceMin: priceMin ? parseFloat(priceMin) : null,
- priceMax: priceMax ? parseFloat(priceMax) : null,
- description,
- photos: photos.map(p => ({ url: p.url, path: p.path || '', width: null, height: null })),
- // Add string mirrors for safe rendering
- cityKey: selected.slug, // slug for Firestore queries
- cityName: selected.formatted, // easy string for UI
- serviceKeys: svc.keys,
- serviceNames: svc.names,
- languageKeys: lng.keys,
- languageNames: lng.names,
- };
+       // Enforce services and languages selection
+       const selServices = ensureSelectedArray(services);
+       const selLanguages = ensureSelectedArray(languages);
+       const svc = deriveMirrors(selServices);
+       const lng = deriveMirrors(selLanguages);
+       
+  const formData = {
+  title,
+  city: city, // full normalized object
+  services: selServices,
+  languages: selLanguages,
+  priceMin: priceMin ? parseFloat(priceMin) : null,
+  priceMax: priceMax ? parseFloat(priceMax) : null,
+  description,
+  photos: photos.map(p => ({ url: p.url, path: p.path || '', width: null, height: null })),
+  // Add string mirrors for safe rendering
+  cityKey: city?.slug || '', // slug for Firestore queries
+  cityName: city?.formatted || '', // easy string for UI
+  serviceKeys: svc.keys,
+  serviceNames: svc.names,
+  languageKeys: lng.keys,
+  languageNames: lng.names,
+  };
 
       // Save using standardized helper
       const auth = requireAuth();
@@ -200,12 +202,9 @@ export default function EditListingPage() {
 
         <div>
           <CityAutocomplete
-            apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY!}
-            label="City"
             value={city}
             onChange={setCity}
-            required
-            region="CA"
+            placeholder="Start typing your city"
           />
           {errors.city && <p className="text-red-500 text-sm mt-1">{errors.city}</p>}
         </div>

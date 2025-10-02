@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bucket Config Test</title>
+</head>
+<body>
+    <h1>Firebase Storage Bucket Configuration Test</h1>
+    <button onclick="testBucketConfig()">Test Bucket Configuration</button>
+    <div id="result"></div>
+
+    <script>
+        async function testBucketConfig() {
+            try {
+                // Test the upload API to see bucket name in logs
+                const formData = new FormData();
+                const testFile = new File(['test'], 'test.txt', { type: 'text/plain' });
+                formData.append('files', testFile);
+                formData.append('listingId', 'test-bucket-config');
+
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('result').innerHTML = 
+                        '<h3>✅ Upload Success!</h3><p>Check server logs for bucket name. Should show: beauty-reviewty.firebasestorage.app</p><pre>' + 
+                        JSON.stringify(result, null, 2) + '</pre>';
+                } else {
+                    document.getElementById('result').innerHTML = 
+                        '<h3>❌ Upload Failed</h3><p>Check server logs for bucket configuration errors.</p><pre>' + 
+                        JSON.stringify(result, null, 2) + '</pre>';
+                }
+            } catch (error) {
+                document.getElementById('result').innerHTML = 
+                    '<h3>❌ Network Error</h3><pre>' + error.message + '</pre>';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -58,11 +58,14 @@ export async function deleteReview(id: string) {
 
 // Reuse existing Admin upload route with reviews folder
 async function uploadReviewPhoto(file: File) {
- const fd = new FormData();
- fd.append('file', file);
- const res = await fetch('/api/upload?folder=reviews', { method: 'POST', body: fd });
- if (!res.ok) throw new Error('Upload failed');
- return res.json() as Promise<{ url: string; path: string }>;
+  const fd = new FormData();
+  fd.append('files', file); // use plural
+  fd.append('listingId', 'reviews');
+  const res = await fetch('/api/upload', { method: 'POST', body: fd });
+  if (!res.ok) throw new Error('Upload failed');
+  const data = await res.json();
+  // Expect { files: [{url, path}] }
+  return { url: data.files?.[0]?.url || '', path: data.files?.[0]?.path || '' };
 }
 
 export { uploadReviewPhoto };

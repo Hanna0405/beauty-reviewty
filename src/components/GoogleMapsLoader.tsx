@@ -19,7 +19,7 @@ export default function GoogleMapsLoader({ children }: GoogleMapsLoaderProps) {
 
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: apiKey,
-    libraries: libraries as any
+    libraries: [...libraries]
   });
 
   if (!isLoaded) {

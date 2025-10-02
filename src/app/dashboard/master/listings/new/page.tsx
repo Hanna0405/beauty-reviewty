@@ -7,8 +7,7 @@ import { createListing } from "@/lib/firestore-listings";
 import { useToast } from "@/components/ui/Toast";
 import { toDisplayText } from "@/lib/safeText";
 import CityAutocomplete from "@/components/CityAutocomplete";
-import { NormalizedCity } from "@/lib/cityNormalize";
-import { ensureSelectedCity } from "@/lib/ensureCity";
+import type { CityNorm } from "@/lib/city";
 import ServicesSelect from "@/components/ServicesSelect";
 import LanguagesSelect from "@/components/LanguagesSelect";
 import type { CatalogItem } from "@/catalog/services";
@@ -31,7 +30,7 @@ export default function NewListingPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
  const [title, setTitle] = useState("");
-  const [city, setCity] = useState<NormalizedCity | null>(null);
+  const [city, setCity] = useState<CityNorm | null>(null);
  const [services, setServices] = useState<CatalogItem[]>([]);
  const [languages, setLanguages] = useState<CatalogItem[]>([]);
  const [priceMin, setPriceMin] = useState<string>("");
@@ -77,33 +76,30 @@ export default function NewListingPage() {
  try {
  setSaving(true);
       
-      // Enforce city selection from autocomplete
-      const selected = ensureSelectedCity(city);
-      
-      // Enforce services and languages selection
-      const selServices = ensureSelectedArray(services);
-      const selLanguages = ensureSelectedArray(languages);
-      const svc = deriveMirrors(selServices);
-      const lng = deriveMirrors(selLanguages);
-      
-      // Prepare form data with string mirrors
- const formData = {
- title,
- city: selected, // full normalized object
- services: selServices,
- languages: selLanguages,
- priceMin: priceMin ? parseFloat(priceMin) : null,
- priceMax: priceMax ? parseFloat(priceMax) : null,
- description,
- photos: photos.map(p => ({ url: p.url, path: p.path || '', width: null, height: null })),
- // Add string mirrors for safe rendering
- cityKey: selected.slug, // slug for Firestore queries
- cityName: selected.formatted, // easy string for UI
- serviceKeys: svc.keys,
- serviceNames: svc.names,
- languageKeys: lng.keys,
- languageNames: lng.names,
- };
+       // Enforce services and languages selection
+       const selServices = ensureSelectedArray(services);
+       const selLanguages = ensureSelectedArray(languages);
+       const svc = deriveMirrors(selServices);
+       const lng = deriveMirrors(selLanguages);
+       
+       // Prepare form data with string mirrors
+  const formData = {
+  title,
+  city: city, // full normalized object
+  services: selServices,
+  languages: selLanguages,
+  priceMin: priceMin ? parseFloat(priceMin) : null,
+  priceMax: priceMax ? parseFloat(priceMax) : null,
+  description,
+  photos: photos.map(p => ({ url: p.url, path: p.path || '', width: null, height: null })),
+  // Add string mirrors for safe rendering
+  cityKey: city?.slug || '', // slug for Firestore queries
+  cityName: city?.formatted || '', // easy string for UI
+  serviceKeys: svc.keys,
+  serviceNames: svc.names,
+  languageKeys: lng.keys,
+  languageNames: lng.names,
+  };
 
       // Save using standardized helper
       const docRef = await createListing(user, formData);
@@ -156,12 +152,9 @@ export default function NewListingPage() {
 
         <div>
           <CityAutocomplete
-            apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY!}
-            label="City"
             value={city}
             onChange={setCity}
-            required
-            region="CA"
+            placeholder="Start typing your city"
           />
           {errors.city && <p className="text-red-500 text-sm mt-1">{errors.city}</p>}
         </div>

@@ -14,15 +14,15 @@ const keep = (v?: string) => {
 };
 
 const envCfg: FirebaseOptions = {
- apiKey: keep(process.env.NEXT_PUBLIC_FIREBASE_API_KEY)!,
- authDomain: clean(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN)!,
- projectId: clean(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID)!,
- storageBucket: clean(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET)!,
- messagingSenderId: keep(process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID)!,
- appId: keep(process.env.NEXT_PUBLIC_FIREBASE_APP_ID)!,
- ...(clean(process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID)
- ? { measurementId: keep(process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID) }
- : {}),
+  apiKey: keep(process.env.NEXT_PUBLIC_FIREBASE_API_KEY)!,
+  authDomain: clean(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN)!,
+  projectId: clean(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID)!,
+  storageBucket: clean(process.env.FIREBASE_STORAGE_BUCKET)!, // beauty-reviewty.firebasestorage.app
+  messagingSenderId: keep(process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID)!,
+  appId: keep(process.env.NEXT_PUBLIC_FIREBASE_APP_ID)!,
+  ...(clean(process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID)
+    ? { measurementId: keep(process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID) }
+    : {}),
 };
 
 // Подсветим, если .env не полон

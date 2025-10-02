@@ -1,156 +1,83 @@
 'use client';
-import React, { useEffect, useRef, useState } from 'react';
-import { loadGoogleMaps } from '@/lib/gmapsLoader';
-import { normalizeFromPlace, NormalizedCity } from '@/lib/cityNormalize';
+import React from 'react';
+import { useJsApiLoader } from '@react-google-maps/api';
+import type { CityNorm } from '@/lib/city';
+import { normalizePlace } from '@/lib/city';
 
 type Props = {
-  apiKey: string;
-  label?: string;
-  value?: NormalizedCity | null;
-  onChange: (city: NormalizedCity | null) => void;
+  value?: CityNorm | null;
+  onChange: (v: CityNorm | null) => void; // fires ONLY when a prediction is picked
   placeholder?: string;
-  disabled?: boolean;
-  required?: boolean;
   className?: string;
-  region?: string;
+  allowClear?: boolean;
+  disabled?: boolean;
 };
+export default function CityAutocomplete({ value, onChange, placeholder='Select city', className='', allowClear=true, disabled }: Props) {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const [selected, setSelected] = React.useState<CityNorm | null>(value ?? null);
+  const [raw, setRaw] = React.useState<string>(value?.formatted ?? '');
+  const MAP_LIBS = ['places'] as const;
+  const { isLoaded } = useJsApiLoader({
+    id: 'gmaps-places',
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+    libraries: [...MAP_LIBS],
+  });
 
-type Prediction = google.maps.places.AutocompletePrediction;
+  React.useEffect(() => {
+    if (!value) return;
+    setSelected(value);
+    setRaw(value?.formatted || '');
+  }, [value?.slug]);
 
-export default function CityAutocomplete({
-  apiKey,
-  label = 'City',
-  value,
-  onChange,
-  placeholder = 'Start typing your city…',
-  disabled,
-  required,
-  className,
-  region = 'CA',
-}: Props) {
-  const [ready, setReady] = useState(false);
-  const [input, setInput] = useState(value?.formatted || '');
-  const [preds, setPreds] = useState<Prediction[]>([]);
-  const [open, setOpen] = useState(false);
-  const [touched, setTouched] = useState(false);
-  const serviceRef = useRef<google.maps.places.AutocompleteService | null>(null);
-  const placesRef = useRef<google.maps.places.PlacesService | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  React.useEffect(() => {
+    if (!isLoaded || !inputRef.current) return;
+    const input = inputRef.current;
+    const ac = new google.maps.places.Autocomplete(input, {
+      types: ['(cities)'],
+      fields: ['place_id', 'address_components', 'geometry.location', 'name'],
+    });
+    ac.addListener('place_changed', () => {
+      const place = ac.getPlace();
+      const norm = normalizePlace(place);
+      if (!norm) return;
+      setSelected(norm);
+      setRaw(norm.formatted);
+      onChange(norm);
+    });
+  }, [isLoaded]);
 
-  useEffect(() => {
-    loadGoogleMaps(apiKey, 'en', region || 'CA')
-      .then((g) => {
-        serviceRef.current = new g.maps.places.AutocompleteService();
-        const el = document.createElement('div');
-        placesRef.current = new g.maps.places.PlacesService(el);
-        setReady(true);
-      })
-      .catch(console.error);
-  }, [apiKey, region]);
-
-  useEffect(() => {
-    if (value?.formatted) setInput(value.formatted);
-    if (!value) setInput('');
-  }, [value]);
-
-  useEffect(() => {
-    if (!ready || !serviceRef.current) return;
-    if (!open) return;
-
-    if (!input || input.trim().length < 1) {
-      setPreds([]);
-            return;
-          }
-
-    serviceRef.current.getPlacePredictions(
-      {
-        input,
-        types: ['(cities)'],
-        language: 'en',
-        ...(region ? { componentRestrictions: { country: [region.toLowerCase()] } } : {}),
-      },
-      (res) => setPreds(res || [])
-    );
-  }, [input, open, ready, region]);
-
-  useEffect(() => {
-    function onDocClick(e: MouseEvent) {
-      if (!containerRef.current) return;
-      if (!containerRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, []);
-
-  function handleSelect(p: Prediction) {
-    if (!placesRef.current) return;
-    const placeId = p.place_id;
-    if (!placeId) return;
-    placesRef.current.getDetails(
-      { placeId, language: 'en', fields: ['address_component', 'geometry.location', 'name', 'place_id'] },
-      (details, status) => {
-        if (!details || status !== google.maps.places.PlacesServiceStatus.OK) return;
-        const normalized = normalizeFromPlace(details);
-        setInput(normalized.formatted);
-        onChange(normalized);
-        setOpen(false);
-        setPreds([]);
-      }
-    );
+  function handleInput(e: React.ChangeEvent<HTMLInputElement>) {
+    setRaw(e.target.value);
+    if (selected) setSelected(null);
+    // IMPORTANT: do NOT call onChange here → only allow chosen prediction
   }
-
-  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (preds[0]) handleSelect(preds[0]);
-    }
-    if (e.key === 'ArrowDown') setOpen(true);
+  function handleBlur() {
+    if (!selected) setRaw('');
+    else setRaw(selected.formatted);
   }
-
-  const showError = touched && required && !value;
-
   return (
-    <div ref={containerRef} className={`w-full ${className || ''}`}>
-      {label && (
-        <label className="block mb-1 text-sm font-medium text-gray-700">
-          {label} {required ? <span className="text-red-500">*</span> : null}
-        </label>
-      )}
+    <div className={`relative ${className}`}>
       <input
+        ref={inputRef}
         type="text"
         inputMode="search"
         autoComplete="off"
-        spellCheck={false}
-        value={input}
-        onChange={(e) => {
-          setTouched(true);
-          setInput(e.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={onKeyDown}
-        className={`w-full rounded-md border ${showError ? 'border-red-400' : 'border-gray-300'} px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pink-300`}
         placeholder={placeholder}
-        disabled={!ready || disabled}
+        value={raw}
+        onChange={handleInput}
+        onBlur={handleBlur}
+        disabled={disabled}
+        className="w-full rounded-md border px-3 py-2 outline-none focus:ring focus:ring-pink-200"
       />
-      {open && preds.length > 0 && (
-        <ul className="mt-1 max-h-56 overflow-auto rounded-md border border-gray-200 bg-white shadow-lg">
-          {preds.map((p) => (
-            <li
-              key={p.place_id}
-              className="cursor-pointer px-3 py-2 text-sm hover:bg-gray-100"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => handleSelect(p)}
-            >
-              {p.structured_formatting?.main_text}
-              <span className="text-gray-500">, {p.structured_formatting?.secondary_text}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {showError && <p className="mt-1 text-xs text-red-500">Please choose a city from the list.</p>}
-      {!value && touched && (
-        <p className="mt-1 text-xs text-gray-500">Select a city from suggestions — free text will not be saved.</p>
+      {allowClear && selected && !disabled && (
+        <button
+          type="button"
+          aria-label="Clear"
+          onClick={() => { setSelected(null); setRaw(''); onChange(null); }}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-sm opacity-70 hover:opacity-100"
+        >
+          ×
+        </button>
       )}
     </div>
   );

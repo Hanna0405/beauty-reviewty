@@ -116,5 +116,69 @@ export async function uploadMultiple(
   return { urls: results, errors };
 }
 
-// Export compatibility function
-export const uploadFilesAndGetURLs = uploadMultiple;
+// API-based upload function for server-side processing
+export async function uploadFilesViaAPI(
+  prefix: string, 
+  files: File[],
+  onProgress?: (progress: UploadProgress[]) => void
+): Promise<UploadResult> {
+  const results: string[] = [];
+  const errors: Array<{ fileName: string; error: string }> = [];
+  const progressArray: UploadProgress[] = files.map((file, index) => ({
+    fileIndex: index,
+    fileName: file.name,
+    progress: 0,
+    status: 'uploading'
+  }));
+
+  // Update initial progress
+  onProgress?.(progressArray);
+
+  try {
+    const fd = new FormData();
+    files.forEach(f => fd.append('files', f)); // plural
+    fd.append('listingId', prefix);
+
+    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    const body = await res.json().catch(() => ({}));
+    
+    if (!res.ok || !body.files) {
+      console.error('[upload] failed:', body);
+      throw new Error(body?.error || 'Upload failed');
+    }
+    
+    // Expect { files: [{url, path}] }
+    const uploadedFiles = body.files || [];
+    
+    uploadedFiles.forEach((file: any, index: number) => {
+      if (file.url) {
+        results.push(file.url);
+        progressArray[index].status = 'completed';
+        progressArray[index].progress = 100;
+      } else {
+        progressArray[index].status = 'error';
+        progressArray[index].error = 'No URL returned';
+        errors.push({ fileName: files[index]?.name || 'unknown', error: 'No URL returned' });
+      }
+    });
+    
+    onProgress?.([...progressArray]);
+    
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Upload failed';
+    progressArray.forEach((_, index) => {
+      progressArray[index].status = 'error';
+      progressArray[index].error = errorMessage;
+    });
+    onProgress?.([...progressArray]);
+    
+    files.forEach(file => {
+      errors.push({ fileName: file.name, error: errorMessage });
+    });
+  }
+
+  return { urls: results, errors };
+}
+
+// Export compatibility function - use API-based upload by default
+export const uploadFilesAndGetURLs = uploadFilesViaAPI;

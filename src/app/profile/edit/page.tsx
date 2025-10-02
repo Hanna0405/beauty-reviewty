@@ -5,8 +5,7 @@ import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase.client";
 import { useAuth } from "@/contexts/AuthContext";
 import CityAutocomplete from "@/components/CityAutocomplete";
-import { NormalizedCity } from "@/lib/cityNormalize";
-import { ensureSelectedCity } from "@/lib/ensureCity";
+import type { CityNorm } from "@/lib/city";
 import ServicesSelect from "@/components/ServicesSelect";
 import LanguagesSelect from "@/components/LanguagesSelect";
 import type { CatalogItem } from "@/catalog/services";
@@ -26,11 +25,14 @@ type ProfileForm = {
 };
 
 async function uploadAvatar(file: File) {
- const fd = new FormData();
- fd.append('file', file);
- const res = await fetch('/api/upload?folder=avatars', { method: 'POST', body: fd });
- if (!res.ok) throw new Error('Upload failed');
- return res.json() as Promise<{ url: string; path: string }>;
+  const fd = new FormData();
+  fd.append('files', file); // use plural
+  fd.append('listingId', 'avatars');
+  const res = await fetch('/api/upload', { method: 'POST', body: fd });
+  if (!res.ok) throw new Error('Upload failed');
+  const data = await res.json();
+  // Expect { files: [{url, path}] }
+  return { url: data.files?.[0]?.url || '', path: data.files?.[0]?.path || '' };
 }
 
 export default function ProfileEditPage() {
@@ -43,7 +45,7 @@ export default function ProfileEditPage() {
  languages: [],
  socials: {}
  });
- const [city, setCity] = useState<NormalizedCity | null>(null);
+  const [city, setCity] = useState<CityNorm | null>(null);
  const [services, setServices] = useState<CatalogItem[]>([]);
  const [languages, setLanguages] = useState<CatalogItem[]>([]);
  const [localAvatarFile, setLocalAvatarFile] = useState<File | null>(null);
@@ -111,34 +113,31 @@ export default function ProfileEditPage() {
  avatarPath = up.path;
  }
 
- // Enforce city selection from autocomplete
- const selected = ensureSelectedCity(city);
+  // Enforce services and languages selection
+  const selServices = ensureSelectedArray(services);
+  const selLanguages = ensureSelectedArray(languages);
+  const svc = deriveMirrors(selServices);
+  const lng = deriveMirrors(selLanguages);
 
- // Enforce services and languages selection
- const selServices = ensureSelectedArray(services);
- const selLanguages = ensureSelectedArray(languages);
- const svc = deriveMirrors(selServices);
- const lng = deriveMirrors(selLanguages);
-
- await setDoc(doc(db, "profiles", user.uid), {
- uid: user.uid,
- displayName: form.displayName?.trim() || '',
- city: selected, // full normalized object
- cityKey: selected.slug, // for queries/filters
- cityName: selected.formatted, // for UI display
- services: selServices,
- serviceKeys: svc.keys,
- serviceNames: svc.names,
- languages: selLanguages,
- languageKeys: lng.keys,
- languageNames: lng.names,
- instagram: form.socials?.instagram ?? null,
- tiktok: form.socials?.tiktok ?? null,
- website: form.socials?.website ?? null,
- avatarUrl,
- avatarPath,
- updatedAt: serverTimestamp(),
- }, { merge: true });
+  await setDoc(doc(db, "profiles", user.uid), {
+    uid: user.uid,
+    displayName: form.displayName?.trim() || '',
+    city: city, // full normalized object
+    cityKey: city?.slug || '', // for queries/filters
+    cityName: city?.formatted || '', // for UI display
+    services: selServices,
+    serviceKeys: svc.keys,
+    serviceNames: svc.names,
+    languages: selLanguages,
+    languageKeys: lng.keys,
+    languageNames: lng.names,
+    instagram: form.socials?.instagram ?? null,
+    tiktok: form.socials?.tiktok ?? null,
+    website: form.socials?.website ?? null,
+    avatarUrl,
+    avatarPath,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
 
  router.push('/profile');
  } catch (e) {
@@ -192,17 +191,14 @@ export default function ProfileEditPage() {
  {/* City */}
  <div>
  <label className="block text-sm font-medium mb-2">City</label>
- <CityAutocomplete
- apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY!}
- label="City"
- value={city}
- onChange={(selectedCity) => {
-   setCity(selectedCity);
-   setForm(f => ({ ...f, city: selectedCity?.formatted || '' }));
- }}
- placeholder="Select your city"
- region="CA"
- />
+  <CityAutocomplete
+    value={city}
+    onChange={(selectedCity) => {
+      setCity(selectedCity);
+      setForm(f => ({ ...f, city: selectedCity?.formatted || '' }));
+    }}
+    placeholder="Select your city"
+  />
  </div>
 
  {/* Services */}
