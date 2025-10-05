@@ -9,4 +9,5 @@ export const LANGUAGES: CatalogItem[] = [
   { key: 'es', name: 'Spanish', emoji: ' ', aliases: ['spanish','spa'] },
   { key: 'zh', name: 'Chinese', emoji: ' ', aliases: ['chinese','mandarin','zhong'] },
 ];
+
 export type { CatalogItem } from './services';

@@ -1,5 +1,5 @@
 import { collection, query, where, orderBy, Query } from 'firebase/firestore';
-import { db } from './firebase';
+import { db } from '@/lib/firebase';
 
 export type MastersFilters = {
   city?: string;
@@ -9,12 +9,27 @@ export type MastersFilters = {
 
 export function buildMastersQuery(filters: MastersFilters): Query {
   const { city, service, language } = filters;
-  const col = collection(db, 'listings'); // change only if your collection is named differently
+  const col = collection(db, 'masters');
 
-  const conds: any[] = [ where('status', '==', 'active') ];
-  if (city && city.trim()) conds.push(where('city', '==', city.trim()));
-  if (service) conds.push(where('services', 'array-contains', service));
-  if (language) conds.push(where('languages', 'array-contains', language));
+  const conds: any[] = [];
+  
+  // Role filtering: prefer role === 'master', fallback to isMaster === true
+  conds.push(where('role', '==', 'master'));
+  
+  // Optional city filter
+  if (city && city.trim()) {
+    conds.push(where('cityName', '==', city.trim()));
+  }
+  
+  // Optional service filter
+  if (service) {
+    conds.push(where('serviceKeys', 'array-contains', service));
+  }
+  
+  // Optional language filter
+  if (language) {
+    conds.push(where('languageKeys', 'array-contains', language));
+  }
 
   // IMPORTANT: orderBy must be LAST
   return query(col, ...conds, orderBy('displayName'));

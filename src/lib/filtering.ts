@@ -15,8 +15,14 @@ export function toLowerSet(arr?: string[] | null) {
   return new Set((arr ?? []).map(s => (s ?? '').toString().toLowerCase()));
 }
 
-// item can store services/languages as ["Nails","Hair Braids"] OR [{value,label}, ...]
-export function extractStringArray(field: any): string[] {
+// item can store services/languages as ["Nails","Hair Braids"] OR [{value,label}, ...] OR use mirror fields
+export function extractStringArray(field: any, mirrorField?: any): string[] {
+  // Prefer mirror field if available (new format)
+  if (mirrorField && Array.isArray(mirrorField)) {
+    return mirrorField.filter(Boolean);
+  }
+  
+  // Fallback to original field (old format)
   if (!field) return [];
   if (Array.isArray(field)) {
     return field.map((v) => {
@@ -50,9 +56,9 @@ export function matchesAllFilters(item: any, f: CommonFilters, isMaster: boolean
     if (r < f.minRating) return false;
   }
 
-  // Services
+  // Services - prefer mirror fields, fallback to original
   if (f.services && f.services.length) {
-    const src = toLowerSet(extractStringArray(item?.services));
+    const src = toLowerSet(extractStringArray(item?.services, item?.serviceNames));
     const needs = toLowerSet(f.services);
     // require overlap
     let ok = false;
@@ -60,9 +66,9 @@ export function matchesAllFilters(item: any, f: CommonFilters, isMaster: boolean
     if (!ok) return false;
   }
 
-  // Languages
+  // Languages - prefer mirror fields, fallback to original
   if (f.languages && f.languages.length) {
-    const src = toLowerSet(extractStringArray(item?.languages));
+    const src = toLowerSet(extractStringArray(item?.languages, item?.languageNames));
     const needs = toLowerSet(f.languages);
     let ok = false;
     for (const s of needs) { if (src.has(s)) { ok = true; break; } }

@@ -1,4 +1,4 @@
-import { db } from "@/lib/firebase.client";
+import { db } from "@/lib/firebase";
 import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
 
 export type Listing = {

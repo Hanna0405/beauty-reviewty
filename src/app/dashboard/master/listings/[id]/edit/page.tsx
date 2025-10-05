@@ -14,8 +14,8 @@ import type { CatalogItem } from "@/catalog/services";
 import { ensureSelectedArray, deriveMirrors } from "@/lib/ensureLists";
 import ListingPhotos from "@/components/ListingPhotos";
 import { normalizeListing } from "@/lib/listings-normalize";
+import MapContainer from "@/components/map/MapContainer";
 
-import { SERVICES_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/options";
 
 interface PhotoData {
   url: string;
@@ -176,14 +176,17 @@ export default function EditListingPage() {
  };
 
   if (loading) return (
+    <MapContainer>
     <div className="max-w-3xl mx-auto px-4 py-6">
       <div className="flex items-center justify-center h-64">
         <div className="text-lg text-gray-600">Loading…</div>
       </div>
     </div>
+    </MapContainer>
   );
 
  return (
+ <MapContainer>
  <div className="max-w-3xl mx-auto px-4 py-6">
       <h1 className="text-2xl font-semibold mb-6 text-gray-800">Edit Listing</h1>
       <form className="space-y-6 mobile-form" onSubmit={onSubmit}>
@@ -290,5 +293,6 @@ export default function EditListingPage() {
  </div>
  </form>
  </div>
+ </MapContainer>
  );
 }

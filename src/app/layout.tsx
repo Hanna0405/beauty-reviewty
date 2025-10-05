@@ -1,20 +1,19 @@
-import "@/app/globals.css";
+import type { Metadata } from 'next';
+import { AuthProvider } from '@/context/AuthContext';
+import './globals.css';
 import Providers from "./providers";
 import { ToastProvider } from '@/components/ui/Toast';
 import AppHeader from "@/components/layout/AppHeader";
-import GoogleMapsProvider from '@/providers/GoogleMapsProvider';
+// GoogleMapsProvider removed - using MapContainer with useJsApiLoader instead
 import ToasterClient from '@/components/system/ToasterClient';
 
-export const metadata = {
-  title: "BeautyReviewty",
-  description: "Find your perfect beauty master",
-};
+export const metadata: Metadata = { title: 'BeautyReviewty' };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <GoogleMapsProvider>
+        <AuthProvider>
           <ToastProvider>
             <Providers>
               <header className="relative z-50 border-b">
@@ -23,8 +22,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               {children}
             </Providers>
           </ToastProvider>
-          <ToasterClient />
-        </GoogleMapsProvider>
+        </AuthProvider>
+        <ToasterClient />
       </body>
     </html>
   );

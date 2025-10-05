@@ -1,5 +1,5 @@
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "./firebase";
+import { db } from "@/lib/firebase";
 
 export async function ensureUserDoc(
  user: { uid: string; displayName?: string | null; email?: string | null },

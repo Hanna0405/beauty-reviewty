@@ -1,6 +1,6 @@
 'use client';
 import { addDoc, collection, deleteDoc, doc, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
-import { db } from '@/lib/firebase.client';
+import { db } from '@/lib/firebase';
 import type { Review } from '@/types/reviews';
 
 export function listenPublicReviews(listingId: string, cb: (items: Review[]) => void) {

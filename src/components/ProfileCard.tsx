@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useState } from 'react';
 import Link from 'next/link';
+import { buildUrl } from '@/lib/url';
 import type { MasterProfile } from '@/types/profile';
 
 interface ProfileCardProps {
@@ -56,7 +57,7 @@ export default function ProfileCard({ profile, onEdit, onDelete }: ProfileCardPr
               </svg>
               {profile.city && (
                 <Link
-                  href={{ pathname: '/masters', query: { city: profile.city } }}
+                  href={buildUrl('/masters', { city: profile.city })}
                   className="underline hover:no-underline"
                   prefetch={false}
                 >

@@ -1,6 +1,6 @@
 "use client";
-import React, { createContext, useContext, useEffect, useState } from "react";
-import Script from "next/script";
+import React, { createContext, useContext } from "react";
+import { useGoogleMapsLoaded } from '@/lib/mapsLoader';
 
 interface GoogleMapsContextType {
   isLoaded: boolean;
@@ -25,27 +25,10 @@ interface GoogleMapsProviderProps {
 }
 
 export default function GoogleMapsProvider({ children }: GoogleMapsProviderProps) {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleLoad = () => {
-    setIsLoaded(true);
-    setError(null);
-  };
-
-  const handleError = () => {
-    setError("Failed to load Google Maps API");
-    setIsLoaded(false);
-  };
+  const { isLoaded, loadError } = useGoogleMapsLoaded();
 
   return (
-    <GoogleMapsContext.Provider value={{ isLoaded, error }}>
-      <Script
-        src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places&loading=async`}
-        strategy="afterInteractive"
-        onLoad={handleLoad}
-        onError={handleError}
-      />
+    <GoogleMapsContext.Provider value={{ isLoaded, error: loadError ? "Failed to load Google Maps API" : null }}>
       {children}
     </GoogleMapsContext.Provider>
   );

@@ -6,8 +6,8 @@ type Props = {
   label: string;
   placeholder?: string;
   options: Option[];
-  value: string[];
-  onChange: (vals: string[]) => void;
+  value: Option[];
+  onChange: (vals: Option[]) => void;
 };
 
 export default function MultiSelectAutocomplete({ label, placeholder = 'Type to search…', options, value, onChange }: Props) {
@@ -36,9 +36,13 @@ export default function MultiSelectAutocomplete({ label, placeholder = 'Type to 
     return [...startsWith, ...contains].slice(0, 50);
   }, [q, options]);
 
-  const toggle = (v: string) => {
-    if (value.includes(v)) onChange(value.filter(x => x !== v));
-    else onChange([...value, v]);
+  const toggle = (option: Option) => {
+    const isSelected = value.some(v => v.value === option.value);
+    if (isSelected) {
+      onChange(value.filter(x => x.value !== option.value));
+    } else {
+      onChange([...value, option]);
+    }
   };
 
   return (
@@ -47,14 +51,11 @@ export default function MultiSelectAutocomplete({ label, placeholder = 'Type to 
       <div className="rounded-md border">
         <div className="flex flex-wrap gap-2 p-2">
           {value.length === 0 && <span className="text-sm text-gray-400">No selection</span>}
-          {value.map(v => {
-            const opt = options.find(o => o.value === v);
-            return (
-              <button key={v} type="button" onClick={() => toggle(v)} className="rounded-full border px-2 py-1 text-xs">
-                {opt?.emoji ? `${opt.emoji} ` : ''}{opt?.label ?? v} ✕
-              </button>
-            );
-          })}
+          {value.map(v => (
+            <button key={v.value} type="button" onClick={() => toggle(v)} className="rounded-full border px-2 py-1 text-xs">
+              {v.emoji ? `${v.emoji} ` : ''}{v.label} ✕
+            </button>
+          ))}
         </div>
         <input
           className="w-full border-t px-3 py-2 outline-none"
@@ -70,7 +71,7 @@ export default function MultiSelectAutocomplete({ label, placeholder = 'Type to 
             <li className="px-3 py-2 text-sm text-gray-500">No results</li>
           ) : filtered.map(o => (
             <li key={o.value}
-              onClick={() => { toggle(o.value); setOpen(false); setQ(''); }}
+              onClick={() => { toggle(o); setOpen(false); setQ(''); }}
               className="cursor-pointer px-3 py-2 text-sm hover:bg-gray-100">
               {o.emoji ? `${o.emoji} ` : ''}{o.label}
             </li>

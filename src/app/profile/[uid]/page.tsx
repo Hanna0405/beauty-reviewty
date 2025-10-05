@@ -2,18 +2,58 @@
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase.client';
-import { fetchListingsByMasterUid, type Listing } from '@/lib/data/listings';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { renderServiceTag, renderLanguageTag } from '@/lib/tags';
+import Link from 'next/link';
+
+type Listing = any;
+
+// Helper functions for safe rendering
+function formatCity(city?: any): string {
+  if (!city) return '';
+  if (typeof city === 'string') return city;
+  return (city.cityName || city.formatted || '').trim();
+}
+
+function formatTag(t: any): string {
+  if (!t) return '';
+  if (typeof t === 'string') return t;
+  return [t.emoji ?? '', t.name ?? ''].filter(Boolean).join(' ').trim();
+}
+
+function formatTagList(items?: any[], fallback?: any[]): string {
+  const arr = Array.isArray(items) && items.length ? items : (Array.isArray(fallback) ? fallback : []);
+  return arr.map(formatTag).filter(Boolean).join(', ');
+}
+
+// Fetch listings for profile using multiple possible owner fields
+async function fetchListingsForProfile(profileId: string): Promise<Listing[]> {
+  const candidates = [
+    ['masterUid', profileId],
+    ['ownerUid', profileId],
+    ['authorUid', profileId],
+    ['userUid', profileId],
+    ['profileId', profileId],
+  ];
+  const results: Record<string, Listing> = {};
+  for (const [field, value] of candidates) {
+    try {
+      const q = query(collection(db, 'listings'), where(field as any, '==', value));
+      const snap = await getDocs(q);
+      snap.forEach(d => { results[d.id] = { id: d.id, ...d.data() }; });
+    } catch {}
+  }
+  return Object.values(results);
+}
 
 export default function PublicProfilePage() {
   const params = useParams();
   const uid = params?.uid as string;
   const { user } = useAuth();
   const [profile, setProfile] = useState<any|null>(null);
-  const [masterListings, setMasterListings] = useState<Listing[]>([]);
+  const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,11 +64,15 @@ export default function PublicProfilePage() {
         const profileData = snap.exists() ? { id: snap.id, uid: uid, ...snap.data() } : null;
         setProfile(profileData);
         
-        // Load master's listings if profile exists
+        // Load listings for this profile using universal search
         if (profileData) {
-          const isOwner = user?.uid && profileData?.uid && user.uid === profileData.uid;
-          const listings = await fetchListingsByMasterUid(uid, { includeDrafts: !!isOwner });
-          setMasterListings(listings);
+          try {
+            const userListings = await fetchListingsForProfile(uid);
+            setListings(userListings);
+          } catch (error) {
+            console.error('Error loading listings:', error);
+            setListings([]);
+          }
         }
       } catch (error) {
         console.error('Error loading profile:', error);
@@ -54,72 +98,37 @@ export default function PublicProfilePage() {
  )}
  <div>
  <div className="text-2xl font-semibold">{profile.displayName || 'Unnamed'}</div>
- <div className="text-gray-500">{profile.city}</div>
+ <div className="text-gray-500">{formatCity(profile.city)}</div>
  </div>
  </div>
 
  <div className="space-y-2">
- <div><span className="font-medium">Services:</span> {Array.isArray(profile.services) && profile.services.length ? profile.services.join(', ') : '—'}</div>
- <div><span className="font-medium">Languages:</span> {Array.isArray(profile.languages) && profile.languages.length ? profile.languages.join(', ') : '—'}</div>
+ <div><span className="font-medium">Services:</span> {formatTagList(profile.services, profile.serviceNames) || '—'}</div>
+ <div><span className="font-medium">Languages:</span> {formatTagList(profile.languages, profile.languageNames) || '—'}</div>
  {profile.instagram && <div><a className="text-pink-600 underline" href={profile.instagram} target="_blank" rel="noopener noreferrer">Instagram</a></div>}
  {profile.tiktok && <div><a className="text-pink-600 underline" href={profile.tiktok} target="_blank" rel="noopener noreferrer">TikTok</a></div>}
  {profile.website && <div><a className="text-pink-600 underline" href={profile.website} target="_blank" rel="noopener noreferrer">Website</a></div>}
  </div>
 
  {/* Listings Section */}
+ {listings.length > 0 && (
  <section className="mt-6">
- <div className="flex items-center justify-between mb-3">
- <h2 className="text-lg font-semibold">Listings</h2>
- <a className="link" href={`/masters?view=listings&master=${profile.id}`}>View all</a>
- </div>
- {masterListings.length === 0 ? (
- <div className="text-gray-500">No active listings yet.</div>
- ) : (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {masterListings.map((listing) => (
-        <div key={listing.id} className="card bg-base-100 border">
-          <figure className="aspect-video overflow-hidden">
-            <img src={listing.photos?.[0]?.url ?? "/placeholder.jpg"} alt={listing.title ?? "Listing"} className="w-full h-full object-cover" />
-          </figure>
-          <div className="card-body p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="card-title text-base">{listing.title ?? "Listing"}</h3>
-              {!listing.isActive && user?.uid === profile.uid && <span className="badge badge-ghost text-xs">draft</span>}
-            </div>
-            <div className="text-sm opacity-70">
-              {profile.city ?? ""} {listing.priceFrom ? ` • from $${listing.priceFrom}` : ""}
-            </div>
-            
-            {/* Service Tags */}
-            {Array.isArray(listing.services) && listing.services.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {listing.services.slice(0, 3).map((s: string) => (
-                  <span key={s} className="badge badge-sm">{renderServiceTag(s)}</span>
-                ))}
-                {listing.services.length > 3 && (
-                  <span className="badge badge-sm badge-ghost">+{listing.services.length - 3}</span>
-                )}
-              </div>
-            )}
-
-            {/* Language Tags */}
-            {Array.isArray(listing.languages) && listing.languages.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {listing.languages.slice(0, 3).map((l: string) => (
-                  <span key={l} className="badge badge-sm badge-outline">{renderLanguageTag(l)}</span>
-                ))}
-              </div>
-            )}
-            
-            <div className="card-actions mt-3">
-              <a className="btn btn-sm btn-outline" href={`/masters/${String(listing.id)}`}>View</a>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
+ <h2 className="text-lg font-semibold mb-4">My Listings</h2>
+ <div className="grid gap-4 md:grid-cols-2">
+ {listings.map((listing) => (
+ <Link key={listing.id} href={`/listing/${listing.id}`} className="block">
+ <div className="border rounded-lg p-4 bg-gray-50 hover:bg-gray-100 transition-colors">
+ <h4 className="font-medium text-gray-900">{listing.title || 'Untitled Listing'}</h4>
+ <p className="text-sm text-gray-600 mt-1">{listing.description || 'No description'}</p>
+ {listing.price && (
+ <p className="text-sm font-medium text-pink-600 mt-2">${listing.price}</p>
  )}
+ </div>
+ </Link>
+ ))}
+ </div>
  </section>
+ )}
  </div>
  );
 }

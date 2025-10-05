@@ -12,7 +12,7 @@ export const SERVICES: CatalogItem[] = [
   { key: 'lashes', name: 'Lashes', emoji: ' ', aliases: ['eyelash','lash'] },
   { key: 'brows', name: 'Brows', emoji: ' ', aliases: ['brow','eyebrow','lamination'] },
   { key: 'nails', name: 'Nails', emoji: ' ', aliases: ['manicure','gel','acrylic'] },
-  { key: 'makeup', name: 'Makeup', emoji: ' ', aliases: ['muah'] },
+  { key: 'makeup', name: 'Makeup', emoji: ' ', aliases: ['muah','make up'] },
   { key: 'skincare', name: 'Skincare', emoji: ' ', aliases: ['facial','peel'] },
   { key: 'aesthetics-botox', name: 'Aesthetics — Botox', emoji: ' ', aliases: ['botox','tox'] },
   { key: 'aesthetics-fillers', name: 'Aesthetics — Lip Fillers', emoji: ' ', aliases: ['filler','lips'] },

@@ -6,6 +6,7 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 export default function MasterDashboardPage() {
  const { user, profile, role, loading } = useUserProfile();
  const name = profile?.displayName || user?.email || "master";
+ const computedRole = profile?.role ?? (profile?.isMaster ? 'master' : 'client');
 
  if (loading) {
   return <div className="text-sm text-gray-500 px-4 py-2">Loading profile…</div>;
@@ -18,7 +19,7 @@ export default function MasterDashboardPage() {
  <p className="mt-1 text-sm text-gray-600">Your master workspace</p>
  <div className="mt-3 space-y-2">
  <span className="inline-flex items-center rounded-full bg-pink-50 px-3 py-1 text-xs font-medium text-pink-700 ring-1 ring-inset ring-pink-200">
- Role: {role ?? "—"}
+ Role: {computedRole || 'client'}
  </span>
  <div className="text-xs text-gray-500">
  <div><b>Email:</b> {user?.email ?? '—'}</div>

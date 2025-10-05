@@ -1,6 +1,6 @@
 "use client";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
-import { db } from "./firebase";
+import { db } from "@/lib/firebase";
 
 export async function upsertUser(uid: string, data: { email?: string | null; displayName?: string | null; phoneNumber?: string | null; }) {
   const ref = doc(db, "users", uid);

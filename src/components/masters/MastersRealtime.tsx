@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import { onSnapshot, getDocs } from 'firebase/firestore';
 import { buildMastersQuery } from '@/lib/mastersQuery';
 import Image from 'next/image';
-import Script from 'next/script';
 import dynamic from 'next/dynamic';
+import MapContainer from '@/components/map/MapContainer';
 
 const CityAutocomplete = dynamic(() => import('@/components/CityAutocompleteSimple'), { ssr: false });
 const ServiceAutocomplete = dynamic(() => import('@/components/masters/ServiceAutocomplete'), { ssr: false });
@@ -146,23 +146,23 @@ function MapView({ points }: { points: { id:string; lat:number; lng:number; titl
     }
   }, [points]);
 
+  // Initialize map when Google Maps API is loaded
+  useEffect(() => {
+    if (mapRef.current && window.google && !mapObj.current) {
+      mapObj.current = new window.google.maps.Map(mapRef.current, {
+        center: { lat: 43.6532, lng: -79.3832 },
+        zoom: 8,
+        mapTypeControl: false,
+        streetViewControl: false,
+      });
+    }
+  }, []);
+
   return (
     <div className="w-full h-[300px] md:h-[420px] rounded-2xl border border-rose-100 overflow-hidden bg-rose-50">
-      <Script
-        src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`}
-        strategy="afterInteractive"
-        onLoad={()=>{
-          if (!mapObj.current && mapRef.current && window.google) {
-            mapObj.current = new window.google.maps.Map(mapRef.current, {
-              center: { lat: 43.6532, lng: -79.3832 },
-              zoom: 8,
-              mapTypeControl: false,
-              streetViewControl: false,
-            });
-          }
-        }}
-      />
-      <div ref={mapRef} className="w-full h-full" />
+      <MapContainer>
+        <div ref={mapRef} className="w-full h-full" />
+      </MapContainer>
     </div>
   );
 }

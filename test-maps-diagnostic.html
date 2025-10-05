@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Maps Diagnostic Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; border: 1px solid #bee5eb; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Google Maps Diagnostic Test</h1>
+    <p>This test verifies the Google Maps API key diagnostic logging.</p>
+
+    <div>
+        <button onclick="testDiagnostic()">Test Diagnostic Log</button>
+        <button onclick="testMapContainer()">Test Map Container</button>
+    </div>
+
+    <div id="result"></div>
+
+    <div class="test-result info">
+        <h3>🔍 What to Check</h3>
+        <ul>
+            <li><strong>Layout Diagnostic:</strong> <code>[BR] Maps key diagnostic (App Router): ABCDEF***WXYZ</code> (appears on every page load)</li>
+            <li><strong>Component Logs:</strong> <code>[BR] NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ABCDEF***WXYZ</code> (appears on map pages)</li>
+            <li><strong>Key Format:</strong> Should show first 6 chars + *** + last 4 chars</li>
+            <li><strong>Empty Key:</strong> Should show <code>(empty)</code> if key is missing</li>
+            <li><strong>Multiple Logs:</strong> May see logs from layout, MapContainer, and GoogleMapsProvider</li>
+        </ul>
+    </div>
+
+    <script>
+        function testDiagnostic() {
+            showResult(`
+                <h3>🔍 Diagnostic Test</h3>
+                <p>Check the browser console for diagnostic logs:</p>
+                <ul>
+                    <li><code>[BR] NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ABCDEF***WXYZ</code></li>
+                    <li><code>[BR] Maps key present: YES value: ABCDEF***WXYZ</code></li>
+                </ul>
+                <p><strong>Note:</strong> The diagnostic logs will appear when you navigate to /masters or /listings pages.</p>
+            `, 'info');
+        }
+
+        async function testMapContainer() {
+            showResult(`
+                <h3>🗺️ Map Container Test</h3>
+                <p>Navigate to <a href="/masters" target="_blank">/masters</a> or <a href="/listings" target="_blank">/listings</a> to see:</p>
+                <ul>
+                    <li>Map container rendering</li>
+                    <li>Diagnostic logs in console</li>
+                    <li>Google Maps API loading</li>
+                </ul>
+                <p><strong>Expected Console Output:</strong></p>
+                <pre>[BR] Maps key diagnostic (App Router): ABCDEF***WXYZ
+[BR] NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ABCDEF***WXYZ
+[BR] Maps key present: YES value: ABCDEF***WXYZ</pre>
+            `, 'info');
+        }
+
+        function showResult(html, type) {
+            const result = document.getElementById('result');
+            result.innerHTML = `<div class="test-result ${type}">${html}</div>`;
+        }
+    </script>
+</body>
+</html>

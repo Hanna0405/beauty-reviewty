@@ -1,5 +1,5 @@
 'use client';
-import { db } from '@/lib/firebase.client';
+import { db } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 import { normalizeMasters } from '@/lib/normalizeMaster';
 import { Master } from '@/types/master';

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { AvatarWithBadge } from "@/components/notifications/AvatarWithBadge";
 
@@ -56,19 +57,28 @@ export default function AppHeader() {
 
 function AccountMenu({ nameOrEmail, onLogout, user, profile }: { nameOrEmail?: string | null; onLogout: () => Promise<void>; user: any; profile: any }) {
  const [open, setOpen] = useState(false);
+ const pathname = usePathname();
+
+ // Close menu on route change
+ useEffect(() => {
+   setOpen(false);
+ }, [pathname]);
+
+ const toggle = () => setOpen(o => !o);
+ const close = () => setOpen(false);
 
  return (
  <div className="relative">
- <button onClick={() => setOpen(v => !v)} aria-label="Account menu" className="focus:outline-none">
+ <button onClick={toggle} aria-label="Account menu" className="focus:outline-none">
  <AvatarWithBadge user={{ uid: user.uid, role: profile?.role || "client", name: nameOrEmail || undefined }} />
  </button>
  {open && (
  <div className="absolute right-0 mt-2 w-44 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
  <div className="px-3 py-2 text-sm font-medium text-gray-900 truncate">{nameOrEmail}</div>
  <div className="h-px bg-gray-100" />
- <Link href="/dashboard/master" className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Dashboard</Link>
- <Link href="/profile" className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">My profile</Link>
- <button onClick={onLogout} className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">Log out</button>
+ <Link href="/dashboard/master" onClick={close} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Dashboard</Link>
+ <Link href="/profile" onClick={close} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">My profile</Link>
+ <button onClick={() => { close(); onLogout(); }} className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">Log out</button>
  </div>
  )}
  </div>

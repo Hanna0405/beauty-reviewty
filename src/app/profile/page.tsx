@@ -4,13 +4,67 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { doc, onSnapshot, deleteDoc, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
-import { db } from '@/lib/firebase.client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
+
+type Listing = any;
+
+async function fetchListingsForProfile(db: any, profileId: string): Promise<Listing[]> {
+  const candidates = [
+    ['masterUid', profileId],
+    ['ownerUid', profileId],
+    ['authorUid', profileId],
+    ['userUid', profileId],
+    ['profileId', profileId],
+  ];
+  const results: Record<string, Listing> = {};
+  for (const [field, value] of candidates) {
+    try {
+      const q = query(collection(db, 'listings'), where(field as any, '==', value));
+      const snap = await getDocs(q);
+      snap.forEach(d => { results[d.id] = { id: d.id, ...d.data() }; });
+    } catch {}
+  }
+  return Object.values(results);
+}
+
+function formatCity(city?: any): string {
+  if (!city) return '';
+  if (typeof city === 'string') return city;
+  return (city.cityName || city.formatted || '').trim();
+}
+
+function formatTag(t: any): string {
+  if (!t) return '';
+  if (typeof t === 'string') return t;
+  return [t.emoji ?? '', t.name ?? ''].filter(Boolean).join(' ').trim();
+}
+
+function formatTagList(items?: any[], fallback?: any[]): string {
+  const arr = Array.isArray(items) && items.length ? items : (Array.isArray(fallback) ? fallback : []);
+  return arr.map(formatTag).filter(Boolean).join(', ');
+}
+
+function TagsLine({ title, items, fallbackItems }:{
+ title: string;
+ items?: any[];
+ fallbackItems?: any[];
+}) {
+ const formatted = formatTagList(items, fallbackItems);
+ if (!formatted) return null;
+ return (
+ <p>
+ <strong>{title}: </strong>
+ {formatted}
+ </p>
+ );
+}
 
 export default function ProfilePage() {
  const router = useRouter();
  const { user, logout } = useAuth();
  const [p, setP] = useState<any|null>(null);
+ const [listings, setListings] = useState<Listing[]>([]);
  const [loading, setLoading] = useState(true);
  const [deleting, setDeleting] = useState(false);
 
@@ -20,9 +74,24 @@ export default function ProfilePage() {
  setLoading(false);
  return;
  }
- const unsub = onSnapshot(doc(db, 'profiles', user.uid), (snap) => {
- setP(snap.exists() ? { id: snap.id, ...snap.data() } : null);
- setLoading(false);
+ const unsub = onSnapshot(doc(db, 'profiles', user.uid), async (snap) => {
+   const profileData = snap.exists() ? { id: snap.id, ...snap.data() } : null;
+   setP(profileData);
+   
+   // Load listings for this profile
+   if (profileData && db) {
+     try {
+       const userListings = await fetchListingsForProfile(db, user.uid);
+       setListings(userListings);
+     } catch (error) {
+       console.error('Error loading listings:', error);
+       setListings([]);
+     }
+   } else {
+     setListings([]);
+   }
+   
+   setLoading(false);
  });
  return () => unsub();
  }, [user]);
@@ -92,7 +161,7 @@ export default function ProfilePage() {
  )}
  <div>
  <div className="text-2xl font-semibold">{p.displayName || 'Unnamed'}</div>
- <div className="text-gray-500">{p.cityName ?? p.city?.formatted ?? ''}</div>
+ <div className="text-gray-500">{formatCity(p.city)}</div>
  </div>
  </div>
  <div className="flex gap-2">
@@ -125,12 +194,35 @@ export default function ProfilePage() {
  </div>
 
  <div className="space-y-2">
- <div><span className="font-medium">Services:</span> {Array.isArray(p.services) && p.services.length ? p.services.join(', ') : '—'}</div>
- <div><span className="font-medium">Languages:</span> {Array.isArray(p.languages) && p.languages.length ? p.languages.join(', ') : '—'}</div>
+ <TagsLine title="Services" items={p.services} fallbackItems={p.serviceNames} />
+ <TagsLine title="Languages" items={p.languages} fallbackItems={p.languageNames} />
  {p.instagram && <div><a className="text-pink-600 underline" href={p.instagram} target="_blank" rel="noopener noreferrer">Instagram</a></div>}
  {p.tiktok && <div><a className="text-pink-600 underline" href={p.tiktok} target="_blank" rel="noopener noreferrer">TikTok</a></div>}
  {p.website && <div><a className="text-pink-600 underline" href={p.website} target="_blank" rel="noopener noreferrer">Website</a></div>}
  </div>
+
+ {/* Listings Section */}
+ {listings.length > 0 && (
+ <div className="mt-6">
+ <h3 className="text-lg font-semibold mb-4">My Listings</h3>
+ <div className="grid gap-4 md:grid-cols-2">
+ {listings.map((listing) => (
+ <Link key={listing.id} href={`/listing/${listing.id}`} className="block rounded-lg border border-gray-200 bg-white/60 px-4 py-3 hover:bg-white shadow-sm transition">
+ <div className="flex items-center justify-between">
+ <div>
+ <div className="font-medium text-gray-900">{listing.title || 'Untitled Listing'}</div>
+ <div className="text-sm text-gray-500 mt-1">{listing.description || 'No description'}</div>
+ {listing.price && (
+ <div className="text-sm font-medium text-pink-600 mt-1">${listing.price}</div>
+ )}
+ </div>
+ <span aria-hidden className="text-gray-400">→</span>
+ </div>
+ </Link>
+ ))}
+ </div>
+ </div>
+ )}
  </div>
  );
 }

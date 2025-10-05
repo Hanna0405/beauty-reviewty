@@ -2,16 +2,17 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import CityAutocomplete from '@/components/CityAutocomplete';
-import MultiSelectAutocomplete from '@/components/inputs/MultiSelectAutocomplete';
+import MultiSelectAutocompleteV2 from '@/components/inputs/MultiSelectAutocompleteV2';
 import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from '@/constants/catalog'; // ← use shared options
 import type { CityNorm } from '@/lib/city';
+import type { TagOption } from '@/types/tags';
 
 type Props = {
   value: { 
     city?: string; 
     cityPlaceId?: string;
-    services: string[]; 
-    languages: string[]; 
+    services: TagOption[]; 
+    languages: TagOption[]; 
     minRating?: number; 
     name?: string 
   };
@@ -23,8 +24,8 @@ export default function MasterFilters({ value, onChange, showName }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [city, setCity] = useState<CityNorm | null>(null);
-  const [services, setServices] = useState<string[]>(value.services ?? []);
-  const [languages, setLanguages] = useState<string[]>(value.languages ?? []);
+  const [services, setServices] = useState<TagOption[]>(value.services ?? []);
+  const [languages, setLanguages] = useState<TagOption[]>(value.languages ?? []);
   const [minRating, setMinRating] = useState<number | undefined>(value.minRating);
   const [name, setName] = useState<string>(value.name ?? '');
 
@@ -69,7 +70,7 @@ export default function MasterFilters({ value, onChange, showName }: Props) {
       </div>
 
       {/* Services — SAME dataset & UX as New Listing */}
-      <MultiSelectAutocomplete
+      <MultiSelectAutocompleteV2
         label="Services"
         options={SERVICE_OPTIONS}
         value={services}
@@ -78,7 +79,7 @@ export default function MasterFilters({ value, onChange, showName }: Props) {
       />
 
       {/* Languages — SAME dataset & UX as New Listing */}
-      <MultiSelectAutocomplete
+      <MultiSelectAutocompleteV2
         label="Languages"
         options={LANGUAGE_OPTIONS}
         value={languages}

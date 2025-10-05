@@ -1,7 +1,19 @@
-'use client';
-export { app, auth, db, storage } from '../firebase.client';
+"use client";
+import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
+import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
-import { auth as _auth, db as _db, storage as _storage } from '../firebase.client';
-export function requireAuth() { return _auth; }
-export function requireDb() { return _db; }
-export function requireStorage() { return _storage; }
+const cfg = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
+};
+
+const apps = getApps();
+export const app: FirebaseApp = apps.length ? apps[0] : initializeApp(cfg);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+void setPersistence(auth, browserLocalPersistence).catch(() => {});

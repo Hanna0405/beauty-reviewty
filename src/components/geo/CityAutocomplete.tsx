@@ -14,18 +14,19 @@ const inputRef = useRef<HTMLInputElement | null>(null);
 const elRef = useRef<any>(null);
 
 useEffect(() => {
-// Load Places library once
-if (!("google" in window) && !document.getElementById("gmaps")) {
-const s = document.createElement("script");
-const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!;
-s.id = "gmaps";
-s.async = true;
-s.defer = true;
-s.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places&v=weekly`;
-document.head.appendChild(s);
-s.onload = init;
+// Wait for Google Maps API to be loaded by the centralized loader
+if (window.google?.maps?.places) {
+  init();
 } else {
-init();
+  // Poll for API availability
+  const checkApi = () => {
+    if (window.google?.maps?.places) {
+      init();
+    } else {
+      setTimeout(checkApi, 100);
+    }
+  };
+  checkApi();
 }
 
 function init() {

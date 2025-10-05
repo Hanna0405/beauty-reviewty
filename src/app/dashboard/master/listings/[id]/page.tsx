@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import { useAuth } from '@/contexts/AuthContext';
 import RequireRole from '@/components/auth/RequireRole';
 import { getListingById } from '@/lib/services/firestoreMastersClient';
-import GoogleMapsLoader from '@/components/GoogleMapsLoader';
+import MapContainer from '@/components/map/MapContainer';
 import type { Listing } from '@/types';
 
 // Dynamically import the form to disable SSR
@@ -113,7 +113,7 @@ function Content() {
         </p>
       </div>
 
-      <GoogleMapsLoader>
+      <MapContainer>
         <div className="bg-white rounded-lg border shadow-sm">
           <div className="p-6">
             <MasterListingForm 
@@ -124,7 +124,7 @@ function Content() {
             />
           </div>
         </div>
-      </GoogleMapsLoader>
+      </MapContainer>
     </div>
   );
 }

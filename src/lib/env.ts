@@ -1,16 +1,16 @@
-function must(name: string, v: string | undefined) {
-  if (!v) throw new Error(`Missing env var: ${name}`);
-  return v;
-}
-export const ENV = {
-  NEXT_PUBLIC_FIREBASE_API_KEY: must('NEXT_PUBLIC_FIREBASE_API_KEY', process.env.NEXT_PUBLIC_FIREBASE_API_KEY),
-  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: must('NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN', process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN),
-  NEXT_PUBLIC_FIREBASE_PROJECT_ID: must('NEXT_PUBLIC_FIREBASE_PROJECT_ID', process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID),
-  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: must('NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET', process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET),
-  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: must('NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID', process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID),
-  NEXT_PUBLIC_FIREBASE_APP_ID: must('NEXT_PUBLIC_FIREBASE_APP_ID', process.env.NEXT_PUBLIC_FIREBASE_APP_ID),
+export function getPublicEnv() {
+  const raw = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+  // Trim to avoid accidental spaces/newlines
+  const key = (raw || '').trim();
 
-  FIREBASE_ADMIN_PROJECT_ID: process.env.FIREBASE_ADMIN_PROJECT_ID,
-  FIREBASE_ADMIN_CLIENT_EMAIL: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-  FIREBASE_ADMIN_PRIVATE_KEY: process.env.FIREBASE_ADMIN_PRIVATE_KEY,
-};
+  if (typeof window !== 'undefined') {
+    // Masked log to verify key presence in prod without exposing it
+    const masked = key ? key.slice(0, 6) + '***' + key.slice(-4) : '(empty)';
+    // Only log once
+    if (!(window as any).__BR_MAPS_ENV_LOGGED__) {
+      console.info('[BR] Maps key present:', key ? 'YES' : 'NO', 'value:', masked);
+      (window as any).__BR_MAPS_ENV_LOGGED__ = true;
+    }
+  }
+  return { GOOGLE_MAPS_KEY: key };
+}

@@ -4,12 +4,10 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
-import nextDynamic from "next/dynamic";
 import MasterFilters from "@/components/Filters/MasterFilters";
 import MasterCard from "@/components/MasterCard";
 import { fetchMastersOnce, MasterFilters as FM } from "@/lib/firestoreQueries";
-
-const MastersMap = nextDynamic(() => import("@/components/Map/MastersMap"), { ssr: false });
+import MastersMap from "@/components/map/MastersMap";
 
 function PageContent() {
   const [filters, setFilters] = useState<FM>({ services: [], languages: [], minRating: undefined, name: '' });

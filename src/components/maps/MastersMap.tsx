@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef } from 'react';
-import { useGoogleMapsLoader } from '@/hooks/useGoogleMapsLoader';
+import { useGoogleMapsLoaded } from '@/lib/mapsLoader';
 
 type Marker = { lat: number; lng: number; title?: string };
 
@@ -16,11 +16,11 @@ export default function MastersMap({
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const { status, google } = useGoogleMapsLoader();
+  const { isLoaded, loadError } = useGoogleMapsLoaded();
 
   useEffect(() => {
-    if (status !== 'ready' || !google || !ref.current) return;
-    const map = new google.maps.Map(ref.current, {
+    if (!isLoaded || !window.google?.maps || !ref.current) return;
+    const map = new window.google.maps.Map(ref.current, {
       center,
       zoom,
       mapId: undefined, // keep default; don't require custom mapId
@@ -31,7 +31,7 @@ export default function MastersMap({
     });
 
     markers.forEach((m) => {
-      new google.maps.Marker({
+      new window.google.maps.Marker({
         map,
         position: { lat: m.lat, lng: m.lng },
         title: m.title,
@@ -41,9 +41,9 @@ export default function MastersMap({
     return () => {
       // no explicit destroy required; GC will clean up
     };
-  }, [status, google, center.lat, center.lng, zoom, JSON.stringify(markers)]);
+  }, [isLoaded, center.lat, center.lng, zoom, JSON.stringify(markers)]);
 
-  if (status === 'error') {
+  if (loadError) {
     return (
       <div className={`${className} grid place-items-center text-sm text-red-600`}>
         Google Maps failed to load. Check API key, billing, and "Places API" enablement.

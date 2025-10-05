@@ -13,8 +13,8 @@ import LanguagesSelect from "@/components/LanguagesSelect";
 import type { CatalogItem } from "@/catalog/services";
 import { ensureSelectedArray, deriveMirrors } from "@/lib/ensureLists";
 import ListingPhotos from "@/components/ListingPhotos";
+import MapContainer from "@/components/map/MapContainer";
 
-import { SERVICES_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/options";
 
 interface PhotoData {
   url: string;
@@ -116,6 +116,7 @@ export default function NewListingPage() {
  };
 
  return (
+ <MapContainer>
  <div className="min-h-screen bg-gray-50">
  <div className="max-w-3xl mx-auto px-4 py-8">
  <div className="mb-8">
@@ -232,5 +233,6 @@ export default function NewListingPage() {
  </div>
  </div>
  </div>
+ </MapContainer>
  );
 }

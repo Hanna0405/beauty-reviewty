@@ -4,6 +4,24 @@ import { SafeText } from '@/lib/safeText';
 
 type Props = { master: any };
 
+// Helper functions for safe rendering
+function formatCity(city?: any): string {
+  if (!city) return '';
+  if (typeof city === 'string') return city;
+  return (city.cityName || city.formatted || '').trim();
+}
+
+function formatTag(t: any): string {
+  if (!t) return '';
+  if (typeof t === 'string') return t;
+  return [t.emoji ?? '', t.name ?? ''].filter(Boolean).join(' ').trim();
+}
+
+function formatTagList(items?: any[], fallback?: any[]): string {
+  const arr = Array.isArray(items) && items.length ? items : (Array.isArray(fallback) ? fallback : []);
+  return arr.map(formatTag).filter(Boolean).join(', ');
+}
+
 export default function MasterCard({ master }: Props) {
   return (
     <div className="flex gap-3 rounded-lg border p-3">
@@ -17,16 +35,16 @@ export default function MasterCard({ master }: Props) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between">
           <h3 className="truncate font-medium">{master.displayName ?? 'Master'}</h3>
-          <Link href={`/master/${master.id}`} className="text-sm underline">Open</Link>
+          <Link href={`/master/${encodeURIComponent(master.uid ?? master.id)}`} className="text-sm underline">Open</Link>
         </div>
         <div className="text-sm text-gray-600">
-          <SafeText value={master?.cityName ?? master?.city} />
+          {formatCity(master?.city)}
         </div>
         <div className="mt-1 line-clamp-1 text-sm">
-          <SafeText value={master?.serviceNames ?? master?.services?.map((s: any) => s.name || s) ?? []} />
+          {formatTagList(master?.services, master?.serviceNames)}
         </div>
         <div className="text-xs text-gray-500">
-          <SafeText value={master?.languageNames ?? master?.languages?.map((l: any) => l.name || l) ?? []} />
+          {formatTagList(master?.languages, master?.languageNames)}
         </div>
       </div>
     </div>

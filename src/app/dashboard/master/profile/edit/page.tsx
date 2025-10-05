@@ -8,10 +8,14 @@ import dynamic from "next/dynamic";
 import { requireAuth, requireDb } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useToast } from "@/components/ui/Toast";
-import CityAutocompleteNew from "@/components/CityAutocompleteNew";
-import SmartAutocomplete from "@/components/SmartAutocomplete";
-import { SERVICES_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/options";
+import CityAutocomplete from "@/components/CityAutocomplete";
+import type { CityNorm } from "@/lib/city";
 import { saveMyProfile, uploadAvatar } from "@/lib/db";
+import ServicesSelect from '@/components/ServicesSelect';
+import LanguagesSelect from '@/components/LanguagesSelect';
+import type { CatalogItem } from '@/catalog/services';
+import { ensureSelectedArray, deriveMirrors } from '@/lib/ensureLists';
+import MapContainer from '@/components/map/MapContainer';
 
 
 type MasterProfile = {
@@ -56,6 +60,9 @@ export default function EditProfilePage() {
  const { showToast } = useToast();
 
  const [form, setForm] = useState<MasterProfile>(emptyProfile(uid));
+ const [city, setCity] = useState<CityNorm | null>(null);
+ const [services, setServices] = useState<CatalogItem[]>([]);
+ const [languages, setLanguages] = useState<CatalogItem[]>([]);
 
  const [loading, setLoading] = useState(true);
  const [saving, setSaving] = useState(false);
@@ -103,9 +110,21 @@ export default function EditProfilePage() {
  },
  updatedAt: data.updatedAt,
  };
- if (!cancelled) setForm(safe);
+ if (!cancelled) {
+   setForm(safe);
+   // Initialize city from existing data
+   setCity(data.city ? { formatted: data.city, slug: '', city: data.city } : null);
+   // Initialize services and languages from existing data
+   setServices(Array.isArray(data.services) ? data.services.map(s => ({ key: s, name: s })) : []);
+   setLanguages(Array.isArray(data.languages) ? data.languages.map(l => ({ key: l, name: l })) : []);
+ }
  } else {
- if (!cancelled) setForm(emptyProfile(uid));
+ if (!cancelled) {
+   setForm(emptyProfile(uid));
+   setCity(null);
+   setServices([]);
+   setLanguages([]);
+ }
  }
  } catch (e: any) {
  if (!cancelled) setError(e?.message || "Failed to load profile.");
@@ -157,20 +176,41 @@ export default function EditProfilePage() {
     setSaving(true);
     setError(null);
 
-    try {
-      await saveMyProfile({
-        displayName: form.displayName.trim(),
-        city: form.city.trim(),
-        phone: form.phone?.trim() || "",
-        services: Array.from(new Set(form.services.map((s) => s.trim()).filter(Boolean))),
-        languages: Array.from(new Set(form.languages.map((l) => l.trim()).filter(Boolean))),
-        avatarUrl: form.avatarUrl ?? null,
-        socials: {
-          instagram: form.socials?.instagram?.trim() || "",
-          facebook: form.socials?.facebook?.trim() || "",
-          website: form.socials?.website?.trim() || "",
-        },
-      });
+    // Compute mirrors and persist
+    const selServices = ensureSelectedArray(services);
+    const selLanguages = ensureSelectedArray(languages);
+    const svc = deriveMirrors(selServices);
+    const lng = deriveMirrors(selLanguages);
+
+    // Derive city mirrors like on masters
+    const cityPayload = city ? {
+      cityKey: city.slug ?? city.key ?? city.id ?? '',
+      cityName: city.formatted ?? city.name ?? '',
+      cityFullName: city.formatted ?? city.fullName ?? city.label ?? '',
+      cityLat: city.lat ?? 0,
+      cityLng: city.lng ?? 0,
+      countryCode: city.countryCode ?? '',
+      admin1Code: city.admin1Code ?? '',
+    } : {};
+
+    await saveMyProfile({
+      displayName: form.displayName.trim(),
+      city: city?.formatted ?? form.city.trim(),
+      phone: form.phone?.trim() || "",
+      services: selServices,
+      serviceKeys: svc.keys,
+      serviceNames: svc.names,
+      languages: selLanguages,
+      languageKeys: lng.keys,
+      languageNames: lng.names,
+      avatarUrl: form.avatarUrl ?? null,
+      socials: {
+        instagram: form.socials?.instagram?.trim() || "",
+        facebook: form.socials?.facebook?.trim() || "",
+        website: form.socials?.website?.trim() || "",
+      },
+      ...cityPayload,
+    });
       
       // Show success message and redirect
       showToast("Profile updated successfully", "success");
@@ -186,14 +226,17 @@ export default function EditProfilePage() {
 
  if (!uid) {
  return (
+ <MapContainer>
  <div className="mx-auto max-w-2xl p-6">
  <h1 className="mb-4 text-2xl font-semibold">Edit Profile</h1>
  <p className="text-red-600">Please sign in to edit your profile.</p>
  </div>
+ </MapContainer>
  );
  }
 
  return (
+ <MapContainer>
  <div className="mx-auto max-w-2xl p-6">
  <div className="mb-6 flex items-center justify-between">
  <h1 className="text-2xl font-semibold">Edit Profile</h1>
@@ -245,9 +288,9 @@ export default function EditProfilePage() {
     {/* City */}
     <div className="grid gap-1">
      <label className="text-sm font-medium">City *</label>
-     <CityAutocompleteNew
-      value={form.city}
-      onChange={(city) => setField("city", city)}
+     <CityAutocomplete
+      value={city}
+      onChange={setCity}
       placeholder="Start typing your city"
      />
     </div>
@@ -263,29 +306,11 @@ export default function EditProfilePage() {
      />
     </div>
 
-    {/* Services with autocomplete */}
-    <div>
-     <label className="block text-sm font-medium text-gray-700 mb-2">Services</label>
-     <SmartAutocomplete
-      placeholder="Type to search services..."
-      options={SERVICES_OPTIONS.map(o => ({ ...o, leftIcon: <span>{o.label.split(" ").slice(-1)}</span> }))}
-      value={(form.services ?? []).map((s: string) => ({ value: s, label: SERVICES_OPTIONS.find(o => o.value === s)?.label || s }))}
-      onChange={(val) => setField("services", Array.isArray(val) ? val.map(v => v.value) : (val ? [val.value] : []))}
-      multi
-     />
-    </div>
+    {/* Services with new multiselect */}
+    <ServicesSelect value={services} onChange={setServices} required />
 
-    {/* Languages with autocomplete */}
-    <div>
-     <label className="block text-sm font-medium text-gray-700 mb-2">Languages</label>
-     <SmartAutocomplete
-      placeholder="Type to search languages..."
-      options={LANGUAGE_OPTIONS.map(o => ({ ...o, leftIcon: <span></span> }))}
-      value={(form.languages ?? []).map((s: string) => ({ value: s, label: LANGUAGE_OPTIONS.find(o => o.value === s)?.label || s }))}
-      onChange={(val) => setField("languages", Array.isArray(val) ? val.map(v => v.value) : (val ? [val.value] : []))}
-      multi
-     />
-    </div>
+    {/* Languages with new multiselect */}
+    <LanguagesSelect value={languages} onChange={setLanguages} required />
 
     {/* Social Media */}
     <div className="space-y-3">
@@ -329,5 +354,6 @@ export default function EditProfilePage() {
  </form>
  )}
  </div>
+ </MapContainer>
  );
 }
