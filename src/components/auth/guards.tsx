@@ -55,9 +55,9 @@ export function RequireRole({ children, role, fallback }: RequireRoleProps) {
     if (!loading) {
       if (!user) {
         router.push('/login');
-      } else if (profile && profile.role !== role) {
+      } else if (profile && profile?.role !== role) {
         // User doesn't have the required role, redirect based on their actual role
-        if (profile.role === 'master') {
+        if (profile?.role === 'master') {
           router.push('/dashboard/master');
         } else {
           router.push('/masters');
@@ -74,7 +74,7 @@ export function RequireRole({ children, role, fallback }: RequireRoleProps) {
     return fallback ? <>{fallback}</> : <LoadingSpinner />;
   }
 
-  if (!profile || profile.role !== role) {
+  if (!profile || profile?.role !== role) {
     return fallback ? <>{fallback}</> : <LoadingSpinner />;
   }
 

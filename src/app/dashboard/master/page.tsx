@@ -8,9 +8,7 @@ export default function MasterDashboardPage() {
  const name = profile?.displayName || user?.email || "master";
  
  // choose whatever names you already have; this is safe and typed
- const computedRole =
- (typeof profile !== 'undefined' && (profile as any).role) ??
- 'client';
+ const computedRole = (profile?.role as string) ?? 'client';
 
  if (loading) {
   return <div className="text-sm text-gray-500 px-4 py-2">Loading profile…</div>;
