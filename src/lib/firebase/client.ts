@@ -1,29 +1,57 @@
-/* src/lib/firebase/client.ts */
 'use client';
 
-import { app } from '@/lib/firebase'; // your singleton firebase app init
-import { getAuth } from 'firebase/auth';
-import { getFirestore, type Firestore } from 'firebase/firestore';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getStorage } from 'firebase/storage';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 
-/** Return client-side Firebase Auth instance */
-export function requireAuth() {
- return getAuth(app);
-}
+const firebaseConfig = {
+apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
+authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
+projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
+storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!,
+messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
+appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
+};
 
-/** Return client-side Firestore DB instance */
-export function requireDb(): Firestore {
- return getFirestore(app);
-}
+// prevent double init
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-/** Return client-side Firebase Storage instance */
-export function requireStorage() {
- return getStorage(app);
-}
+export { app };
 
-// Direct exports for compatibility
-export const auth = getAuth(app);
+// Firestore / Auth / Storage singletons
 export const db = getFirestore(app);
+export const auth = getAuth(app);
 export const storage = getStorage(app);
 
-export type { Firestore };
+// Safe helper for optional storage init
+export function getStorageSafe() {
+try {
+return getStorage(app);
+} catch (e) {
+console.warn('getStorageSafe failed:', e);
+return null;
+}
+}
+
+// Helper functions that the codebase expects
+export function requireDb() {
+if (!db) {
+throw new Error('Firestore not initialized');
+}
+return db;
+}
+
+export function requireAuth() {
+if (!auth) {
+throw new Error('Auth not initialized');
+}
+return auth;
+}
+
+export function requireStorage() {
+if (!storage) {
+throw new Error('Storage not initialized');
+}
+return storage;
+}

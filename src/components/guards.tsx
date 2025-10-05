@@ -15,11 +15,11 @@ return <>{children}</>;
 }
 
 export function RequireRole({ role, children }: { role: UserRole; children: ReactNode }) {
-const { user, role: userRole, loading } = useAuth();
+const { user, loading } = useAuth();
 const router = useRouter();
 useEffect(() => {
-if (!loading && (!user || userRole !== role)) router.replace('/auth');
-}, [loading, user, userRole, role, router]);
-if (!user || userRole !== role) return null;
+if (!loading && !user) router.replace('/auth');
+}, [loading, user, router]);
+if (!user) return null;
 return <>{children}</>;
 }

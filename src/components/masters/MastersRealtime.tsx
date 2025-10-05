@@ -167,9 +167,6 @@ function MapView({ points }: { points: { id:string; lat:number; lng:number; titl
   );
 }
 
-declare global {
-  interface Window { google: any }
-}
 
 export default function MastersRealtime() {
   const [city, setCity] = useState('');

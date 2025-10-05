@@ -73,7 +73,11 @@ export async function fetchMastersOnce(filters: MasterFilters, pageSize = 60, cu
 
   // Apply client-side filters (name search, etc.)
   items = items.filter(it => {
-    return matchesAllFilters(it, filters, /*isMaster*/ true);
+    return matchesAllFilters(it, {
+      ...filters,
+      services: filters.services?.map(s => s.key) || [],
+      languages: filters.languages?.map(l => l.key) || [],
+    }, /*isMaster*/ true);
   });
 
   return {
@@ -101,8 +105,8 @@ export async function fetchListingsOnce(filters: ListingFilters, pageSize = 60, 
 
   const hasServices = !!(filters.services && filters.services.length);
   const hasLanguages = !!(filters.languages && filters.languages.length);
-  if (hasServices) cons.push(where('serviceKeys', 'array-contains-any', filters.services.map(s => s.key).slice(0, 10)));
-  else if (hasLanguages) cons.push(where('languageKeys', 'array-contains-any', filters.languages.map(l => l.key).slice(0, 10)));
+  if (hasServices) cons.push(where('serviceKeys', 'array-contains-any', filters.services!.map(s => s.key).slice(0, 10)));
+  else if (hasLanguages) cons.push(where('languageKeys', 'array-contains-any', filters.languages!.map(l => l.key).slice(0, 10)));
 
   // If you don't have createdAt, you can change to orderBy('title')
   cons.push(orderBy('createdAt', 'desc'));

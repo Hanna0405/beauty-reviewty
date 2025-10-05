@@ -13,17 +13,26 @@ import type { TagOption } from "@/types/tags";
 import type { CityNorm } from "@/lib/city";
 import dynamicImport from 'next/dynamic';
 
+// ---- filters mirrors (local extension, do not export globally)
+type FilterMirrors = {
+serviceKeys: string[];
+serviceNames?: string[];
+languageKeys: string[];
+languageNames?: string[];
+};
+
 const MastersMapNoSSR = dynamicImport(() => import('@/components/mapComponents').then(m => m.MastersMap), { ssr: false });
 
 function PageContent() {
-  const [filters, setFilters] = useState<LF>({ 
-    services: [] as TagOption[], 
-    serviceKeys: [] as string[],
-    serviceNames: [] as string[],
-    languages: [] as TagOption[], 
-    languageKeys: [] as string[],
-    languageNames: [] as string[],
-    minRating: undefined 
+  type LFx = LF & FilterMirrors;
+  const [filters, setFilters] = useState<LFx>({
+    services: [] as TagOption[],
+    serviceKeys: [],
+    serviceNames: [],
+    languages: [] as TagOption[],
+    languageKeys: [],
+    languageNames: [],
+    minRating: undefined,
   });
   const [city, setCity] = useState<CityNorm | null>(null);
   const [items, setItems] = useState<any[]>([]);
@@ -73,7 +82,7 @@ function PageContent() {
             <MultiSelectAutocompleteV2
               label="Services"
               options={SERVICE_OPTIONS}
-              value={filters.services}
+              value={filters.services || []}
               onChange={(vals: TagOption[]) => {
                 setFilters((p) => ({
                   ...p,
@@ -89,7 +98,7 @@ function PageContent() {
             <MultiSelectAutocompleteV2
               label="Languages"
               options={LANGUAGE_OPTIONS}
-              value={filters.languages}
+              value={filters.languages || []}
               onChange={(vals: TagOption[]) => {
                 setFilters((p) => ({
                   ...p,
@@ -138,7 +147,7 @@ function PageContent() {
           {/* Reuse same map component; feeds listing geos */}
           <div className="mb-4">
             <div className="relative z-0">
-              <MastersMapNoSSR items={items.map(i => ({ id: i.id, displayName: i.title ?? 'Listing', geo: i.geo }))} />
+              <MastersMapNoSSR markers={items.map(i => ({ lat: i.geo?.lat ?? 0, lng: i.geo?.lng ?? 0, title: i.title ?? 'Listing' }))} />
             </div>
           </div>
 

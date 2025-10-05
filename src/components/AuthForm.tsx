@@ -42,7 +42,7 @@ export default function AuthForm({ mode, variant = "full" }: { mode: Mode; varia
  const password = String(form.get('password') || '');
 
  try {
- if (mode === "register") {
+ if (mode === "signup") {
  await createUserWithEmailAndPassword(auth, email, password);
  } else {
  await signInWithEmailAndPassword(auth, email, password);

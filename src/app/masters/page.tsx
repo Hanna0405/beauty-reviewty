@@ -75,7 +75,7 @@ function PageContent() {
           {/* Map */}
           <div className={`mb-4 ${showMap ? 'block' : 'hidden md:block'}`}>
             <div className="relative z-0">
-              <MastersMapNoSSR items={items.map(i => ({ id: i.id, displayName: i.displayName, geo: i.geo }))} />
+              <MastersMapNoSSR markers={items.map(i => ({ lat: i.geo?.lat ?? 0, lng: i.geo?.lng ?? 0, title: i.displayName ?? 'Master' }))} />
             </div>
           </div>
 

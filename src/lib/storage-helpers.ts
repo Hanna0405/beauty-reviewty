@@ -117,6 +117,10 @@ export async function deleteByUrl(url: string): Promise<void> {
     const encoded = u.pathname.split("/o/")[1] || "";
     const path = decodeURIComponent(encoded);
     const storage = getStorageSafe();
+    if (!storage) {
+      console.warn("Storage not available");
+      return;
+    }
     const objRef = ref(storage, path);
     await deleteObject(objRef);
   } catch (e) {

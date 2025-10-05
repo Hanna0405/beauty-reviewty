@@ -12,7 +12,7 @@ export default function ReviewPage() {
  const params = useParams<{ id: string }>();
  const id = params?.id;
  const router = useRouter();
- const { user, profile, role, loading } = useAuth();
+  const { user, loading } = useAuth();
 
  const [masterName, setMasterName] = useState<string>('');
  const [rating, setRating] = useState<number | ''>('');
@@ -23,7 +23,7 @@ export default function ReviewPage() {
 
  // безопасные значения из user (TS-friendly)
  const uid = user?.uid ?? null;
- const authorName = profile?.displayName || user?.email || 'Client';
+  const authorName = user?.email || 'Client';
 
  // подгружаем имя мастера для заголовка (замени 'masters' на 'profiles', если у тебя так)
  useEffect(() => {
@@ -39,7 +39,7 @@ export default function ReviewPage() {
 
  if (loading) return <div className="p-6">Loading…</div>;
  if (!user) return <div className="p-6">Please log in to write a review.</div>;
- if (role !== 'client') return <div className="p-6">Only clients can write reviews.</div>;
+  // Note: role checking removed - all authenticated users can write reviews
 
  async function onSubmit(e: React.FormEvent) {
  e.preventDefault();

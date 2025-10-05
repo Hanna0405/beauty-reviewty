@@ -112,8 +112,23 @@ export default function EditProfilePage() {
  };
  if (!cancelled) {
    setForm(safe);
-   // Initialize city from existing data
-   setCity(data.city ? { formatted: data.city, slug: '', city: data.city } : null);
+  // Initialize city from existing data
+  setCity(
+    data.city
+      ? {
+          formatted: data.city,
+          slug: '',
+          city: data.city,
+          state: '',
+          stateCode: '',
+          country: '',
+          countryCode: '',
+          lat: 0,
+          lng: 0,
+          placeId: '',
+        }
+      : null
+  );
    // Initialize services and languages from existing data
    setServices(Array.isArray(data.services) ? data.services.map(s => ({ key: s, name: s })) : []);
    setLanguages(Array.isArray(data.languages) ? data.languages.map(l => ({ key: l, name: l })) : []);
@@ -184,13 +199,13 @@ export default function EditProfilePage() {
 
     // Derive city mirrors like on masters
     const cityPayload = city ? {
-      cityKey: city.slug ?? city.key ?? city.id ?? '',
-      cityName: city.formatted ?? city.name ?? '',
-      cityFullName: city.formatted ?? city.fullName ?? city.label ?? '',
+      cityKey: city.slug ?? '',
+      cityName: city.formatted ?? '',
+      cityFullName: city.formatted ?? '',
       cityLat: city.lat ?? 0,
       cityLng: city.lng ?? 0,
       countryCode: city.countryCode ?? '',
-      admin1Code: city.admin1Code ?? '',
+      admin1Code: city.stateCode ?? '',
     } : {};
 
     try {

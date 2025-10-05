@@ -1,6 +1,6 @@
 "use client";
 import { ReactNode } from "react";
-import { useAuthState } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 
 export function AuthGate({
   children,
@@ -13,11 +13,11 @@ export function AuthGate({
   returnTo?: string;
   loadingFallback?: ReactNode;
 }) {
-  const auth = useAuthState();
-  if (auth.status === "loading") {
+  const { user, loading } = useAuth();
+  if (loading) {
     return loadingFallback ?? <div style={{ padding: 16 }}>Loading…</div>;
   }
-  if (requireAuth && auth.status === "guest") {
+  if (requireAuth && !user) {
     const ret = encodeURIComponent(returnTo);
     return (
       <div style={{ padding: 16 }}>

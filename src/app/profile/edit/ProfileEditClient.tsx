@@ -320,6 +320,7 @@ export default function ProfileEditClient() {
         <div>
           <label className="block text-sm font-medium mb-2">Services</label>
           <MultiSelectAutocompleteV2
+            label="Services"
             options={SERVICE_OPTIONS}
             value={form.services}
             onChange={(vals: TagOption[]) => {
@@ -338,6 +339,7 @@ export default function ProfileEditClient() {
         <div>
           <label className="block text-sm font-medium mb-2">Languages</label>
           <MultiSelectAutocompleteV2
+            label="Languages"
             options={LANGUAGE_OPTIONS}
             value={form.languages}
             onChange={(vals: TagOption[]) => {

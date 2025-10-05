@@ -25,21 +25,15 @@ type CityField = string | { name?: string; placeId?: string } | null | undefined
 
 export default function MasterForm() {
  const router = useRouter();
- const { user, profile, role } = useAuth();
+  const { user } = useAuth();
  const uid = user?.uid ?? null; // <-- берём uid отдельно
 
- const [title, setTitle] = useState<string>(profile?.displayName || '');
+ const [title, setTitle] = useState<string>('');
  const [services, setServices] = useState<string[]>([]); // массив услуг
 
- const c0 = (profile?.city as CityField);
+ const [city, setCity] = useState<CityNorm | null>(null);
 
-  const [city, setCity] = useState<CityNorm | null>(
-   !c0 ? null : (typeof c0 === 'string' ? { city: c0, state: '', stateCode: '', country: '', countryCode: '', formatted: c0, lat: 0, lng: 0, placeId: '', slug: c0.toLowerCase().replace(/\s+/g, '-') } : null)
- );
-
- const [cityPlaceId, setCityPlaceId] = useState<string | undefined>(
-   (c0 && typeof c0 === 'object') ? c0.placeId : undefined
- );
+ const [cityPlaceId, setCityPlaceId] = useState<string | undefined>(undefined);
  const [languages, setLanguages] = useState<string[]>([]);
  const [priceMin, setPriceMin] = useState<string>(''); // опционально
  const [priceMax, setPriceMax] = useState<string>(''); // опционально
@@ -50,8 +44,8 @@ export default function MasterForm() {
  const [err, setErr] = useState<string | null>(null);
 
  // Дополнительная защита
- if (!user || role !== 'master') {
- return <div className="p-4">Only <b>master</b> can create a profile.</div>;
+ if (!user) {
+ return <div className="p-4">Please log in to create a profile.</div>;
  }
 
  const canSubmit =
