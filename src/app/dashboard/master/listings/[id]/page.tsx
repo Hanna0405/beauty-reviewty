@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import { useAuth } from '@/contexts/AuthContext';
 import RequireRole from '@/components/auth/RequireRole';
 import { getListingById } from '@/lib/services/firestoreMastersClient';
-import MapContainer from '@/components/map/MapContainer';
+import { MapContainer } from '@/components/map';
 import type { Listing } from '@/types';
 
 // Dynamically import the form to disable SSR

@@ -15,7 +15,7 @@ import ServicesSelect from '@/components/ServicesSelect';
 import LanguagesSelect from '@/components/LanguagesSelect';
 import type { CatalogItem } from '@/catalog/services';
 import { ensureSelectedArray, deriveMirrors } from '@/lib/ensureLists';
-import MapContainer from '@/components/map/MapContainer';
+import { MapContainer } from '@/components/map';
 
 
 type MasterProfile = {
@@ -193,35 +193,36 @@ export default function EditProfilePage() {
       admin1Code: city.admin1Code ?? '',
     } : {};
 
-    await saveMyProfile({
-      displayName: form.displayName.trim(),
-      city: city?.formatted ?? form.city.trim(),
-      phone: form.phone?.trim() || "",
-      services: selServices,
-      serviceKeys: svc.keys,
-      serviceNames: svc.names,
-      languages: selLanguages,
-      languageKeys: lng.keys,
-      languageNames: lng.names,
-      avatarUrl: form.avatarUrl ?? null,
-      socials: {
-        instagram: form.socials?.instagram?.trim() || "",
-        facebook: form.socials?.facebook?.trim() || "",
-        website: form.socials?.website?.trim() || "",
-      },
-      ...cityPayload,
-    });
-      
-      // Show success message and redirect
-      showToast("Profile updated successfully", "success");
-      router.replace("/dashboard/master/profile");
-    } catch (err: any) {
-      console.error(err);
-      setError(err?.message || "Failed to save profile.");
-    } finally {
-      setSaving(false);
+    try {
+      await saveMyProfile({
+        displayName: form.displayName.trim(),
+        city: city?.formatted ?? form.city.trim(),
+        phone: form.phone?.trim() || "",
+        services: selServices,
+        serviceKeys: svc.keys,
+        serviceNames: svc.names,
+        languages: selLanguages,
+        languageKeys: lng.keys,
+        languageNames: lng.names,
+        avatarUrl: form.avatarUrl ?? null,
+        socials: {
+          instagram: form.socials?.instagram?.trim() || "",
+          facebook: form.socials?.facebook?.trim() || "",
+          website: form.socials?.website?.trim() || "",
+        },
+        ...cityPayload,
+      });
+        
+        // Show success message and redirect
+        showToast("Profile updated successfully", "success");
+        router.replace("/dashboard/master/profile");
+      } catch (err: any) {
+        console.error(err);
+        setError(err?.message || "Failed to save profile.");
+      } finally {
+        setSaving(false);
+      }
     }
-  }
 
 
  if (!uid) {

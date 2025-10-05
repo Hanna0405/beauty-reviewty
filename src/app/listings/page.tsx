@@ -11,7 +11,9 @@ import ListingCard from "@/components/ListingCard";
 import { fetchListingsOnce, ListingFilters as LF } from "@/lib/firestoreQueries";
 import type { TagOption } from "@/types/tags";
 import type { CityNorm } from "@/lib/city";
-import MastersMap from "@/components/map/MastersMap";
+import dynamicImport from 'next/dynamic';
+
+const MastersMapNoSSR = dynamicImport(() => import('@/components/map').then(m => m.MastersMap), { ssr: false });
 
 function PageContent() {
   const [filters, setFilters] = useState<LF>({ 
@@ -136,7 +138,7 @@ function PageContent() {
           {/* Reuse same map component; feeds listing geos */}
           <div className="mb-4">
             <div className="relative z-0">
-              <MastersMap items={items.map(i => ({ id: i.id, displayName: i.title ?? 'Listing', geo: i.geo }))} />
+              <MastersMapNoSSR items={items.map(i => ({ id: i.id, displayName: i.title ?? 'Listing', geo: i.geo }))} />
             </div>
           </div>
 

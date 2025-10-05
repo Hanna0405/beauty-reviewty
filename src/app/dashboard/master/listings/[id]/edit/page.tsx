@@ -14,7 +14,7 @@ import type { CatalogItem } from "@/catalog/services";
 import { ensureSelectedArray, deriveMirrors } from "@/lib/ensureLists";
 import ListingPhotos from "@/components/ListingPhotos";
 import { normalizeListing } from "@/lib/listings-normalize";
-import MapContainer from "@/components/map/MapContainer";
+import { MapContainer } from '@/components/map';
 
 
 interface PhotoData {

@@ -5,7 +5,7 @@ import { onSnapshot, getDocs } from 'firebase/firestore';
 import { buildMastersQuery } from '@/lib/mastersQuery';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
-import MapContainer from '@/components/map/MapContainer';
+import { MapContainer } from '@/components/map';
 
 const CityAutocomplete = dynamic(() => import('@/components/CityAutocompleteSimple'), { ssr: false });
 const ServiceAutocomplete = dynamic(() => import('@/components/masters/ServiceAutocomplete'), { ssr: false });

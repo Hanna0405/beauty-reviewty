@@ -7,7 +7,9 @@ import Link from "next/link";
 import MasterFilters from "@/components/Filters/MasterFilters";
 import MasterCard from "@/components/MasterCard";
 import { fetchMastersOnce, MasterFilters as FM } from "@/lib/firestoreQueries";
-import MastersMap from "@/components/map/MastersMap";
+import dynamicImport from 'next/dynamic';
+
+const MastersMapNoSSR = dynamicImport(() => import('@/components/map').then(m => m.MastersMap), { ssr: false });
 
 function PageContent() {
   const [filters, setFilters] = useState<FM>({ services: [], languages: [], minRating: undefined, name: '' });
@@ -73,7 +75,7 @@ function PageContent() {
           {/* Map */}
           <div className={`mb-4 ${showMap ? 'block' : 'hidden md:block'}`}>
             <div className="relative z-0">
-              <MastersMap items={items.map(i => ({ id: i.id, displayName: i.displayName, geo: i.geo }))} />
+              <MastersMapNoSSR items={items.map(i => ({ id: i.id, displayName: i.displayName, geo: i.geo }))} />
             </div>
           </div>
 
