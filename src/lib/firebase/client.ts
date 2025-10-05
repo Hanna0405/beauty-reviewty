@@ -1,19 +1,29 @@
-"use client";
-import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
-import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+/* src/lib/firebase/client.ts */
+'use client';
 
-const cfg = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN!,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET!,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID!,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
-};
+import { app } from '@/lib/firebase'; // your singleton firebase app init
+import { getAuth } from 'firebase/auth';
+import { getFirestore, type Firestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
-const apps = getApps();
-export const app: FirebaseApp = apps.length ? apps[0] : initializeApp(cfg);
+/** Return client-side Firebase Auth instance */
+export function requireAuth() {
+ return getAuth(app);
+}
+
+/** Return client-side Firestore DB instance */
+export function requireDb(): Firestore {
+ return getFirestore(app);
+}
+
+/** Return client-side Firebase Storage instance */
+export function requireStorage() {
+ return getStorage(app);
+}
+
+// Direct exports for compatibility
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-void setPersistence(auth, browserLocalPersistence).catch(() => {});
+export const storage = getStorage(app);
+
+export type { Firestore };
