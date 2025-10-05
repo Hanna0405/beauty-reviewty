@@ -13,7 +13,7 @@ import type { TagOption } from "@/types/tags";
 import type { CityNorm } from "@/lib/city";
 import dynamicImport from 'next/dynamic';
 
-const MastersMapNoSSR = dynamicImport(() => import('@/components/map').then(m => m.MastersMap), { ssr: false });
+const MastersMapNoSSR = dynamicImport(() => import('@/components/mapComponents').then(m => m.MastersMap), { ssr: false });
 
 function PageContent() {
   const [filters, setFilters] = useState<LF>({ 

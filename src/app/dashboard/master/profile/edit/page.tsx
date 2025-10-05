@@ -15,7 +15,7 @@ import ServicesSelect from '@/components/ServicesSelect';
 import LanguagesSelect from '@/components/LanguagesSelect';
 import type { CatalogItem } from '@/catalog/services';
 import { ensureSelectedArray, deriveMirrors } from '@/lib/ensureLists';
-import { MapContainer } from '@/components/map';
+import { MapContainer } from '@/components/mapComponents';
 
 
 type MasterProfile = {

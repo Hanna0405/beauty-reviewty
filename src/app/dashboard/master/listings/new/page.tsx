@@ -13,7 +13,7 @@ import LanguagesSelect from "@/components/LanguagesSelect";
 import type { CatalogItem } from "@/catalog/services";
 import { ensureSelectedArray, deriveMirrors } from "@/lib/ensureLists";
 import ListingPhotos from "@/components/ListingPhotos";
-import { MapContainer } from '@/components/map';
+import { MapContainer } from '@/components/mapComponents';
 
 
 interface PhotoData {

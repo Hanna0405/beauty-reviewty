@@ -9,7 +9,7 @@ import MasterCard from "@/components/MasterCard";
 import { fetchMastersOnce, MasterFilters as FM } from "@/lib/firestoreQueries";
 import dynamicImport from 'next/dynamic';
 
-const MastersMapNoSSR = dynamicImport(() => import('@/components/map').then(m => m.MastersMap), { ssr: false });
+const MastersMapNoSSR = dynamicImport(() => import('@/components/mapComponents').then(m => m.MastersMap), { ssr: false });
 
 function PageContent() {
   const [filters, setFilters] = useState<FM>({ services: [], languages: [], minRating: undefined, name: '' });
