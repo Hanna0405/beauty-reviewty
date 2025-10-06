@@ -8,10 +8,9 @@ import { useToast } from "@/components/ui/Toast";
 import { toDisplayText } from "@/lib/safeText";
 import CityAutocomplete from "@/components/CityAutocomplete";
 import type { CityNorm } from "@/lib/city";
-import ServicesSelect from "@/components/ServicesSelect";
-import LanguagesSelect from "@/components/LanguagesSelect";
-import type { CatalogItem } from "@/catalog/services";
-import { ensureSelectedArray, deriveMirrors } from "@/lib/ensureLists";
+import MultiSelectAutocompleteV2 from "@/components/inputs/MultiSelectAutocompleteV2";
+import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/catalog";
+import type { TagOption } from "@/types/tags";
 import ListingPhotos from "@/components/ListingPhotos";
 import { normalizeListing } from "@/lib/listings-normalize";
 import { MapContainer } from '@/components/mapComponents';
@@ -36,8 +35,8 @@ export default function EditListingPage() {
 
  const [title, setTitle] = useState("");
   const [city, setCity] = useState<CityNorm | null>(null);
- const [services, setServices] = useState<CatalogItem[]>([]);
- const [languages, setLanguages] = useState<CatalogItem[]>([]);
+ const [services, setServices] = useState<TagOption[]>([]);
+ const [languages, setLanguages] = useState<TagOption[]>([]);
  const [priceMin, setPriceMin] = useState<string>("");
  const [priceMax, setPriceMax] = useState<string>("");
  const [description, setDescription] = useState("");
@@ -73,10 +72,24 @@ export default function EditListingPage() {
         const safe = normalizeListing(raw);
         
         if (alive) {
+          // Convert services/languages to TagOption format if needed
+          const convertToTagOptions = (items: any[]): TagOption[] => {
+            if (!Array.isArray(items)) return [];
+            return items.map(item => {
+              if (typeof item === 'string') {
+                return { key: item, name: item };
+              }
+              if (item && typeof item === 'object' && item.key && item.name) {
+                return item;
+              }
+              return { key: item || '', name: item || '' };
+            });
+          };
+
           setTitle(safe.title);
           setCity(safe.city);
-          setServices(safe.services);
-          setLanguages(safe.languages);
+          setServices(convertToTagOptions(safe.services));
+          setLanguages(convertToTagOptions(safe.languages));
           setPriceMin(safe.minPrice ? String(safe.minPrice) : "");
           setPriceMax(safe.maxPrice ? String(safe.maxPrice) : "");
           setDescription(safe.description);
@@ -88,10 +101,24 @@ export default function EditListingPage() {
         if (alive) {
           // Render empty form instead of crashing
           const safe = normalizeListing({});
+          // Convert services/languages to TagOption format if needed
+          const convertToTagOptions = (items: any[]): TagOption[] => {
+            if (!Array.isArray(items)) return [];
+            return items.map(item => {
+              if (typeof item === 'string') {
+                return { key: item, name: item };
+              }
+              if (item && typeof item === 'object' && item.key && item.name) {
+                return item;
+              }
+              return { key: item || '', name: item || '' };
+            });
+          };
+
           setTitle(safe.title);
           setCity(safe.city);
-          setServices(safe.services);
-          setLanguages(safe.languages);
+          setServices(convertToTagOptions(safe.services));
+          setLanguages(convertToTagOptions(safe.languages));
           setPriceMin(safe.minPrice ? String(safe.minPrice) : "");
           setPriceMax(safe.maxPrice ? String(safe.maxPrice) : "");
           setDescription(safe.description);
@@ -135,17 +162,17 @@ export default function EditListingPage() {
  try {
  setSaving(true);
       
-       // Enforce services and languages selection
-       const selServices = ensureSelectedArray(services);
-       const selLanguages = ensureSelectedArray(languages);
-       const svc = deriveMirrors(selServices);
-       const lng = deriveMirrors(selLanguages);
+       // Derive keys and names like in profile
+       const serviceKeys = services.map(s => s.key);
+       const serviceNames = services.map(s => s.name);
+       const languageKeys = languages.map(l => l.key);
+       const languageNames = languages.map(l => l.name);
        
   const formData = {
   title,
   city: city, // full normalized object
-  services: selServices,
-  languages: selLanguages,
+  services: services,
+  languages: languages,
   priceMin: priceMin ? parseFloat(priceMin) : null,
   priceMax: priceMax ? parseFloat(priceMax) : null,
   description,
@@ -153,10 +180,10 @@ export default function EditListingPage() {
   // Add string mirrors for safe rendering
   cityKey: city?.slug || '', // slug for Firestore queries
   cityName: city?.formatted || '', // easy string for UI
-  serviceKeys: svc.keys,
-  serviceNames: svc.names,
-  languageKeys: lng.keys,
-  languageNames: lng.names,
+  serviceKeys: serviceKeys,
+  serviceNames: serviceNames,
+  languageKeys: languageKeys,
+  languageNames: languageNames,
   };
 
       // Save using standardized helper
@@ -213,12 +240,30 @@ export default function EditListingPage() {
         </div>
 
         <div>
-          <ServicesSelect value={services} onChange={setServices} required />
+          <label className="block text-sm font-medium text-gray-700 mb-2">Services *</label>
+          <MultiSelectAutocompleteV2
+            label="Services"
+            options={SERVICE_OPTIONS}
+            value={services}
+            onChange={(vals: TagOption[]) => {
+              setServices(vals);
+            }}
+            placeholder="Search services..."
+          />
           {errors.services && <p className="text-red-500 text-sm mt-1">{errors.services}</p>}
         </div>
 
         <div>
-          <LanguagesSelect value={languages} onChange={setLanguages} required />
+          <label className="block text-sm font-medium text-gray-700 mb-2">Languages *</label>
+          <MultiSelectAutocompleteV2
+            label="Languages"
+            options={LANGUAGE_OPTIONS}
+            value={languages}
+            onChange={(vals: TagOption[]) => {
+              setLanguages(vals);
+            }}
+            placeholder="Search languages..."
+          />
           {errors.languages && <p className="text-red-500 text-sm mt-1">{errors.languages}</p>}
         </div>
 

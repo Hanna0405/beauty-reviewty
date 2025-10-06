@@ -36,7 +36,14 @@ function PageContent() {
       }
     })();
     return () => { alive = false; };
-  }, [filters.city, (filters as any).cityPlaceId, filters.services, filters.languages, filters.minRating, filters.name]);
+  }, [
+    filters.city, 
+    (filters as any).cityPlaceId, 
+    filters.services?.map(s => s.key).join(','), 
+    filters.languages?.map(l => l.key).join(','), 
+    filters.minRating, 
+    filters.name
+  ]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">

@@ -13,27 +13,12 @@ import type { TagOption } from "@/types/tags";
 import type { CityNorm } from "@/lib/city";
 import dynamicImport from 'next/dynamic';
 
-// ---- filters mirrors (local extension, do not export globally)
-type FilterMirrors = {
-serviceKeys: string[];
-serviceNames?: string[];
-languageKeys: string[];
-languageNames?: string[];
-};
-
 const MastersMapNoSSR = dynamicImport(() => import('@/components/mapComponents').then(m => m.MastersMap), { ssr: false });
 
 function PageContent() {
-  type LFx = LF & FilterMirrors;
-  const [filters, setFilters] = useState<LFx>({
-    services: [] as TagOption[],
-    serviceKeys: [],
-    serviceNames: [],
-    languages: [] as TagOption[],
-    languageKeys: [],
-    languageNames: [],
-    minRating: undefined,
-  });
+  const [services, setServices] = useState<TagOption[]>([]);
+  const [languages, setLanguages] = useState<TagOption[]>([]);
+  const [minRating, setMinRating] = useState<number | undefined>(undefined);
   const [city, setCity] = useState<CityNorm | null>(null);
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -46,9 +31,9 @@ function PageContent() {
         const { items } = await fetchListingsOnce({
           city: city?.formatted,
           cityPlaceId: city?.placeId,
-          services: filters.services,
-          languages: filters.languages,
-          minRating: filters.minRating,
+          services: services,
+          languages: languages,
+          minRating: minRating,
         }, 60);
         if (alive) setItems(items);
       } finally {
@@ -56,7 +41,7 @@ function PageContent() {
       }
     })();
     return () => { alive = false; };
-  }, [city, filters.services, filters.languages, filters.minRating]);
+  }, [city, services.map(s=>s.key).join(','), languages.map(l=>l.key).join(','), minRating]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
@@ -82,14 +67,9 @@ function PageContent() {
             <MultiSelectAutocompleteV2
               label="Services"
               options={SERVICE_OPTIONS}
-              value={filters.services || []}
+              value={services}
               onChange={(vals: TagOption[]) => {
-                setFilters((p) => ({
-                  ...p,
-                  services: vals,
-                  serviceKeys: vals.map(v => v.key),
-                  serviceNames: vals.map(v => v.name),
-                }));
+                setServices(vals);
               }}
               placeholder="Search services..."
             />
@@ -98,14 +78,9 @@ function PageContent() {
             <MultiSelectAutocompleteV2
               label="Languages"
               options={LANGUAGE_OPTIONS}
-              value={filters.languages || []}
+              value={languages}
               onChange={(vals: TagOption[]) => {
-                setFilters((p) => ({
-                  ...p,
-                  languages: vals,
-                  languageKeys: vals.map(v => v.key),
-                  languageNames: vals.map(v => v.name),
-                }));
+                setLanguages(vals);
               }}
               placeholder="Search languages..."
             />
@@ -114,8 +89,8 @@ function PageContent() {
             <div>
               <label className="mb-1 block text-sm">Rating (min)</label>
               <select
-                value={filters.minRating ?? ''}
-                onChange={(e) => setFilters(p => ({ ...p, minRating: e.target.value ? Number(e.target.value) : undefined }))}
+                value={minRating ?? ''}
+                onChange={(e) => setMinRating(e.target.value ? Number(e.target.value) : undefined)}
                 className="w-full rounded-md border px-3 py-2">
                 <option value="">Any</option>
                 {[5,4,3,2,1].map(v => <option key={v} value={v}>{v}★ & up</option>)}
@@ -126,15 +101,9 @@ function PageContent() {
             <button
               type="button"
               onClick={() => {
-                setFilters({ 
-                  services: [], 
-                  serviceKeys: [], 
-                  serviceNames: [], 
-                  languages: [], 
-                  languageKeys: [], 
-                  languageNames: [], 
-                  minRating: undefined 
-                });
+                setServices([]);
+                setLanguages([]);
+                setMinRating(undefined);
                 setCity(null);
               }}
               className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">

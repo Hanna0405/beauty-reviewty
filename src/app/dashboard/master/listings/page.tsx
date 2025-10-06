@@ -5,6 +5,7 @@ import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestor
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { SafeText } from '@/lib/safeText';
+import DeleteButton from '@/components/listings/DeleteButton';
 
 type Listing = {
  id: string;
@@ -71,7 +72,7 @@ export default function MyListingsPage() {
  <div className="flex gap-2 pt-2">
         <Link href={`/masters/${String(it.id)}`} className="px-3 py-1.5 rounded-lg border hover:bg-gray-50">View</Link>
  <Link href={`/dashboard/master/listings/${it.id}/edit`} className="px-3 py-1.5 rounded-lg bg-pink-600 text-white hover:bg-pink-700">Edit</Link>
- <Link href={`/api/listings/${it.id}/delete`} className="px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100">Delete</Link>
+ <DeleteButton id={it.id} />
  </div>
  </div>
  </div>
