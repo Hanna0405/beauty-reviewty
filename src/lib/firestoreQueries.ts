@@ -49,19 +49,19 @@ export async function fetchMastersOnce(filters: MasterFilters, pageSize = 60, cu
   const colRef = collection(db, 'masters');
   
   // Build base constraints (without role filtering)
-  const buildConstraints = (): QueryConstraint[] => {
-    const cons: QueryConstraint[] = [];
+  const buildConstraints = (): { constraints: QueryConstraint[]; used: 'service' | 'language' | null } => {
+    const constraints: QueryConstraint[] = [];
     
     // Optional city filter
     if ((filters as any).cityPlaceId) {
-      cons.push(where('city.placeId', '==', (filters as any).cityPlaceId));
+      constraints.push(where('city.placeId', '==', (filters as any).cityPlaceId));
     } else if (filters.city) {
-      cons.push(where('city.name', '==', filters.city));
+      constraints.push(where('city.name', '==', filters.city));
     }
     
     // Optional rating filter
     if (typeof filters.minRating === 'number' && filters.minRating > 0) {
-      cons.push(where('rating', '>=', Math.max(0, Math.min(5, filters.minRating))));
+      constraints.push(where('rating', '>=', Math.max(0, Math.min(5, filters.minRating))));
     }
     
     // Choose only ONE array-contains-any to use server-side
@@ -71,29 +71,29 @@ export async function fetchMastersOnce(filters: MasterFilters, pageSize = 60, cu
     let used: 'service' | 'language' | null = null;
     if (serviceKeys.length && languageKeys.length) {
       if (serviceKeys.length >= languageKeys.length) {
-        cons.push(where('serviceKeys', 'array-contains-any', serviceKeys));
+        constraints.push(where('serviceKeys', 'array-contains-any', serviceKeys));
         used = 'service';
       } else {
-        cons.push(where('languageKeys', 'array-contains-any', languageKeys));
+        constraints.push(where('languageKeys', 'array-contains-any', languageKeys));
         used = 'language';
       }
     } else if (serviceKeys.length) {
-      cons.push(where('serviceKeys', 'array-contains-any', serviceKeys));
+      constraints.push(where('serviceKeys', 'array-contains-any', serviceKeys));
       used = 'service';
     } else if (languageKeys.length) {
-      cons.push(where('languageKeys', 'array-contains-any', languageKeys));
+      constraints.push(where('languageKeys', 'array-contains-any', languageKeys));
       used = 'language';
     }
     
-    cons.push(orderBy('displayName'));
-    if (cursor) cons.push(startAfter(cursor));
-    cons.push(limit(pageSize));
+    constraints.push(orderBy('displayName'));
+    if (cursor) constraints.push(startAfter(cursor));
+    constraints.push(limit(pageSize));
     
-    return { cons, used };
+    return { constraints, used };
   };
 
   // Try to run two separate queries for role filtering (since Firestore doesn't support OR)
-  const { cons: constraints, used } = buildConstraints();
+  const { constraints, used } = buildConstraints();
   
   // Query 1: role === 'master'
   const cons1 = [...constraints, where('role', '==', 'master')];
