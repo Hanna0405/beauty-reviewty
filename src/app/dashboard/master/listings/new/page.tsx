@@ -1,10 +1,9 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { doc, collection } from "firebase/firestore";
 import { requireDb, requireAuth } from "@/lib/firebase";
 import { createListing } from "@/lib/firestore-listings";
-import { useToast } from "@/components/ui/Toast";
 import { toDisplayText } from "@/lib/safeText";
 import CityAutocomplete from "@/components/CityAutocomplete";
 import type { CityNorm } from "@/lib/city";
@@ -24,9 +23,12 @@ interface PhotoData {
 
 export default function NewListingPage() {
  const router = useRouter();
-  const { showToast } = useToast();
  const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+ // Banner states
+ const [successId, setSuccessId] = useState<string | null>(null);
+ const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
  const [title, setTitle] = useState("");
   const [city, setCity] = useState<CityNorm | null>(null);
@@ -36,6 +38,14 @@ export default function NewListingPage() {
  const [priceMax, setPriceMax] = useState<string>("");
  const [description, setDescription] = useState("");
   const [photos, setPhotos] = useState<PhotoData[]>([]);
+
+  // Clear banners when user edits form fields after submit
+  useEffect(() => {
+    if (successId || errorMsg) {
+      setSuccessId(null);
+      setErrorMsg(null);
+    }
+  }, [title, city, services, languages, priceMin, priceMax, description, photos]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -66,7 +76,8 @@ export default function NewListingPage() {
  const auth = requireAuth();
  const user = auth.currentUser;
     if (!user) {
-      showToast("Please sign in", "error");
+      console.error("Please sign in");
+      setErrorMsg("Please sign in to create a listing");
       return;
     }
     
@@ -74,6 +85,8 @@ export default function NewListingPage() {
 
  try {
  setSaving(true);
+ setErrorMsg(null);
+ setSuccessId(null);
       
        // Derive keys and names like in profile
        const serviceKeys = services.map(s => s.key);
@@ -102,13 +115,16 @@ export default function NewListingPage() {
 
       // Save using standardized helper
       const docRef = await createListing(user, formData);
-      console.info("[BR][NewListing] Saved successfully:", docRef.id);
+      const id = typeof docRef === "string" ? docRef : docRef?.id;
       
-      showToast(`Listing created successfully: ${toDisplayText(title)} in ${toDisplayText(formData.cityName)}`, "success");
- router.push("/dashboard/master/listings");
- } catch (err) {
+      if (!id) throw new Error("Listing was created but no ID was returned.");
+      
+      console.info("[BR][NewListing] Saved successfully:", id);
+      setSuccessId(id);
+
+ } catch (err: any) {
  console.error(err);
-      showToast("Failed to save listing", "error");
+      setErrorMsg(err?.message || "Failed to save listing");
  } finally {
  setSaving(false);
  }
@@ -136,6 +152,36 @@ export default function NewListingPage() {
  </div>
  </div>
  <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        {/* Success Banner */}
+        {successId && (
+          <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-800">
+            <div className="flex items-start gap-2">
+              <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-xs">✓</span>
+              <div className="text-sm">
+                <div className="font-medium">Listing created successfully</div>
+                <div className="mt-0.5">
+                  <a href={`/listing/${successId}`} className="underline underline-offset-2 decoration-emerald-600 hover:text-emerald-700">
+                    Open listing →
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Error Banner */}
+        {errorMsg && (
+          <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-rose-800">
+            <div className="flex items-start gap-2">
+              <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-rose-600 text-white text-xs">!</span>
+              <div className="text-sm">
+                <div className="font-medium">Couldn't create listing</div>
+                <div className="mt-0.5">{errorMsg}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
  <form className="space-y-6" onSubmit={onSubmit}>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Listing Title *</label>

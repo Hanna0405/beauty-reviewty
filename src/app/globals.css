@@ -317,3 +317,15 @@ body, p, li, input, select, button {
     animation: none;
   }
 }
+
+/* =========================
+| Listing Card Hover Effect
+| ========================= */
+@media (prefers-reduced-motion: no-preference) {
+  .hover\:shadow-md {
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+  }
+  .group:hover {
+    transform: translateY(-1px);
+  }
+}

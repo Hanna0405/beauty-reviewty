@@ -13,6 +13,7 @@ import {
  toNumberSafe,
  toStringSafe,
 } from "@/lib/normalize";
+import { masterId } from "@/lib/listings/presenters";
 
 // Используй ту же инициализацию Firestore, что у тебя уже есть.
 // В твоём проекте судя по импорту — '@/lib/firebase-client' экспортирует db.
@@ -48,6 +49,7 @@ export default function ClientListing({ id }: { id: string }) {
   const priceMin = toNumberSafe(listing?.priceMin ?? listing?.minPrice);
   const priceMax = toNumberSafe(listing?.priceMax ?? listing?.maxPrice);
   const languages = normalizeLanguages(listing?.languages ?? listing?.langs ?? []);
+  const mId = masterId(listing);
   
   const handleBook = () => setOpen(true);
 
@@ -68,6 +70,7 @@ export default function ClientListing({ id }: { id: string }) {
             priceMax={priceMax}
             languages={languages}
             onBook={handleBook}
+            masterId={mId}
           />
         </div>
       </div>

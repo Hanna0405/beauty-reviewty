@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import CityAutocomplete from '@/components/CityAutocomplete';
 import MultiSelectAutocompleteV2 from '@/components/inputs/MultiSelectAutocompleteV2';
 import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from '@/constants/catalog'; // ← use shared options
+import { ensureKeyObject } from '@/lib/filters/normalize';
 import type { CityNorm } from '@/lib/city';
 import type { TagOption } from '@/types/tags';
 
@@ -74,7 +75,10 @@ export default function MasterFilters({ value, onChange, showName }: Props) {
         label="Services"
         options={SERVICE_OPTIONS}
         value={services}
-        onChange={setServices}
+        onChange={(vals) => {
+          const normalized = vals.map(v => ensureKeyObject<TagOption>(v)).filter(Boolean) as TagOption[];
+          setServices(normalized);
+        }}
         placeholder="Search services…"
       />
 
@@ -83,7 +87,10 @@ export default function MasterFilters({ value, onChange, showName }: Props) {
         label="Languages"
         options={LANGUAGE_OPTIONS}
         value={languages}
-        onChange={setLanguages}
+        onChange={(vals) => {
+          const normalized = vals.map(v => ensureKeyObject<TagOption>(v)).filter(Boolean) as TagOption[];
+          setLanguages(normalized);
+        }}
         placeholder="Search languages…"
       />
 

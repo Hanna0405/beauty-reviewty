@@ -28,11 +28,11 @@ function extractKeys(it: any, base: 'service' | 'language'): string[] {
   return [];
 }
 
-function hasAnyOverlap(have: string[], need: string[]) {
-  if (!have.length || !need.length) return false;
-  const set = new Set(have);
-  for (const k of need) if (set.has(k)) return true;
-  return false;
+// Post-filter helper: ensure item includes ALL selected keys
+function includesAll(haystack: string[], needles: string[]) {
+  if (!needles?.length) return true;
+  if (!Array.isArray(haystack)) return false;
+  return needles.every(k => haystack.includes(k));
 }
 
 export type MasterFilters = {
@@ -49,7 +49,7 @@ export async function fetchMastersOnce(filters: MasterFilters, pageSize = 60, cu
   const colRef = collection(db, 'masters');
   
   // Build base constraints (without role filtering)
-  const buildConstraints = (): { constraints: QueryConstraint[]; used: 'service' | 'language' | null } => {
+  const buildConstraints = (): QueryConstraint[] => {
     const constraints: QueryConstraint[] = [];
     
     // Optional city filter
@@ -64,36 +64,37 @@ export async function fetchMastersOnce(filters: MasterFilters, pageSize = 60, cu
       constraints.push(where('rating', '>=', Math.max(0, Math.min(5, filters.minRating))));
     }
     
-    // Choose only ONE array-contains-any to use server-side
-    const serviceKeys = filters.services?.map(s => s.key).slice(0, 10) || [];
-    const languageKeys = filters.languages?.map(l => l.key).slice(0, 10) || [];
+    // Normalize filter inputs - extract keys from UI objects
+    const selectedServiceKeys = (filters.services ?? []).map(s => s.key).filter(Boolean);
+    const selectedLanguageKeys = (filters.languages ?? []).map(l => l.key).filter(Boolean);
     
-    let used: 'service' | 'language' | null = null;
-    if (serviceKeys.length && languageKeys.length) {
-      if (serviceKeys.length >= languageKeys.length) {
-        constraints.push(where('serviceKeys', 'array-contains-any', serviceKeys));
-        used = 'service';
+    // Use only ONE array filter in Firestore (prefer services if both are selected)
+    // The second filter will be applied client-side
+    if (selectedServiceKeys.length > 0) {
+      // Services filter: use array-contains for single, array-contains-any for multiple
+      if (selectedServiceKeys.length === 1) {
+        constraints.push(where('serviceKeys', 'array-contains', selectedServiceKeys[0]));
       } else {
-        constraints.push(where('languageKeys', 'array-contains-any', languageKeys));
-        used = 'language';
+        constraints.push(where('serviceKeys', 'array-contains-any', selectedServiceKeys.slice(0, 10)));
       }
-    } else if (serviceKeys.length) {
-      constraints.push(where('serviceKeys', 'array-contains-any', serviceKeys));
-      used = 'service';
-    } else if (languageKeys.length) {
-      constraints.push(where('languageKeys', 'array-contains-any', languageKeys));
-      used = 'language';
+    } else if (selectedLanguageKeys.length > 0) {
+      // Languages filter: only use if services are NOT selected
+      if (selectedLanguageKeys.length === 1) {
+        constraints.push(where('languageKeys', 'array-contains', selectedLanguageKeys[0]));
+      } else {
+        constraints.push(where('languageKeys', 'array-contains-any', selectedLanguageKeys.slice(0, 10)));
+      }
     }
     
     constraints.push(orderBy('displayName'));
     if (cursor) constraints.push(startAfter(cursor));
     constraints.push(limit(pageSize));
     
-    return { constraints, used };
+    return constraints;
   };
 
   // Try to run two separate queries for role filtering (since Firestore doesn't support OR)
-  const { constraints, used } = buildConstraints();
+  const constraints = buildConstraints();
   
   // Query 1: role === 'master'
   const cons1 = [...constraints, where('role', '==', 'master')];
@@ -110,27 +111,34 @@ export async function fetchMastersOnce(filters: MasterFilters, pageSize = 60, cu
     uniqueDocs.set(doc.id, doc);
   });
   
-  let items: any[] = Array.from(uniqueDocs.values()).map(d => ({ id: d.id, ...d.data() }));
+  let items: any[] = Array.from(uniqueDocs.values()).map(d => {
+    const data = d.data();
+    return { 
+      id: d.id, 
+      ...data,
+      // Ensure serviceKeys and languageKeys are always present as arrays
+      serviceKeys: extractKeys(data, 'service'),
+      languageKeys: extractKeys(data, 'language')
+    };
+  });
 
-  // Apply the remaining filter(s) client-side using the normalizer
-  const serviceKeys = filters.services?.map(s => s.key) || [];
-  const languageKeys = filters.languages?.map(l => l.key) || [];
+  // Normalize selected keys for post-filtering
+  const selectedServiceKeys = (filters.services ?? []).map(s => s.key).filter(Boolean);
+  const selectedLanguageKeys = (filters.languages ?? []).map(l => l.key).filter(Boolean);
   
-  // If we did NOT use services on server but UI has services selected:
-  if (used !== 'service' && serviceKeys.length) {
-    items = items.filter(it => hasAnyOverlap(extractKeys(it, 'service'), serviceKeys));
-  }
-  // If we did NOT use languages on server but UI has languages selected:
-  if (used !== 'language' && languageKeys.length) {
-    items = items.filter(it => hasAnyOverlap(extractKeys(it, 'language'), languageKeys));
-  }
+  // Post-filter: ensure items include ALL selected services and languages
+  // This enforces "must include ALL" for multi-select cases
+  items = items.filter(item => {
+    return includesAll(item.serviceKeys, selectedServiceKeys) 
+        && includesAll(item.languageKeys, selectedLanguageKeys);
+  });
 
   // Apply client-side filters (name search, etc.)
   items = items.filter(it => {
     return matchesAllFilters(it, {
       ...filters,
-      services: serviceKeys,
-      languages: languageKeys,
+      services: selectedServiceKeys,
+      languages: selectedLanguageKeys,
     }, /*isMaster*/ true);
   });
 
@@ -157,26 +165,26 @@ export async function fetchListingsOnce(filters: ListingFilters, pageSize = 60, 
   else if (filters.city) cons.push(where('city.name', '==', filters.city));
   if (typeof filters.minRating === 'number') cons.push(where('rating', '>=', Math.max(0, Math.min(5, filters.minRating))));
 
-  // Choose only ONE array-contains-any to use server-side
-  const serviceKeys = filters.services?.map(s => s.key).slice(0, 10) || [];
-  const languageKeys = filters.languages?.map(l => l.key).slice(0, 10) || [];
+  // Normalize filter inputs - extract keys from UI objects
+  const selectedServiceKeys = (filters.services ?? []).map(s => s.key).filter(Boolean);
+  const selectedLanguageKeys = (filters.languages ?? []).map(l => l.key).filter(Boolean);
   
-  let arrayFilterUsed: 'services' | 'languages' | null = null;
-  if (serviceKeys.length && languageKeys.length) {
-    // pick the larger selection to narrow results more
-    if (serviceKeys.length >= languageKeys.length) {
-      cons.push(where('serviceKeys', 'array-contains-any', serviceKeys));
-      arrayFilterUsed = 'services';
+  // Use only ONE array filter in Firestore (prefer services if both are selected)
+  // The second filter will be applied client-side
+  if (selectedServiceKeys.length > 0) {
+    // Services filter: use array-contains for single, array-contains-any for multiple
+    if (selectedServiceKeys.length === 1) {
+      cons.push(where('serviceKeys', 'array-contains', selectedServiceKeys[0]));
     } else {
-      cons.push(where('languageKeys', 'array-contains-any', languageKeys));
-      arrayFilterUsed = 'languages';
+      cons.push(where('serviceKeys', 'array-contains-any', selectedServiceKeys.slice(0, 10)));
     }
-  } else if (serviceKeys.length) {
-    cons.push(where('serviceKeys', 'array-contains-any', serviceKeys));
-    arrayFilterUsed = 'services';
-  } else if (languageKeys.length) {
-    cons.push(where('languageKeys', 'array-contains-any', languageKeys));
-    arrayFilterUsed = 'languages';
+  } else if (selectedLanguageKeys.length > 0) {
+    // Languages filter: only use if services are NOT selected
+    if (selectedLanguageKeys.length === 1) {
+      cons.push(where('languageKeys', 'array-contains', selectedLanguageKeys[0]));
+    } else {
+      cons.push(where('languageKeys', 'array-contains-any', selectedLanguageKeys.slice(0, 10)));
+    }
   }
 
   // If you don't have createdAt, you can change to orderBy('title')
@@ -185,15 +193,23 @@ export async function fetchListingsOnce(filters: ListingFilters, pageSize = 60, 
   cons.push(limit(pageSize));
 
   const snap = await getDocs(query(colRef, ...cons));
-  let items: any[] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  let items: any[] = snap.docs.map(d => {
+    const data = d.data();
+    return { 
+      id: d.id, 
+      ...data,
+      // Ensure serviceKeys and languageKeys are always present as arrays
+      serviceKeys: extractKeys(data, 'service'),
+      languageKeys: extractKeys(data, 'language')
+    };
+  });
 
-  // Apply the second array filter client-side (if needed)
-  if (arrayFilterUsed !== 'services' && serviceKeys.length) {
-    items = items.filter(it => Array.isArray(it.serviceKeys) && it.serviceKeys.some((k: string) => serviceKeys.includes(k)));
-  }
-  if (arrayFilterUsed !== 'languages' && languageKeys.length) {
-    items = items.filter(it => Array.isArray(it.languageKeys) && it.languageKeys.some((k: string) => languageKeys.includes(k)));
-  }
+  // Post-filter: ensure items include ALL selected services and languages
+  // This enforces "must include ALL" for multi-select cases
+  items = items.filter(item => {
+    return includesAll(item.serviceKeys, selectedServiceKeys) 
+        && includesAll(item.languageKeys, selectedLanguageKeys);
+  });
 
   // STRICT post-filter
   items = items.filter(it => matchesAllFilters(it, filters as any, /*isMaster*/ false));

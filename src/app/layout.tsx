@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { AuthProvider } from '@/context/AuthContext';
 import './globals.css';
 import Providers from "./providers";
-import { ToastProvider } from '@/components/ui/Toast';
 import AppHeader from "@/components/layout/AppHeader";
 // GoogleMapsProvider removed - using MapContainer with useJsApiLoader instead
 import ToasterClient from '@/components/system/ToasterClient';
@@ -14,14 +13,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <AuthProvider>
-          <ToastProvider>
-            <Providers>
-              <header className="relative z-50 border-b">
-                <AppHeader />
-              </header>
-              {children}
-            </Providers>
-          </ToastProvider>
+          <Providers>
+            <header className="relative z-50 border-b">
+              <AppHeader />
+            </header>
+            {children}
+          </Providers>
         </AuthProvider>
         <ToasterClient />
       </body>

@@ -4,7 +4,6 @@ import { useParams, useRouter } from "next/navigation";
 import { doc, getDoc } from "firebase/firestore";
 import { requireDb, requireAuth } from "@/lib/firebase/client";
 import { updateListing } from "@/lib/firestore-listings";
-import { useToast } from "@/components/ui/Toast";
 import { toDisplayText } from "@/lib/safeText";
 import CityAutocomplete from "@/components/CityAutocomplete";
 import type { CityNorm } from "@/lib/city";
@@ -27,7 +26,6 @@ export default function EditListingPage() {
  const router = useRouter();
  const params = useParams() as { id: string };
  const id = params.id;
-  const { showToast } = useToast();
 
  const [loading, setLoading] = useState(true);
  const [saving, setSaving] = useState(false);
@@ -128,7 +126,7 @@ export default function EditListingPage() {
       }
     })();
     return () => { alive = false; };
-  }, [id, showToast, router]);
+  }, [id, router]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -192,11 +190,11 @@ export default function EditListingPage() {
  await updateListing(auth.currentUser, id, formData);
       console.info("[BR][EditListing] Updated successfully:", id);
       
-      showToast(`Listing updated successfully: ${toDisplayText(title)} in ${toDisplayText(formData.cityName)}`, "success");
+      alert(`Listing updated successfully: ${toDisplayText(title)} in ${toDisplayText(formData.cityName)}`);
       // Stay on the same page as requested
  } catch (err) {
  console.error(err);
-      showToast("Failed to update listing", "error");
+      alert("Failed to update listing");
  } finally {
  setSaving(false);
  }

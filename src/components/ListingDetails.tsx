@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 type Props = {
  title?: string;
  city?: string; // <- ожидаем строку
@@ -7,6 +9,7 @@ type Props = {
  priceMax?: number | undefined;
  languages?: string[]; // <- ожидаем массив строк
  onBook?: () => void;
+ masterId?: string | null;
 };
 
 export default function ListingDetails({
@@ -16,6 +19,7 @@ priceMin,
 priceMax,
 languages = [],
 onBook,
+masterId,
 }: Props) {
 const price =
 priceMin != null && priceMax != null
@@ -55,6 +59,17 @@ className="mt-4 w-full rounded-md bg-pink-600 hover:bg-pink-700 text-white py-2.
 >
 Book now
 </button>
+
+{masterId && (
+<div className="mt-3 text-center">
+<Link
+href={`/masters/${masterId}`}
+className="text-sm text-pink-600 hover:text-pink-700 underline underline-offset-2"
+>
+View master profile →
+</Link>
+</div>
+)}
 </aside>
 );
 }

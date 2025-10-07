@@ -7,7 +7,6 @@ import dynamic from "next/dynamic";
 
 import { requireAuth, requireDb } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
-import { useToast } from "@/components/ui/Toast";
 import CityAutocomplete from "@/components/CityAutocomplete";
 import type { CityNorm } from "@/lib/city";
 import { saveMyProfile, uploadAvatar } from "@/lib/db";
@@ -57,7 +56,6 @@ export default function EditProfilePage() {
  const auth = requireAuth();
  const user = auth.currentUser;
  const uid = useMemo(() => user?.uid ?? "", [user]);
- const { showToast } = useToast();
 
  const [form, setForm] = useState<MasterProfile>(emptyProfile(uid));
  const [city, setCity] = useState<CityNorm | null>(null);
@@ -229,7 +227,7 @@ export default function EditProfilePage() {
       });
         
         // Show success message and redirect
-        showToast("Profile updated successfully", "success");
+        alert("Profile updated successfully");
         router.replace("/dashboard/master/profile");
       } catch (err: any) {
         console.error(err);
