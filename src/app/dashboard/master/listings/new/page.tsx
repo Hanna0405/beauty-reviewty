@@ -160,7 +160,7 @@ export default function NewListingPage() {
               <div className="text-sm">
                 <div className="font-medium">Listing created successfully</div>
                 <div className="mt-0.5">
-                  <a href={`/listing/${successId}`} className="underline underline-offset-2 decoration-emerald-600 hover:text-emerald-700">
+                  <a href={`/masters/${successId}`} className="underline underline-offset-2 decoration-emerald-600 hover:text-emerald-700">
                     Open listing →
                   </a>
                 </div>

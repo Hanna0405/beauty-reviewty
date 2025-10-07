@@ -260,7 +260,7 @@ function PageContent() {
               {filteredListings.length > 0 && (
                 <section>
                   <h2 className="text-base font-semibold mb-3">Listings ({filteredListings.length})</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                     {filteredListings.map(l => <ListingCard key={l.id || l._id} item={l} />)}
                   </div>
                 </section>

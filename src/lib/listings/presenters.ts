@@ -70,3 +70,8 @@ export function masterId(x: ListingLike): string | null {
   return x?.masterId || x?.ownerId || x?.profileUid || null;
 }
 
+export function reviewsCountValue(x: ListingLike): number {
+  const v = x?.reviewsCount ?? x?.reviews?.length ?? x?.ratingCount ?? 0;
+  return typeof v === "number" ? v : 0;
+}
+

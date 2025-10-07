@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
+import Stars from "./Stars";
 import {
   pickFirstImage, cityLabel, serviceLabel, languagesLabel,
-  titleLabel, ratingValue, listingId
+  titleLabel, ratingValue, listingId, masterId, reviewsCountValue
 } from "@/lib/listings/presenters";
 
 export default function ListingCard({ item }: { item: any }) {
@@ -14,41 +15,46 @@ export default function ListingCard({ item }: { item: any }) {
   const service = serviceLabel(item);
   const langs = languagesLabel(item);
   const rating = ratingValue(item);
+  const reviews = reviewsCountValue(item);
+  const mId = masterId(item);
 
   return (
-    <div className="group rounded-xl border border-zinc-200 bg-white/70 shadow-sm hover:shadow-md transition p-3 flex gap-3">
-      <div className="relative shrink-0 w-20 h-20 overflow-hidden rounded-lg bg-zinc-100">
+    <div className="group rounded-2xl border border-zinc-200 bg-white shadow-sm hover:shadow-md transition p-4 flex gap-4">
+      <div className="relative shrink-0 w-28 h-28 overflow-hidden rounded-xl bg-zinc-100">
         {img ? (
-          <Image src={img} alt={title} fill className="object-cover" sizes="80px" />
+          <Image src={img} alt={title} fill className="object-cover" sizes="112px" />
         ) : (
           <div className="w-full h-full grid place-items-center text-xs text-zinc-400">No photo</div>
         )}
       </div>
 
       <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-3">
-          <h3 className="text-sm font-semibold truncate">{title}</h3>
-          {typeof rating === "number" && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 text-xs px-2 py-0.5">
-              <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" className="text-amber-400"><path d="M10 15l-5.878 3.09L5.82 12.18.945 7.91l6.09-.89L10 1l2.965 6.02 6.09.89-4.875 4.27 1.698 5.91z"/></svg>
-              {rating.toFixed(1)}
-            </span>
-          )}
+        <div className="flex items-start justify-between gap-4">
+          <h3 className="text-base font-semibold truncate">{title}</h3>
+          {typeof rating === "number" && <Stars value={rating} count={reviews} />}
         </div>
 
-        <div className="mt-1 text-xs text-zinc-600 space-y-0.5">
-          {city && <div><span className="font-medium text-zinc-700">City:</span> {city}</div>}
-          {service && <div><span className="font-medium text-zinc-700">Service:</span> {service}</div>}
-          {langs && <div><span className="font-medium text-zinc-700">Languages:</span> {langs}</div>}
+        <div className="mt-1 text-[13px] text-zinc-700 space-y-1">
+          {city && <div><span className="font-medium text-zinc-800">City:</span> {city}</div>}
+          {service && <div><span className="font-medium text-zinc-800">Service:</span> {service}</div>}
+          {langs && <div><span className="font-medium text-zinc-800">Languages:</span> {langs}</div>}
         </div>
 
-        <div className="mt-2">
+        <div className="mt-3 flex flex-wrap items-center gap-3">
           {id && (
             <Link
-              href={`/listings/${id}`}
-              className="inline-flex items-center justify-center rounded-md bg-pink-600 hover:bg-pink-700 text-white text-sm px-3 py-1.5"
+              href={`/masters/${id}`}
+              className="inline-flex items-center justify-center rounded-md bg-pink-600 hover:bg-pink-700 text-white text-sm px-3.5 py-1.5"
             >
               Open
+            </Link>
+          )}
+          {mId && (
+            <Link
+              href={`/masters/${mId}`}
+              className="text-sm text-pink-600 hover:text-pink-700 underline underline-offset-2"
+            >
+              Master profile
             </Link>
           )}
         </div>
