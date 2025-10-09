@@ -4,7 +4,7 @@ import { requireDb } from '@/lib/firebase';
 import { getDocs, query, where, collection } from 'firebase/firestore';
 import { uploadImage } from '@/lib/upload-image';
 import { createReviewViaApi } from '@/lib/reviews/createClient';
-import type { ReviewPhoto } from '@/lib/reviews/createClient';
+import type { ReviewPhoto } from '@/lib/reviews/types';
 import Image from 'next/image';
 
 type Props = {

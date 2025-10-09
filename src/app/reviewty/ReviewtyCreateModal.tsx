@@ -4,7 +4,7 @@ import { addDoc, collection, doc, getDoc, serverTimestamp, getDocs, limit, order
 import { db } from '@/lib/firebase.client';
 import { useAuth } from '@/contexts/AuthContext';
 import { createReviewViaApi } from '@/lib/reviews/createClient';
-import type { ReviewPhoto } from '@/lib/reviews/createClient';
+import type { ReviewPhoto } from '@/lib/reviews/types';
 import type { CommunityMaster } from '@/types/community';
 import AutocompleteList from '@/components/AutocompleteList';
 import { CityAutocomplete, ServicesSelect, LanguagesSelect } from '@/components/selects';

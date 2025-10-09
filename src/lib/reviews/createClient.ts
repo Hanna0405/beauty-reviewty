@@ -1,6 +1,9 @@
 import { getAuth } from 'firebase/auth';
 import type { ReviewPhoto, ReviewSubject } from './types';
 
+// Re-export types for convenience
+export type { ReviewPhoto, ReviewSubject } from './types';
+
 export async function createReviewViaApi(input: {
   subject: ReviewSubject;
   rating: number;

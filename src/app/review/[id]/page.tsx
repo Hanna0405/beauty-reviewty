@@ -7,7 +7,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
 import { uploadFilesAndGetURLs } from '@/lib/services/storage';
 import { createReviewViaApi } from '@/lib/reviews/createClient';
-import type { ReviewPhoto } from '@/lib/reviews/createClient';
+import type { ReviewPhoto } from '@/lib/reviews/types';
 
 export default function ReviewPage() {
  // id — это id анкеты мастера (profile/master)
