@@ -1,10 +1,9 @@
 'use client';
 import { useState } from 'react';
-import { addDoc, collection, doc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
-import { db } from '@/lib/firebase.client';
 import { uploadImagesViaApi } from '@/lib/upload-image';
-import { createPublicReview } from '@/lib/createPublicReview';
+import { createReviewViaApi } from '@/lib/reviews/createClient';
+import type { ReviewPhoto } from '@/lib/reviews/types';
 
 function Stars({ value, onChange }: { value: number; onChange?: (value: number) => void }) {
   return (
@@ -36,6 +35,8 @@ export function ReviewForm({ subjectType, subjectId, onSubmitted }: ReviewFormPr
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!subjectId || typeof subjectId !== 'string') {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
@@ -53,65 +54,54 @@ export function ReviewForm({ subjectType, subjectId, onSubmitted }: ReviewFormPr
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!user) { alert("Please sign in to leave a review."); return; }
-    if (!subjectId || typeof subjectId !== 'string') { alert("Invalid master id"); return; }
-    if (!rating || rating < 1 || rating > 5) { alert("Please select a rating (1–5)."); return; }
+    if (!user) { setErrorMsg("Please sign in to leave a review."); return; }
+    if (!subjectId || typeof subjectId !== 'string') { setErrorMsg("Invalid subject id"); return; }
+    if (!rating || rating < 1 || rating > 5) { setErrorMsg("Please select a rating (1–5)."); return; }
 
     console.log("submit review", { subjectType, subjectId, hasUser: !!user });
     console.log("[review][create] payload", { subjectId, rating, text, photos: files.length });
 
     setSaving(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
     try {
       // 1) Upload photos via our existing API (returns [{url, path, w?, h?}])
-      const uploaded = files.length ? await uploadImagesViaApi(files.slice(0,3)) : [];
+      const uploaded: ReviewPhoto[] = files.length ? await uploadImagesViaApi(files.slice(0,3)) : [];
 
-      // 2) Build collection ref safely (document -> subcollection)
-      const colRef = subjectType === 'master'
-        ? collection(doc(db, 'masters', subjectId), 'reviews')
-        : collection(db, 'listings', subjectId, 'reviews'); // unchanged for listings
-
-      // 3) Write review
-      const reviewRef = await addDoc(colRef, {
-        rating,
+      // 2) Submit review via secure API route
+      await createReviewViaApi({
+        subject: { type: subjectType, id: subjectId },
+        rating: Number(rating),
         text: (text || '').trim(),
         photos: uploaded,
-        authorUid: user.uid,
-        authorName: user.displayName ?? null,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
       });
 
-      // 4) If this is a master review, also create public review doc
-      if (subjectType === 'master') {
-        try {
-          // IMPORTANT: create/merge public feed card using the same reviewId
-          await createPublicReview({
-            publicId: reviewRef.id,
-            masterId: subjectId, // for master subjectType
-            rating,
-            text: (text || '').trim(),
-            photos: uploaded,
-            authorUid: user.uid,
-            authorName: user.displayName ?? null,
-          });
+      console.log("[review][ok] Review submitted successfully");
 
-          console.log("[public][ok]", reviewRef.id);
-        } catch (err) {
-          console.error('Failed to create public review doc:', err);
-          // Don't fail the whole operation if public doc creation fails
-        }
-      }
-
-      // 5) Reset UI
+      // 3) Reset UI
       setText('');
       setFiles([]);
       setPreviews([]);
       setRating(5);
+      setSuccessMsg('Your review was added successfully.');
       onSubmitted?.();
     } catch (err: any) {
       console.error("Review submit failed:", err);
-      const msg = err?.message || "Failed to submit review.";
-      alert(msg); // show real reason (e.g., Missing or insufficient permissions)
+      
+      // Better error messages based on error type
+      let msg = "Failed to submit review.";
+      if (err?.message) {
+        if (err.message.includes('401') || err.message.includes('Not signed in') || err.message.includes('sign in')) {
+          msg = "Please sign in to leave a review.";
+        } else if (err.message.includes('Invalid subject') || err.message.includes('Text too long')) {
+          msg = err.message; // Show specific validation error
+        } else if (err.message.includes('500')) {
+          msg = "Something went wrong. Please try again.";
+        } else {
+          msg = err.message;
+        }
+      }
+      setErrorMsg(msg);
     } finally {
       setSaving(false);
     }
@@ -168,6 +158,9 @@ export function ReviewForm({ subjectType, subjectId, onSubmitted }: ReviewFormPr
       >
         {saving ? 'Saving...' : 'Add review'}
       </button>
+
+      {successMsg && <p className="text-green-600 text-sm mt-2">{successMsg}</p>}
+      {errorMsg && <p className="text-red-600 text-sm mt-2">{errorMsg}</p>}
     </form>
   );
 }

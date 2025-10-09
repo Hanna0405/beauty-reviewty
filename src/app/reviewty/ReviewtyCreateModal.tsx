@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 import { addDoc, collection, doc, getDoc, serverTimestamp, getDocs, limit, orderBy, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase.client';
 import { useAuth } from '@/contexts/AuthContext';
-import { createReview } from '@/lib/reviews';
+import { createReviewViaApi } from '@/lib/reviews/createClient';
+import type { ReviewPhoto } from '@/lib/reviews/createClient';
 import type { CommunityMaster } from '@/types/community';
 import AutocompleteList from '@/components/AutocompleteList';
 import { CityAutocomplete, ServicesSelect, LanguagesSelect } from '@/components/selects';
@@ -156,24 +157,28 @@ export default function ReviewtyCreateModal({ open: controlledOpen, onClose, pre
  }
 
  // upload photos (max 3)
- const photos = [];
+ const photos: ReviewPhoto[] = [];
  for (const f of files.slice(0,3)) {
  photos.push(await upload(f));
  }
 
- await createReview({
- listingId: mode === 'listing' ? listingId : '',
- authorId: user.uid,
- rating,
- text,
- photos,
- // denormalized:
- city,
- services,
- languages: selectedLanguages.map(l => l.value),
- masterRef,
- isPublic: true,
- });
+ // Use API for listing mode only
+ if (mode === 'listing' && listingId) {
+   await createReviewViaApi({
+     subject: { type: 'listing', id: listingId },
+     rating,
+     text,
+     photos,
+   });
+ } else {
+   // Community mode: Note - this uses legacy client write since community_masters
+   // are not in the profiles collection that the API expects
+   // TODO: Consider migrating community reviews to use the API once community_masters
+   // are integrated into the profiles collection
+   console.warn('[ReviewtyCreateModal] Community mode still uses legacy client write');
+   alert('Community reviews are not yet supported via the secure API. Please contact support.');
+   throw new Error('Community reviews not yet supported');
+ }
 
  setOpen(false);
  setListingId(''); setCM({}); setFiles([]); setText(''); setRating(5);

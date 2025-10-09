@@ -16,6 +16,11 @@ export function listenPublicReviews(listingId: string, cb: (items: Review[]) => 
  });
 }
 
+/**
+ * @deprecated Use createReviewViaApi from '@/lib/reviews/createClient' instead.
+ * This function writes directly to Firestore from the client and bypasses server validation.
+ * All new code should use the secure API route at /api/reviews/create.
+ */
 export async function createReview(payload: {
  listingId: string;
  authorId: string; // MUST be auth.uid
@@ -29,6 +34,7 @@ export async function createReview(payload: {
  languages?: string[];
  masterRef?: { type: 'listing'|'community', id: string, slug?: string, listingId?: string };
 }) {
+ console.warn('[createReview] DEPRECATED: Use createReviewViaApi from @/lib/reviews/createClient instead');
  const docData = {
  listingId: payload.listingId,
  authorId: payload.authorId,

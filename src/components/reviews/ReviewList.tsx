@@ -1,8 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { collection, doc, onSnapshot, orderBy, query, where } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
-import { db } from '@/lib/firebase.client';
+import { fetchReviews } from '@/lib/reviews/fetchList';
+import type { ReviewDoc } from '@/lib/reviews/types';
 
 function Stars({ value }: { value: number }) {
   return (
@@ -22,27 +22,30 @@ interface ReviewListProps {
 
 export function ReviewList({ subjectType, subjectId }: ReviewListProps) {
   const { user } = useAuth();
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<ReviewDoc[]>([]);
+  const [loading, setLoading] = useState(true);
 
   if (!subjectId || typeof subjectId !== 'string') {
     return <p className="text-sm text-muted-foreground">No reviews yet</p>;
   }
 
-  useEffect(() => {
-    const colRef = subjectType === 'master'
-      ? collection(doc(db, 'masters', subjectId), 'reviews')
-      : collection(db, 'reviews');
-    
-    const q = subjectType === 'master' 
-      ? query(colRef, orderBy('createdAt', 'desc'))
-      : query(colRef, where('listingId', '==', subjectId), where('isPublic', '==', true));
-
-    return onSnapshot(q, (snap) => {
-      const reviews = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  async function loadReviews() {
+    try {
+      setLoading(true);
+      const reviews = await fetchReviews({ type: subjectType, id: subjectId });
       setItems(reviews);
-    });
+    } catch (e: any) {
+      console.error('[ReviewList] load failed:', e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadReviews();
   }, [subjectType, subjectId]);
 
+  if (loading) return <div className="py-8 text-center text-sm text-gray-500">Loading reviews...</div>;
   if (!items.length) return <p className="text-sm text-gray-500">No reviews yet</p>;
 
   return (
@@ -54,20 +57,16 @@ export function ReviewList({ subjectType, subjectId }: ReviewListProps) {
               <Stars value={r.rating} />
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500">
-                  {r.createdAt?.toDate?.()?.toLocaleDateString() || 'Recently'}
+                  {r.createdAt ? new Date(r.createdAt.seconds * 1000).toLocaleDateString() : 'Recently'}
                 </span>
-                {user?.uid === (r.authorUid || r.authorId) && (
+                {user?.uid === r.authorUid && (
                   <button
                     onClick={async () => {
                       if (confirm('Delete this review?')) {
                         const { deleteDoc, doc } = await import('firebase/firestore');
                         const { db } = await import('@/lib/firebase');
-                        
-                        if (subjectType === 'master') {
-                          await deleteDoc(doc(db, 'masters', subjectId, 'reviews', r.id));
-                        } else {
-                          await deleteDoc(doc(db, 'reviews', r.id));
-                        }
+                        await deleteDoc(doc(db, 'reviews', r.id));
+                        loadReviews();
                       }
                     }}
                     className="text-red-600 hover:underline text-sm"

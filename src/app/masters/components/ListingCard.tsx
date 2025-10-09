@@ -3,12 +3,18 @@ import Link from "next/link";
 import Image from "next/image";
 import Stars from "./Stars";
 import {
-  pickFirstImage, cityLabel, serviceLabel, languagesLabel,
-  titleLabel, ratingValue, listingId, masterId, reviewsCountValue
+  pickFirstImage,
+  titleLabel,
+  cityLabel,
+  serviceLabel,
+  languagesLabel,
+  ratingValue,
+  reviewsCountValue,
+  masterId,
 } from "@/lib/listings/presenters";
 
 export default function ListingCard({ item }: { item: any }) {
-  const id = listingId(item);
+  const id = item?.id || item?._id;
   const img = pickFirstImage(item);
   const title = titleLabel(item);
   const city = cityLabel(item);
@@ -19,42 +25,59 @@ export default function ListingCard({ item }: { item: any }) {
   const mId = masterId(item);
 
   return (
-    <div className="group rounded-2xl border border-zinc-200 bg-white shadow-sm hover:shadow-md transition p-4 flex gap-4">
-      <div className="relative shrink-0 w-28 h-28 overflow-hidden rounded-xl bg-zinc-100">
+    <div className="flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm hover:shadow-md transition">
+      {/* Top photo */}
+      <div className="relative w-full h-44 bg-zinc-100">
         {img ? (
-          <Image src={img} alt={title} fill className="object-cover" sizes="112px" />
+          <Image
+            src={img}
+            alt={title || "Listing photo"}
+            fill
+            sizes="400px"
+            className="object-cover"
+          />
         ) : (
-          <div className="w-full h-full grid place-items-center text-xs text-zinc-400">No photo</div>
+          <div className="w-full h-full grid place-items-center text-sm text-zinc-400">
+            No photo
+          </div>
         )}
       </div>
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-4">
-          <h3 className="text-base font-semibold truncate">{title}</h3>
-          {typeof rating === "number" && <Stars value={rating} count={reviews} />}
-        </div>
+      {/* Content */}
+      <div className="flex-1 p-4 flex flex-col">
+        <h3 className="text-base font-semibold text-zinc-900 truncate">
+          {title || service || "Untitled Listing"}
+        </h3>
 
-        <div className="mt-1 text-[13px] text-zinc-700 space-y-1">
-          {city && <div><span className="font-medium text-zinc-800">City:</span> {city}</div>}
-          {service && <div><span className="font-medium text-zinc-800">Service:</span> {service}</div>}
-          {langs && <div><span className="font-medium text-zinc-800">Languages:</span> {langs}</div>}
-        </div>
+        {city && (
+          <p className="mt-0.5 text-sm text-zinc-600 truncate">{city}</p>
+        )}
 
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          {id && (
-            <Link
-              href={`/masters/${id}`}
-              className="inline-flex items-center justify-center rounded-md bg-pink-600 hover:bg-pink-700 text-white text-sm px-3.5 py-1.5"
-            >
-              Open
-            </Link>
-          )}
+        {typeof rating === "number" && (
+          <div className="mt-2">
+            <Stars value={rating} count={reviews} />
+          </div>
+        )}
+
+        {langs && (
+          <p className="mt-1 text-xs text-zinc-500 truncate">{langs}</p>
+        )}
+
+        {/* Buttons */}
+        <div className="mt-4 flex flex-col gap-1">
+          <Link
+            href={`/masters/${id}`}
+            className="block text-center rounded-md bg-pink-600 hover:bg-pink-700 text-white text-sm font-medium px-3 py-2"
+          >
+            Open
+          </Link>
+
           {mId && (
             <Link
               href={`/masters/${mId}`}
-              className="text-sm text-pink-600 hover:text-pink-700 underline underline-offset-2"
+              className="text-xs text-zinc-500 hover:text-pink-600 text-center underline underline-offset-2 transition"
             >
-              Master profile
+              View master profile
             </Link>
           )}
         </div>

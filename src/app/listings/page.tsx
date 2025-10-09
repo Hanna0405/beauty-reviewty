@@ -7,7 +7,7 @@ import Link from "next/link";
 import CityAutocomplete from "@/components/CityAutocomplete";
 import MultiSelectAutocompleteV2 from "@/components/inputs/MultiSelectAutocompleteV2";
 import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/catalog";
-import ListingCard from "@/components/ListingCard";
+import ListingCard from "../masters/components/ListingCard";
 import { fetchListingsOnce, ListingFilters as LF } from "@/lib/firestoreQueries";
 import { includesAll } from "@/lib/filters/matchers";
 import { selectedToKeys, docServiceKeysDeep, docLanguageKeysDeep, cityKeyMatches, docCityKeyDeep, normalizeCitySelection, toKey, ensureKeyObject } from "@/lib/filters/normalize";
@@ -181,8 +181,8 @@ function PageContent() {
           ) : filteredListings.length === 0 ? (
             <div className="py-8 text-center text-gray-500">No listings match your filters.</div>
           ) : (
-            <div className="grid gap-3 md:grid-cols-2">
-              {filteredListings.map(l => <ListingCard key={l.id} listing={l} />)}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+              {filteredListings.map(l => <ListingCard key={l.id} item={l} />)}
             </div>
           )}
         </section>

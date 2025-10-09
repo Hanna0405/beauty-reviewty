@@ -3,9 +3,11 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { requireDb } from '@/lib/firebase';
-import { addDoc, collection, doc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
 import { uploadFilesAndGetURLs } from '@/lib/services/storage';
+import { createReviewViaApi } from '@/lib/reviews/createClient';
+import type { ReviewPhoto } from '@/lib/reviews/createClient';
 
 export default function ReviewPage() {
  // id — это id анкеты мастера (profile/master)
@@ -43,31 +45,36 @@ export default function ReviewPage() {
 
  async function onSubmit(e: React.FormEvent) {
  e.preventDefault();
- if (!uid) return; // дополнительная страховка для TS
+ if (!uid) return;
  setBusy(true);
  setErr(null);
  try {
- let photoURLs: string[] = [];
+ const photos: ReviewPhoto[] = [];
  if (files.length) {
  const result = await uploadFilesAndGetURLs(`reviews/${uid}`, files);
- photoURLs = result.urls;
+ photos.push(...result.urls.map(url => ({ url, path: '' })));
  }
 
- const db = requireDb();
- await addDoc(collection(db, 'reviews'), {
- profileId: id, // к какой анкете относится
- authorUid: uid, // безопасно: строка
- authorName,
- rating: rating === '' ? null : Number(rating),
- text: text.trim(),
- photos: photoURLs,
- visible: true,
- createdAt: serverTimestamp(),
+ await createReviewViaApi({
+   subject: { type: 'master', id: id! },
+   rating: rating === '' ? 3 : Number(rating),
+   text: text.trim(),
+   photos,
  });
 
- router.push(`/masters/${id}`); // назад на анкету
+ router.push(`/masters/${id}`);
  } catch (e: any) {
- setErr(e.message ?? 'Failed to submit review');
+ let msg = 'Failed to submit review';
+ if (e?.message) {
+   if (e.message.includes('sign in')) {
+     msg = 'Please sign in to leave a review.';
+   } else if (e.message.includes('Invalid subject') || e.message.includes('Text too long')) {
+     msg = e.message;
+   } else {
+     msg = e.message;
+   }
+ }
+ setErr(msg);
  } finally {
  setBusy(false);
  }

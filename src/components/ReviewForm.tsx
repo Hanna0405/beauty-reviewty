@@ -1,11 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { requireDb } from '@/lib/firebase';
-import {
- addDoc, collection, serverTimestamp,
- getDocs, query, where
-} from 'firebase/firestore';
+import { getDocs, query, where, collection } from 'firebase/firestore';
 import { uploadImage } from '@/lib/upload-image';
+import { createReviewViaApi } from '@/lib/reviews/createClient';
+import type { ReviewPhoto } from '@/lib/reviews/createClient';
 import Image from 'next/image';
 
 type Props = {
@@ -63,29 +62,20 @@ export default function ReviewForm({ profileId, clientId, clientName }: Props) {
  return;
  }
  
- try {
-   const db = requireDb();
- } catch (error) {
-   setMsg('Database is not available. Please check your configuration.');
-   return;
- }
- 
  setLoading(true);
  setMsg(null);
  try {
- let photoUrl: string | null = null;
- if (file) photoUrl = await uploadReviewImage(file);
+ const photos: ReviewPhoto[] = [];
+ if (file) {
+   const photoUrl = await uploadReviewImage(file);
+   photos.push({ url: photoUrl, path: '' });
+ }
 
- const db = requireDb();
- await addDoc(collection(db, 'reviews'), {
- profileId,
- bookingId: eligible.bookingId,
- clientId,
- clientName: clientName || null,
- rating,
- text,
- photoUrl,
- createdAt: serverTimestamp(),
+ await createReviewViaApi({
+   subject: { type: 'master', id: profileId },
+   rating,
+   text,
+   photos,
  });
 
  setText('');
@@ -93,7 +83,17 @@ export default function ReviewForm({ profileId, clientId, clientName }: Props) {
  setPreview(null);
  setMsg('Thank you! Your review was submitted.');
  } catch (err: any) {
- setMsg(err?.message || 'Failed to submit review. Make sure your booking is completed.');
+ let msg = 'Failed to submit review.';
+ if (err?.message) {
+   if (err.message.includes('sign in')) {
+     msg = 'Please sign in to leave a review.';
+   } else if (err.message.includes('Invalid subject') || err.message.includes('Text too long')) {
+     msg = err.message;
+   } else {
+     msg = err.message;
+   }
+ }
+ setMsg(msg);
  } finally {
  setLoading(false);
  }

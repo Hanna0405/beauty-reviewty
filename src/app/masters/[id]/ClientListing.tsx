@@ -77,7 +77,7 @@ export default function ClientListing({ id }: { id: string }) {
 
       {/* Reviews below */}
       <section className="mt-8 lg:mt-12">
-        <ReviewsSection listingId={listing.id} />
+        <ReviewsSection listingId={listing.id} subjectType="listing" />
       </section>
 
       <Modal open={open} onClose={()=>setOpen(false)} title="Request booking">

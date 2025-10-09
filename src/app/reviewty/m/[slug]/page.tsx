@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase.client';
@@ -14,9 +14,14 @@ export default function CommunityMasterPage() {
   const slug = params?.slug as string;
   const [master, setMaster] = useState<CommunityMaster | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reviewKey, setReviewKey] = useState(0);
 
   // Extract masterId from slug (e.g., "m-city-xxxx" -> "xxxx")
   const masterId = slug ? slug.split('-').pop() : '';
+
+  const handleReviewSubmitted = useCallback(() => {
+    setReviewKey(k => k + 1);
+  }, []);
 
  useEffect(() => {
  async function load() {
@@ -83,8 +88,8 @@ export default function CommunityMasterPage() {
       {/* Reviews Section */}
       {masterId && (
         <>
-          <ReviewForm subjectType="master" subjectId={masterId} />
-          <ReviewList subjectType="master" subjectId={masterId} />
+          <ReviewForm subjectType="master" subjectId={masterId} onSubmitted={handleReviewSubmitted} />
+          <ReviewList key={reviewKey} subjectType="master" subjectId={masterId} />
         </>
       )}
     </div>
