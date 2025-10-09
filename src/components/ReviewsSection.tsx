@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { deleteReview, uploadReviewPhoto } from '@/lib/reviews';
 import { createReviewViaApi } from '@/lib/reviews/createClient';
 import { fetchReviews } from '@/lib/reviews/fetchList';
-import type { ReviewDoc } from '@/lib/reviews/types';
+import type { ReviewDoc, ReviewSubject } from '@/lib/reviews/types';
 import type { ReviewPhoto } from '@/lib/reviews/types';
 
 function Stars({ value }: { value: number }) {
@@ -132,7 +132,8 @@ export function ReviewsSection({ listingId, subjectType = 'listing' }: { listing
  const [loading, setLoading] = useState(true);
 
  // The dynamic segment of /masters/[id] is the LISTING id
- const subject = { type: subjectType as const, id: String(listingId) };
+ const listingIdStr = String(listingId);
+ const subject: ReviewSubject = { type: subjectType, id: listingIdStr };
 
  async function loadReviews() {
    try {

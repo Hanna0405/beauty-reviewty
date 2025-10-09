@@ -13,6 +13,3 @@ export type ReviewDoc = {
   updatedAt?: { seconds: number; nanos?: number };
 };
 
-// Re-export for convenience
-export { ReviewPhoto as ReviewPhotoType, ReviewSubject as ReviewSubjectType, ReviewDoc as ReviewDocType };
-
