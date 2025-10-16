@@ -62,16 +62,20 @@ export async function deleteReview(id: string) {
  await deleteDoc(doc(db, 'reviews', id));
 }
 
-// Reuse existing Admin upload route with reviews folder
-async function uploadReviewPhoto(file: File) {
-  const fd = new FormData();
-  fd.append('files', file); // use plural
-  fd.append('listingId', 'reviews');
-  const res = await fetch('/api/upload', { method: 'POST', body: fd });
-  if (!res.ok) throw new Error('Upload failed');
-  const data = await res.json();
-  // Expect { files: [{url, path}] }
-  return { url: data.files?.[0]?.url || '', path: data.files?.[0]?.path || '' };
+// Upload review photos using stable uploader
+async function uploadReviewPhoto(file: File, masterId?: string) {
+  const { uploadReviewPhotos } = await import('@/lib/reviews/uploadReviewPhotos');
+  
+  const urls = await uploadReviewPhotos([file], { masterId });
+  
+  if (!urls.length) {
+    throw new Error('Failed to upload photo');
+  }
+
+  const url = urls[0];
+  console.log('[upload success]', url);
+  
+  return { url, path: url }; // Use URL as path for compatibility
 }
 
 export { uploadReviewPhoto };

@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { saveProfile } from "@/lib/saveProfile";
 import { auth } from "@/lib/firebase/client";
 import { getIdTokenOrThrow } from "@/lib/auth/getIdToken";
+import ProfileAvatar from "@/components/profile/ProfileAvatar";
 
 type ProfileForm = {
   displayName: string;
@@ -26,6 +27,14 @@ type ProfileForm = {
   languages: TagOption[];
   languageKeys: string[];
   languageNames: string[];
+  // ✅ avatar-related fields
+  photoURL: string;
+  avatarUrl: string;
+  avatarPath: string;
+  avatar: {
+    url: string;
+    path: string;
+  };
   socials?: {
     instagram?: string;
     tiktok?: string;
@@ -34,13 +43,12 @@ type ProfileForm = {
 };
 
 
+// Use the stable avatar uploader
 async function uploadAvatar(file: File) {
-  const fd = new FormData();
-  fd.append('files', file); // use plural
-  const res = await fetch('/api/upload', { method: 'POST', body: fd });
-  const data = await res.json();
-  // Expect { files: [{url, path}] }
-  return { url: data.files?.[0]?.url || '', path: data.files?.[0]?.path || '' };
+  const { uploadAvatar: stableUploadAvatar } = await import('@/lib/profile/uploadAvatar');
+  const url = await stableUploadAvatar(file);
+  // Return in the expected format for compatibility
+  return { url, path: `profiles/${auth.currentUser?.uid}/avatar.jpg` };
 }
 
 export default function ProfileEditClient() {
@@ -59,6 +67,14 @@ export default function ProfileEditClient() {
     languages: [],
     languageKeys: [],
     languageNames: [],
+    // ✅ avatar-related defaults
+    photoURL: "",
+    avatarUrl: "",
+    avatarPath: "",
+    avatar: {
+      url: "",
+      path: "",
+    },
     socials: {
       instagram: "",
       tiktok: "",
@@ -112,6 +128,14 @@ export default function ProfileEditClient() {
           languages: convertToTagOptions(profile.languages || []),
           languageKeys: profile.languageKeys || [],
           languageNames: profile.languageNames || [],
+          // ✅ avatar-related fields with proper fallbacks
+          photoURL: profile.photoURL || profile.avatarUrl || profile.avatar?.url || "",
+          avatarUrl: profile.avatarUrl || profile.photoURL || "",
+          avatarPath: profile.avatarPath || profile.avatar?.path || "",
+          avatar: {
+            url: profile.avatar?.url || profile.avatarUrl || profile.photoURL || "",
+            path: profile.avatar?.path || profile.avatarPath || "",
+          },
           socials: {
             instagram: profile.socials?.instagram || "",
             tiktok: profile.socials?.tiktok || "",
@@ -154,17 +178,35 @@ export default function ProfileEditClient() {
         avatarPath = up.path;
       }
 
-      // Prepare form data for API
+      // Prepare form data for API - include all avatar fields
       const formData = {
         ...form,
-        photoURL: avatarUrl,
-        avatarPath,
+        photoURL: form.photoURL || avatarUrl,
+        avatarUrl: form.avatarUrl || avatarUrl,
+        avatarPath: form.avatarPath || avatarPath,
+        avatar: {
+          url: form.avatar?.url || avatarUrl,
+          path: form.avatar?.path || avatarPath,
+        },
         links: {
           instagram: form.socials?.instagram ?? null,
           tiktok: form.socials?.tiktok ?? null,
           website: form.socials?.website ?? null,
         }
       };
+
+      // auto-fill missing fields before saving
+      if ((!formData.photoURL || formData.photoURL === '') && formData.avatar?.url) {
+        formData.photoURL = formData.avatar.url;
+      }
+      if ((!formData.avatarUrl || formData.avatarUrl === '') && formData.avatar?.url) {
+        formData.avatarUrl = formData.avatar.url;
+      }
+      if ((!formData.avatarPath || formData.avatarPath === '') && formData.avatar?.path) {
+        formData.avatarPath = formData.avatar.path;
+      }
+
+      console.log('[Profile Submit Final] values:', formData);
 
       // 1) get a valid ID token
       const idToken = await getIdTokenOrThrow();
@@ -209,6 +251,7 @@ export default function ProfileEditClient() {
         updatedAt: serverTimestamp(),
       }, { merge: true });
 
+      alert('Profile saved successfully');
       router.push('/profile');
     } catch (e: any) {
       if (e?.message === "NOT_SIGNED_IN") {
@@ -217,22 +260,68 @@ export default function ProfileEditClient() {
         router.push(`/login?returnTo=${ret}`);
         return;
       }
+      console.error('Failed to save profile:', e);
+      alert('Error saving profile');
       setError(e instanceof Error ? e.message : 'Save failed');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Show immediate preview
     setLocalAvatarFile(file);
     const reader = new FileReader();
     reader.onload = (e) => {
       setAvatarPreview(e.target?.result as string);
     };
     reader.readAsDataURL(file);
+
+    try {
+      // Upload immediately to get the URL
+      const uploadResult = await uploadAvatar(file);
+      const url = String(uploadResult.url);
+      const path = String(uploadResult.path || `profiles/${user?.uid}/avatar.jpg`);
+
+      // 1) Update form state for UI
+      setForm(prev => ({
+        ...prev,
+        photoURL: url,
+        avatarUrl: url,
+        avatarPath: path,
+        avatar: {
+          url: url,
+          path: path,
+        },
+      }));
+
+      // Update preview with real URL
+      setAvatarPreview(url);
+      setCurrentAvatarPath(path);
+
+      // 2) ✅ Optional instant persist (safe; ignore if fails)
+      try {
+        await saveProfile({
+          photoURL: url,
+          avatarUrl: url,
+          avatarPath: path,
+          avatar: { url, path },
+        });
+        console.log('[Avatar] persisted immediately');
+      } catch (persistError) {
+        console.error('[Avatar Upload] persist error:', persistError);
+        // ignore, submit will persist
+      }
+
+      console.log('[Avatar Upload] ✅ form updated:', { url, path });
+    } catch (error) {
+      console.error('[Avatar Upload] failed:', error);
+      setError('Failed to upload avatar');
+      setAvatarPreview(null);
+    }
   };
 
   if (authLoading) return null;
@@ -251,13 +340,14 @@ export default function ProfileEditClient() {
         <div>
           <label className="block text-sm font-medium mb-2">Avatar</label>
           <div className="flex items-center space-x-4">
-            <div className="h-20 w-20 rounded-full bg-pink-500 text-white flex items-center justify-center text-2xl font-semibold overflow-hidden">
-              {avatarPreview ? (
-                <img src={avatarPreview} alt="Avatar" className="h-full w-full object-cover" />
-              ) : (
-                <span>{form.displayName.charAt(0).toUpperCase()}</span>
-              )}
-            </div>
+            <ProfileAvatar 
+              user={{
+                ...user,
+                avatarUrl: avatarPreview || form.avatarUrl,
+                displayName: form.displayName
+              }} 
+              size={80} 
+            />
             <div>
               <input
                 type="file"

@@ -11,5 +11,8 @@ export type ReviewDoc = {
   photos: ReviewPhoto[];
   createdAt?: { seconds: number; nanos?: number };
   updatedAt?: { seconds: number; nanos?: number };
+  // Enriched by API:
+  author?: { name?: string | null; photoURL?: string | null };
+  createdAtISO?: string | null;
 };
 

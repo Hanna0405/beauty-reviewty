@@ -10,8 +10,8 @@ import {
   languagesLabel,
   ratingValue,
   reviewsCountValue,
-  masterId,
 } from "@/lib/listings/presenters";
+import { getMasterProfileId } from "@/lib/listings/getMasterProfileId";
 
 export default function ListingCard({ item }: { item: any }) {
   const id = item?.id || item?._id;
@@ -22,7 +22,7 @@ export default function ListingCard({ item }: { item: any }) {
   const langs = languagesLabel(item);
   const rating = ratingValue(item);
   const reviews = reviewsCountValue(item);
-  const mId = masterId(item);
+  const profileId = getMasterProfileId(item);
 
   return (
     <div className="flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm hover:shadow-md transition">
@@ -72,13 +72,25 @@ export default function ListingCard({ item }: { item: any }) {
             Open
           </Link>
 
-          {mId && (
+          {profileId ? (
             <Link
-              href={`/masters/${mId}`}
+              href={`/profile/${profileId}`}
+              prefetch={false}
               className="text-xs text-zinc-500 hover:text-pink-600 text-center underline underline-offset-2 transition"
+              aria-label="View master profile"
             >
               View master profile
             </Link>
+          ) : (
+            <button
+              type="button"
+              className="text-xs text-zinc-400 text-center cursor-not-allowed opacity-60"
+              title="Profile is not available"
+              aria-disabled="true"
+              disabled
+            >
+              View master profile
+            </button>
           )}
         </div>
       </div>

@@ -6,6 +6,7 @@ import { db } from '@/lib/firebase.client';
 import type { CommunityMaster } from '@/types/community';
 import { ReviewForm } from '@/components/reviews/ReviewForm';
 import { ReviewList } from '@/components/reviews/ReviewList';
+import { cityToDisplay } from '@/lib/city/format';
 
 console.log("db?", !!db);
 
@@ -58,7 +59,7 @@ export default function CommunityMasterPage() {
  <div className="grid md:grid-cols-2 gap-4">
         <div>
           <div className="text-gray-600">City</div>
-          <div className="font-medium">{master.city}</div>
+          <div className="font-medium">{cityToDisplay(master.city)}</div>
         </div>
         <div>
           <div className="text-gray-600">Services</div>

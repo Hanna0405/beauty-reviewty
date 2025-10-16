@@ -7,15 +7,7 @@ import ReviewtyCreateModal from './ReviewtyCreateModal';
 import Filters, { ReviewtyFilters } from './Filters';
 import { fetchMastersByUids, type MinimalMaster } from './lib/joinMasters';
 import { buildPersonLabel } from './lib/personLabel';
-
-type CityValue = string | { name?: string; placeId?: string; lat?: number; lng?: number } | undefined | null;
-
-function cityName(v: CityValue): string {
-  if (!v) return '';
-  if (typeof v === 'string') return v;
-  if (typeof v === 'object' && v.name) return String(v.name);
-  return '';
-}
+import { cityToDisplay } from '@/lib/city/format';
 
 function safeJoin(v: any): string {
   if (!v) return '';
@@ -234,7 +226,7 @@ export default function ReviewtyPage() {
             <li key={r.id} className="rounded-xl border bg-white p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="font-medium">{'★'.repeat(Math.round(r.rating || 0))}</div>
-                <div className="text-sm text-gray-500">{safeText(r.masterCity) || cityName(r.city) || '—'}</div>
+                <div className="text-sm text-gray-500">{safeText(r.masterCity) || cityToDisplay(r.city) || '—'}</div>
               </div>
               <p className="text-gray-800 line-clamp-4">{safeText(r.text)}</p>
               {!!r.photos?.length && (

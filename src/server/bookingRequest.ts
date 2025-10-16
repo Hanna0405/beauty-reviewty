@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getFirestore } from 'firebase-admin/firestore';
-import { getAuth } from 'firebase-admin/auth';
-import '@/lib/firebaseAdmin'; // Initialize admin SDK
+import { getFirebaseAdmin } from '@/lib/firebase/admin';
 
 type Body = {
   listingId: string;
@@ -17,11 +15,11 @@ type Body = {
 
 export async function POST(req: Request) {
   try {
-    const db = getFirestore();
+    const { auth, db } = getFirebaseAdmin();
     const authHeader = req.headers.get('authorization') || '';
     const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
     if (!idToken) return NextResponse.json({ error: 'Auth required' }, { status: 401 });
-    const decoded = await getAuth().verifyIdToken(idToken);
+    const decoded = await auth.verifyIdToken(idToken);
     const clientUid = decoded.uid;
 
     const body = (await req.json()) as Body;

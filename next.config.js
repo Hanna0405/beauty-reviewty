@@ -14,25 +14,19 @@ const nextConfig = {
     return config;
   },
  
-  images: isDev ? { 
-    unoptimized: true 
-  } : {
-    formats: ['image/avif', 'image/webp'],
-    minimumCacheTTL: 60 * 60 * 24, // 1 день кэша
+  images: {
+    domains: ['firebasestorage.googleapis.com', 'lh3.googleusercontent.com'],
+    ...(isDev ? { unoptimized: true } : {
+      formats: ['image/avif', 'image/webp'],
+      minimumCacheTTL: 60 * 60 * 24, // 1 день кэша
+    }),
     remotePatterns: [
-      // Firebase Storage images
       { protocol: 'https', hostname: 'firebasestorage.googleapis.com' },
-      { protocol: 'https', hostname: 'storage.googleapis.com' },
-      
-      // Optional: Unsplash images (if still used)
-      { protocol: 'https', hostname: 'images.unsplash.com' },
-
-      // Google avatars (after login)
       { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
-
-      // GitHub avatars (for future use)
+      { protocol: 'https', hostname: 'storage.googleapis.com' },
+      { protocol: 'https', hostname: 'images.unsplash.com' },
       { protocol: 'https', hostname: 'avatars.githubusercontent.com' }
-    ]
+    ],
   },
  
   async redirects() {

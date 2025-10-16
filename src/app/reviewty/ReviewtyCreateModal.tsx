@@ -9,6 +9,7 @@ import type { CommunityMaster } from '@/types/community';
 import AutocompleteList from '@/components/AutocompleteList';
 import { CityAutocomplete, ServicesSelect, LanguagesSelect } from '@/components/selects';
 import { SERVICES_OPTIONS, LANGUAGE_OPTIONS } from '@/constants/options';
+import { cityToDisplay } from '@/lib/city/format';
 
 function slugifyCityName(name: string) {
  return name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
@@ -52,13 +53,14 @@ export default function ReviewtyCreateModal({ open: controlledOpen, onClose, pre
   useEffect(() => {
     if (presetMaster && open) {
       setMode('community');
+      const cityStr = cityToDisplay(presetMaster.city);
       setCM({
         displayName: presetMaster.displayName || '',
-        city: presetMaster.city || '',
+        city: cityStr,
         services: presetMaster.services || [],
         contact: presetMaster.contact || {}
       });
-      setCity(presetMaster.city || '');
+      setCity(presetMaster.city || null);
       setSelectedServices(
         (presetMaster.services || []).map(s => ({
           value: s,
@@ -77,7 +79,7 @@ export default function ReviewtyCreateModal({ open: controlledOpen, onClose, pre
  const [cm, setCM] = useState<Partial<CommunityMaster>>({ city:'', displayName:'', services:[] });
  
  // structured form state for community master
- const [city, setCity] = useState<string>('');
+ const [city, setCity] = useState<any>(null); // Can be string or object from CityAutocomplete
  const [selectedServices, setSelectedServices] = useState<{value:string;label:string}[]>([]);
  const [selectedLanguages, setSelectedLanguages] = useState<{value:string;label:string}[]>([]);
 
@@ -99,7 +101,7 @@ export default function ReviewtyCreateModal({ open: controlledOpen, onClose, pre
  return {
  id: d.id,
  title: x.title || 'Untitled',
- city: x.city || '',
+ city: cityToDisplay(x.city),
  services: Array.isArray(x.services) ? x.services : [],
  photoUrl: x?.photos?.[0]?.url || '',
  };
@@ -114,12 +116,28 @@ export default function ReviewtyCreateModal({ open: controlledOpen, onClose, pre
  }, []);
 
  async function upload(file: File) {
+   const { getAuth } = await import('firebase/auth');
+   const auth = getAuth();
+   const user = auth.currentUser;
+   const token = user ? await user.getIdToken() : null;
+
    const fd = new FormData(); 
-   fd.append('files', file); // use plural
+   fd.append('file', file);
+   fd.append('scope', 'listing');
    fd.append('listingId', 'reviews');
-   const res = await fetch('/api/upload', { method:'POST', body: fd });
-   if (!res.ok) throw new Error('Upload failed');
+   const res = await fetch('/api/upload', {
+     method: 'POST',
+     headers: {
+       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+     },
+     body: fd,
+   });
    const data = await res.json();
+   if (!data.ok) {
+     console.error('[upload failed]', data);
+     throw new Error(data.message || 'Upload failed');
+   }
+   console.log('[upload success]', data.url);
    // Expect { files: [{url, path}] }
    return { url: data.files?.[0]?.url || '', path: data.files?.[0]?.path || '' };
  }
@@ -135,15 +153,16 @@ export default function ReviewtyCreateModal({ open: controlledOpen, onClose, pre
  if (!snap.exists()) return alert('Listing not found');
  const data = snap.data() as any;
  masterRef = { type:'listing', id: listingId };
- city = data.city || '';
+ city = cityToDisplay(data.city);
  services = Array.isArray(data.services) ? data.services : [];
  } else {
  // create community master
- const slug = `m-${slugifyCityName(city || 'city')}-${Math.random().toString(36).slice(2,8)}`;
+ const cityStr = cityToDisplay(city);
+ const slug = `m-${slugifyCityName(cityStr || 'city')}-${Math.random().toString(36).slice(2,8)}`;
  const ref = await addDoc(collection(db, 'community_masters'), {
  slug,
  displayName: cm.displayName?.trim() || 'Master',
- city: city || '',
+ city: cityStr,
  services: selectedServices.map(s => s.value),
  languages: selectedLanguages.map(l => l.value),
  contact: cm.contact || {},
@@ -152,7 +171,7 @@ export default function ReviewtyCreateModal({ open: controlledOpen, onClose, pre
  claimedListingId: null,
  });
  masterRef = { type:'community', id: ref.id, slug };
- city = city || '';
+ city = cityStr;
  services = selectedServices.map(s => s.value);
  }
 
@@ -182,7 +201,7 @@ export default function ReviewtyCreateModal({ open: controlledOpen, onClose, pre
 
  setOpen(false);
  setListingId(''); setCM({}); setFiles([]); setText(''); setRating(5);
- setCity(''); setSelectedServices([]); setSelectedLanguages([]);
+ setCity(null); setSelectedServices([]); setSelectedLanguages([]);
  }
 
  if (!open) return null;
@@ -205,7 +224,7 @@ export default function ReviewtyCreateModal({ open: controlledOpen, onClose, pre
  <p className="text-sm text-gray-600">Find master by name, city or service:</p>
  <AutocompleteList
  value={listingQuery}
- onSelect={(opt)=>{ setListingId(opt.id); setListingQuery(`${opt.title} — ${opt.city}`); }}
+ onSelect={(opt)=>{ setListingId(opt.id); setListingQuery(`${opt.title} — ${cityToDisplay(opt.city)}`); }}
  options={listingOpts}
  placeholder="e.g.: Anna Nails Toronto"
  />
@@ -228,7 +247,7 @@ export default function ReviewtyCreateModal({ open: controlledOpen, onClose, pre
  placeholder="City"
  autoOpenOnType={true}
  autoCloseOnSelect={true}
- onChange={(c: string) => setCity(c)}
+ onChange={(c: any) => setCity(c)}
  />
  </div>
 

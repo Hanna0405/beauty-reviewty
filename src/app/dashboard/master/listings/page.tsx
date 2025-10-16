@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAuthReady } from '@/lib/hooks/useAuthReady';
 import { SafeText } from '@/lib/safeText';
 import DeleteButton from '@/components/listings/DeleteButton';
 
@@ -25,19 +26,73 @@ type Listing = {
 
 export default function MyListingsPage() {
  const { user } = useAuth();
+ const { initialized, uid } = useAuthReady();
  const [items, setItems] = useState<Listing[]>([]);
+ const [loading, setLoading] = useState(true);
 
  useEffect(() => {
- if (!user) return;
+ let cancelled = false;
+
+ async function loadListings() {
+ if (!uid) return;
+ setLoading(true);
+ try {
  const q = query(
  collection(db, 'listings'),
- where('ownerId', '==', user.uid),
+ where('ownerId', '==', uid),
  orderBy('updatedAt', 'desc')
  );
- return onSnapshot(q, (snap) => {
+ const unsubscribe = onSnapshot(q, (snap) => {
+ if (cancelled) return;
  setItems(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
+ setLoading(false);
  });
- }, [user]);
+ return () => unsubscribe();
+ } catch (err: any) {
+ if (!cancelled) {
+ console.error('Failed to load listings:', err);
+ setLoading(false);
+ }
+ }
+ }
+
+ if (initialized && uid) {
+ const unsubscribe = loadListings();
+ return () => {
+ cancelled = true;
+ unsubscribe?.then(unsub => unsub?.());
+ };
+ } else if (initialized && !uid) {
+ setItems([]);
+ setLoading(false);
+ }
+
+ return () => {
+ cancelled = true;
+ };
+ }, [initialized, uid]);
+
+ if (!initialized) {
+ return (
+ <div className="max-w-5xl mx-auto p-6">
+ <div className="flex items-center justify-between mb-6">
+ <h1 className="text-2xl font-semibold">My listings</h1>
+ </div>
+ <p className="mt-2 text-sm opacity-80">Loading your account…</p>
+ </div>
+ );
+ }
+
+ if (!uid) {
+ return (
+ <div className="max-w-5xl mx-auto p-6">
+ <div className="flex items-center justify-between mb-6">
+ <h1 className="text-2xl font-semibold">My listings</h1>
+ </div>
+ <p className="mt-2 text-sm opacity-80">Please sign in to view your listings.</p>
+ </div>
+ );
+ }
 
  return (
  <div className="max-w-5xl mx-auto p-6">
@@ -48,6 +103,15 @@ export default function MyListingsPage() {
  </Link>
  </div>
 
+ {loading && (
+ <p className="mt-2 text-sm opacity-80">Loading your listings…</p>
+ )}
+
+ {!loading && items.length === 0 && (
+ <p className="mt-2 text-sm opacity-80">You don't have any listings yet.</p>
+ )}
+
+ {!loading && items.length > 0 && (
  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
  {items.map((it) => (
  <div key={it.id} className="rounded-xl border bg-white shadow-sm hover:shadow-md transition overflow-hidden">
@@ -78,10 +142,8 @@ export default function MyListingsPage() {
  </div>
  ))}
  </div>
-
- {items.length === 0 && (
- <div className="mt-16 text-center text-gray-500">No listings yet — create your first one!</div>
  )}
+
  </div>
  );
 }

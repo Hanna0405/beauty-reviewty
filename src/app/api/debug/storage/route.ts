@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   try {
     const envBucket = process.env.FIREBASE_STORAGE_BUCKET || '(unset)';
-    const bucket = adminBucket();
+    const bucket = await adminBucket();
     const [exists] = await bucket.exists();
     return NextResponse.json({
       ok: true,

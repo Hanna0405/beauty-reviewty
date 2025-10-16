@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { getMasterProfileId } from "@/lib/listings/getMasterProfileId";
 
 type Props = {
  title?: string;
@@ -27,6 +28,8 @@ priceMin != null && priceMax != null
 : priceMin != null
 ? `$${priceMin}+`
 : undefined;
+
+const profileId = getMasterProfileId({ masterId });
 
 return (
 <aside className="rounded-xl border border-neutral-200 p-4 sm:p-5 bg-white">
@@ -60,15 +63,31 @@ className="mt-4 w-full rounded-md bg-pink-600 hover:bg-pink-700 text-white py-2.
 Book now
 </button>
 
-{masterId && (
+{profileId ? (
 <div className="mt-3 text-center">
 <Link
-href={`/masters/${masterId}`}
+href={`/profile/${profileId}`}
+prefetch={false}
 className="text-sm text-pink-600 hover:text-pink-700 underline underline-offset-2"
+aria-label="View master profile"
 >
 View master profile →
 </Link>
 </div>
+) : (
+masterId && (
+<div className="mt-3 text-center">
+<button
+type="button"
+className="text-sm text-gray-400 cursor-not-allowed"
+title="Profile is not available"
+aria-disabled="true"
+disabled
+>
+View master profile →
+</button>
+</div>
+)
 )}
 </aside>
 );

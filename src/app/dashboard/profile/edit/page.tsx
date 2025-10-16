@@ -10,7 +10,9 @@ import {
  getDoc,
  setDoc,
  serverTimestamp,
+ getFirestore,
 } from "firebase/firestore";
+import { getAuth, updateProfile } from "firebase/auth";
 import { uploadImage } from "@/lib/upload-image";
 
 // Try to use our CityAutocomplete if present; otherwise fallback will be used.
@@ -33,6 +35,8 @@ type MasterProfile = {
  services: string[];
  languages: string[];
  avatarUrl: string | null;
+ photoURL?: string | null;
+  avatar?: { url?: string; path?: string };
  updatedAt?: unknown;
 };
 
@@ -43,6 +47,8 @@ const emptyProfile = (uid: string): MasterProfile => ({
  services: [],
  languages: [],
  avatarUrl: null,
+ photoURL: null,
+  avatar: { url: '', path: '' },
 });
 
 export default function EditProfilePage() {
@@ -79,6 +85,8 @@ export default function EditProfilePage() {
  services: Array.isArray(data.services) ? (data.services as string[]) : [],
  languages: Array.isArray(data.languages) ? (data.languages as string[]) : [],
  avatarUrl: (data.avatarUrl ?? null) as string | null,
+ photoURL: (data.photoURL ?? data.avatarUrl ?? null) as string | null,
+ avatar: { url: (data.avatar as any)?.url || data.photoURL || data.avatarUrl || '' },
  updatedAt: data.updatedAt,
  };
  if (!revoked) setForm(safe);
@@ -118,12 +126,36 @@ export default function EditProfilePage() {
  }));
  }
 
- function onAvatarChange(file: File | null) {
- setAvatarFile(file);
- if (avatarPreview) URL.revokeObjectURL(avatarPreview);
- if (file) setAvatarPreview(URL.createObjectURL(file));
- else setAvatarPreview(null);
- }
+const onAvatarChange = async (file: File | null) => {
+if (!file) return;
+
+const formData = new FormData();
+formData.append('file', file);
+formData.append('scope', 'profile'); // Specify this is a profile avatar
+
+const res = await fetch('/api/upload', { method: 'POST', body: formData });
+const data = await res.json();
+
+if (!res.ok || !data?.ok || !data?.url) {
+console.error('[Avatar Upload] failed:', data);
+alert('Failed to upload avatar');
+return;
+}
+
+const url = String(data.url);
+const path = String(data.path || `profiles/${user?.uid}/avatar.jpg`);
+
+// IMPORTANT: update all avatar fields in form state
+setForm(prev => ({
+  ...prev,
+  photoURL: url,
+  avatarUrl: url,
+  avatar: { url, path },
+  avatarPath: path,
+}));
+
+console.log('[Avatar Upload] form updated:', { url, path });
+};
 
  function validate(p: MasterProfile): string[] {
  const errs: string[] = [];
@@ -142,7 +174,7 @@ export default function EditProfilePage() {
 
  async function handleSave(e: React.FormEvent) {
  e.preventDefault();
- if (!uid) {
+ if (!uid || !user) {
  setError("No authenticated user.");
  return;
  }
@@ -156,25 +188,44 @@ export default function EditProfilePage() {
  setError(null);
 
  try {
- let avatarUrl: string | null = form.avatarUrl ?? null;
+ // Avatar already uploaded in onAvatarChange, just use from form
+ const photoURL: string | null = form.avatarUrl ?? null;
 
- if (avatarFile) {
- const path = `profiles/${uid}/avatar-${Date.now()}.jpg`;
- const { url } = await uploadImage(avatarFile, path);
- avatarUrl = url;
- }
-
- const payload: MasterProfile = {
+ const payload = {
  uid,
  displayName: form.displayName.trim(),
  city: form.city.trim(),
  services: form.services.map((s) => s.trim()).filter(Boolean),
  languages: form.languages.map((l) => l.trim()).filter(Boolean),
- avatarUrl: avatarUrl ?? null,
- updatedAt: serverTimestamp(),
+ avatarUrl: photoURL ?? null,
+ photoURL: photoURL ?? null,
+ avatar: { url: photoURL ?? '' },
+ collection: 'masters' as const, // Save to masters collection
  };
 
- await onSave(payload);
+ // 1) Call server API to save profile (uses Admin SDK for Auth + Firestore)
+ const idToken = await user.getIdToken();
+ const res = await fetch('/api/profile/update', {
+ method: 'POST',
+ headers: {
+ 'Content-Type': 'application/json',
+ 'Authorization': `Bearer ${idToken}`,
+ },
+ body: JSON.stringify(payload),
+ });
+
+ const data = await res.json();
+ if (!res.ok || !data.ok) {
+ throw new Error(data?.error || data?.message || 'Failed to save profile');
+ }
+
+ // 2) Also update client-side Auth for immediate UI feedback
+ if (photoURL && user) {
+ await updateProfile(user, { photoURL });
+ }
+
+ // 3) Force UI refresh to show new avatar
+ router.refresh();
  alert("Profile saved ");
  } catch (e: any) {
  console.error(e);
@@ -281,15 +332,11 @@ export default function EditProfilePage() {
  <label className="text-sm font-medium">Avatar</label>
  <div className="flex items-center gap-4">
  <div className="h-20 w-20 overflow-hidden rounded-full border bg-gray-100">
- {avatarPreview ? (
- <img src={avatarPreview} alt="Preview" className="h-full w-full object-cover" />
- ) : form.avatarUrl ? (
- <Image
- src={form.avatarUrl}
- alt="Avatar"
- width={80}
- height={80}
- className="h-20 w-20 object-cover"
+ {(avatarPreview || form.photoURL || form.avatarUrl || form.avatar?.url) ? (
+ <img 
+ src={avatarPreview || form.photoURL || form.avatarUrl || form.avatar?.url || ''} 
+ alt="Avatar preview" 
+ className="h-full w-full object-cover" 
  />
  ) : (
  <div className="flex h-full w-full items-center justify-center text-xs text-gray-500">

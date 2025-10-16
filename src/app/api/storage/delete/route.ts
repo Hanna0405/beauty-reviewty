@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
  if (!path || typeof path !== 'string') {
  return NextResponse.json({ ok:false, error:'path required' }, { status: 400 });
  }
- const bucket = adminBucket();
+ const bucket = await adminBucket();
  await bucket.file(path).delete({ ignoreNotFound: true });
  return NextResponse.json({ ok:true });
  } catch (e:any) {

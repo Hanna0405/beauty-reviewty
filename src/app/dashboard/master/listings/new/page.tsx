@@ -150,25 +150,8 @@ export default function NewListingPage() {
  Back
  </button>
  </div>
- </div>
- <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-        {/* Success Banner */}
-        {successId && (
-          <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-800">
-            <div className="flex items-start gap-2">
-              <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-xs">✓</span>
-              <div className="text-sm">
-                <div className="font-medium">Listing created successfully</div>
-                <div className="mt-0.5">
-                  <a href={`/masters/${successId}`} className="underline underline-offset-2 decoration-emerald-600 hover:text-emerald-700">
-                    Open listing →
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
+      </div>
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
         {/* Error Banner */}
         {errorMsg && (
           <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-rose-800">
@@ -182,7 +165,7 @@ export default function NewListingPage() {
           </div>
         )}
 
- <form className="space-y-6" onSubmit={onSubmit}>
+      <form className="space-y-6" onSubmit={onSubmit}>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Listing Title *</label>
           <input 
@@ -281,7 +264,24 @@ export default function NewListingPage() {
             maxPhotos={10}
             userId={requireAuth().currentUser?.uid || ""}
           />
- </div>
+        </div>
+
+        {/* Success Banner */}
+        {successId && (
+          <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-800">
+            <div className="flex items-start gap-2">
+              <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-xs">✓</span>
+              <div className="text-sm">
+                <div className="font-medium">Listing created successfully</div>
+                <div className="mt-0.5">
+                  <a href={`/masters/${successId}`} className="underline underline-offset-2 decoration-emerald-600 hover:text-emerald-700">
+                    Open listing →
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="sticky-save md:relative md:sticky-0 md:bg-transparent md:border-0 md:p-0 md:m-0">
           <button 
@@ -291,8 +291,8 @@ export default function NewListingPage() {
           >
             {saving ? "Creating..." : "Create Listing"}
           </button>
- </div>
- </form>
+        </div>
+      </form>
  </div>
  </div>
  </div>

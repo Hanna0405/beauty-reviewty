@@ -1,21 +1,35 @@
+import { getAuth } from 'firebase/auth';
+
 export async function uploadViaApi(params: {
   file: File;
   scope: 'profile' | 'listing';
   id: string; // uid or listingId
   dir?: string; // optional subdir for listing
 }) {
+  const auth = getAuth();
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+
   const form = new FormData();
   form.set('file', params.file);
   form.set('scope', params.scope);
   form.set('id', params.id);
   if (params.dir) form.set('dir', params.dir);
 
-  const res = await fetch('/api/upload', { method: 'POST', body: form });
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`Upload failed (${res.status}) ${txt}`);
+  const res = await fetch('/api/upload', {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: form,
+  });
+  const data = await res.json();
+  if (!data.ok) {
+    console.error('[upload failed]', data);
+    throw new Error(data.message || 'Upload failed');
   }
-  return (await res.json()) as { ok: true; path: string; url: string };
+  console.log('[upload success]', data.url);
+  return data as { ok: true; path: string; url: string };
 }
 
 /**

@@ -1,9 +1,9 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { uploadImagesViaApi } from '@/lib/upload-image';
+import { uploadReviewPhotos } from '@/lib/reviews/uploadReviewPhotos';
+import { probeStorageRules } from '@/lib/reviews/probeStorageRules';
 import { createReviewViaApi } from '@/lib/reviews/createClient';
-import type { ReviewPhoto } from '@/lib/reviews/types';
 
 function Stars({ value, onChange }: { value: number; onChange?: (value: number) => void }) {
   return (
@@ -38,6 +38,13 @@ export function ReviewForm({ subjectType, subjectId, onSubmitted }: ReviewFormPr
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Probe storage rules in development
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development' && user) {
+      probeStorageRules();
+    }
+  }, [user]);
+
   if (!subjectId || typeof subjectId !== 'string') {
     return <p className="text-sm text-muted-foreground">Loading…</p>;
   }
@@ -65,15 +72,15 @@ export function ReviewForm({ subjectType, subjectId, onSubmitted }: ReviewFormPr
     setErrorMsg(null);
     setSuccessMsg(null);
     try {
-      // 1) Upload photos via our existing API (returns [{url, path, w?, h?}])
-      const uploaded: ReviewPhoto[] = files.length ? await uploadImagesViaApi(files.slice(0,3)) : [];
+      // 1) Upload photos using stable uploader
+      const photoUrls = await uploadReviewPhotos(files, { masterId: subjectId });
 
       // 2) Submit review via secure API route
       await createReviewViaApi({
         subject: { type: subjectType, id: subjectId },
         rating: Number(rating),
         text: (text || '').trim(),
-        photos: uploaded,
+        photos: photoUrls.map(url => ({ url, path: url })), // Convert to expected format
       });
 
       console.log("[review][ok] Review submitted successfully");

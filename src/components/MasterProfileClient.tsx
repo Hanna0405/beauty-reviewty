@@ -1,6 +1,8 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { doc, getDoc, collection, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
+import { getStorage, ref, getDownloadURL } from "firebase/storage";
+import Image from "next/image";
 import { db } from '@/lib/firebase';
 import type { MasterProfile, Listing } from '@/types/models';
 import { Chips } from './UiChips';
@@ -8,8 +10,99 @@ import MapPreview from './MapPreview';
 
 type Props = { id: string };
 
+type Profile = {
+  id: string;
+  userId?: string;
+  uid?: string;
+  ownerId?: string;
+  userUID?: string;
+  // ...other profile fields you already render
+};
+
 function formatCity(p?: MasterProfile['city'], cityName?: string) {
   return p?.formatted || cityName || [p?.city, p?.stateCode, p?.countryCode].filter(Boolean).join(', ');
+}
+
+// Try multiple common fields to find a cover
+function pickRawCover(candidate: any): string | null {
+  if (!candidate) return null;
+
+  // Direct string
+  if (typeof candidate === "string" && candidate.length > 0) return candidate;
+
+  // Common objects / arrays in this codebase
+  const fromFields = [
+    candidate.coverUrl,
+    candidate.cover?.url,
+    candidate.imageUrl,
+    candidate.image?.url,
+    candidate.photoUrl,
+    candidate.photo?.url,
+    Array.isArray(candidate.imageUrls) && candidate.imageUrls[0],
+    Array.isArray(candidate.images) && candidate.images[0]?.url,
+    Array.isArray(candidate.photos) && (typeof candidate.photos[0] === "string" ? candidate.photos[0] : candidate.photos[0]?.url),
+    Array.isArray(candidate.gallery) && candidate.gallery[0]?.url,
+  ].filter(Boolean) as string[];
+
+  return fromFields.length ? fromFields[0] : null;
+}
+
+/**
+ * Resolves a public https URL for a listing cover:
+ * - If it already looks like a public URL (http/https), return as-is.
+ * - If it looks like a Firebase Storage path (gs:// or no protocol), use getDownloadURL.
+ * - Otherwise return null.
+ */
+async function resolveCoverUrl(listing: any): Promise<string | null> {
+  const raw = pickRawCover(listing);
+  if (!raw) return null;
+
+  // already a public URL
+  if (typeof raw === "string" && /^https?:\/\//i.test(raw)) return raw;
+
+  // Firebase Storage ref (gs://bucket/path or plain path)
+  try {
+    const storage = getStorage();
+    const storageRef = raw.startsWith("gs://") ? ref(storage, raw) : ref(storage, raw);
+    const url = await getDownloadURL(storageRef);
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchListingsForMaster(masterUidOrNull: string | null, profileId: string) {
+  // Try several linkage keys commonly used in this codebase.
+  const linkKeys = ["ownerId", "userId", "uid", "userUID"] as const;
+
+  // If we already have a uid, try those keys first.
+  if (masterUidOrNull) {
+    for (const key of linkKeys) {
+      try {
+        const q1 = query(collection(db, "listings"), where(key as any, "==", masterUidOrNull));
+        const snap1 = await getDocs(q1);
+        if (!snap1.empty) {
+          return snap1.docs.map((d) => ({ id: d.id, ...d.data() })) as Listing[];
+        }
+      } catch {
+        // ignore and keep trying the next key
+      }
+    }
+  }
+
+  // Fallback: some projects store a reverse link to the profile document id.
+  try {
+    const q2 = query(collection(db, "listings"), where("profileId", "==", profileId));
+    const snap2 = await getDocs(q2);
+    if (!snap2.empty) {
+      return snap2.docs.map((d) => ({ id: d.id, ...d.data() })) as Listing[];
+    }
+  } catch {
+    // ignore
+  }
+
+  // Final: nothing found
+  return [] as Listing[];
 }
 
 export default function MasterProfileClient({ id }: Props) {
@@ -20,11 +113,15 @@ export default function MasterProfileClient({ id }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    async function run() {
+
+    async function load() {
+      setLoading(true);
+      setError(null);
+
       try {
         if (!db) throw new Error('Firestore "db" not initialized');
 
-        // 1) try direct doc id in 'profiles' then 'masters'
+        // 1) Load the master profile by URL id
         const tryCollections = ['profiles', 'masters'];
         let found: MasterProfile | null = null;
         for (const c of tryCollections) {
@@ -34,6 +131,7 @@ export default function MasterProfileClient({ id }: Props) {
             break;
           }
         }
+        
         // 2) fallback by uid search
         if (!found) {
           for (const c of tryCollections) {
@@ -46,35 +144,35 @@ export default function MasterProfileClient({ id }: Props) {
             }
           }
         }
+        
         if (!found) throw new Error('Master not found');
+        if (cancelled) return;
+        setMaster(found);
 
-        // listings by ownerUid/profileUid
-        const uid = (found as any).uid || found.id;
-        const col = collection(db, 'listings');
-        let q1 = query(col, where('ownerUid','==', uid), where('status','==','active'), orderBy('createdAt','desc'));
-        let snap = await getDocs(q1);
-        let items: Listing[] = [];
-        if (!snap.empty) {
-          items = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
-        } else {
-          const q2 = query(col, where('profileUid','==', uid), orderBy('createdAt','desc'));
-          const s2 = await getDocs(q2);
-          items = s2.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
-        }
+        // 3) Resolve potential owner uid from profile
+        const ownerUid = (found as any).uid || (found as any).userId || (found as any).ownerId || (found as any).userUID || found.id;
 
-        if (!cancelled) {
-          setMaster(found);
-          setListings(items);
-          setLoading(false);
-        }
+        // 4) Load listings with robust linkage strategy
+        const rawListings = await fetchListingsForMaster(ownerUid, id);
+        if (cancelled) return;
+        
+        // Resolve cover URLs in parallel, but keep everything else untouched
+        const items = await Promise.all(
+          rawListings.map(async (it) => {
+            const url = await resolveCoverUrl(it);
+            return { ...it, _coverUrl: url ?? null };
+          })
+        );
+        
+        setListings(items);
       } catch (e: any) {
-        if (!cancelled) {
-          setError(e?.message || 'Failed to load');
-          setLoading(false);
-        }
+        if (!cancelled) setError(e?.message ?? "Failed to load master");
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
-    run();
+
+    load();
     return () => { cancelled = true; };
   }, [id]);
 
@@ -132,26 +230,47 @@ export default function MasterProfileClient({ id }: Props) {
       {/* Listings */}
       <div className="mt-6">
         <h2 className="text-lg font-semibold">Listings</h2>
-        {listings.length === 0 ? (
-          <div className="mt-2 text-sm text-gray-600">No listings yet.</div>
-        ) : (
-          <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+        
+        {loading && <p className="mt-2 text-sm opacity-80">Loading listings…</p>}
+        
+        {!loading && error && (
+          <p className="mt-2 text-sm text-red-600">{error}</p>
+        )}
+        
+        {!loading && !error && listings.length === 0 && (
+          <p className="mt-2 text-sm opacity-80">No listings yet.</p>
+        )}
+        
+        {!loading && !error && listings.length > 0 && (
+          <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {listings.map((l) => (
-              <li key={l.id} className="rounded-lg border p-3 bg-white/60">
-                <div className="flex gap-3">
-                  {l.photos?.[0] ? (
-                    <img src={l.photos[0]} alt={l.title || 'Listing'} className="h-20 w-20 object-cover rounded" />
-                  ) : (<div className="h-20 w-20 rounded bg-gray-200" />)}
-                  <div className="flex-1">
-                    <div className="font-medium">{l.title || 'Listing'}</div>
-                    <div className="text-sm text-gray-600">{l.city?.formatted || l.cityName || ''}</div>
-                    {typeof l.price === 'number' && <div className="text-sm mt-1">${l.price}</div>}
-                    <a href={`/listing/${l.id}`} className="mt-2 inline-block text-sm underline">Open</a>
-                  </div>
+              <div key={l.id} className="rounded border overflow-hidden bg-white/60">
+                <div className="aspect-[16/9] bg-gray-100 relative">
+                  {l._coverUrl ? (
+                    <Image
+                      src={l._coverUrl}
+                      alt={l.title ?? "Listing"}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 33vw"
+                      className="object-cover"
+                      priority={false}
+                      unoptimized={false}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-xs opacity-60">
+                      No image
+                    </div>
+                  )}
                 </div>
-              </li>
+                <div className="p-4">
+                  <div className="font-medium">{l.title ?? "Untitled"}</div>
+                  <div className="text-sm text-gray-600">{l.city?.formatted || l.cityName || ''}</div>
+                  {typeof l.price === 'number' && <div className="text-sm mt-1">${l.price}</div>}
+                  <a href={`/listing/${l.id}`} className="mt-2 inline-block text-sm underline">Open</a>
+                </div>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
       </div>
     </div>

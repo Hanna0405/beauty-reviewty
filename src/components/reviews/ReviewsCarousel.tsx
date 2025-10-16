@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { collection, getDocs, orderBy, limit, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { resolvePublicUrl, resolveReviewImages } from '@/lib/media/resolvePublicUrl';
+import Image from 'next/image';
 
 type Review = {
   id: string;
@@ -24,16 +26,25 @@ function Stars({ rating = 0 }: { rating?: number }) {
 }
 
 function ReviewCard({ rev }: { rev: Review }) {
-  const photo = Array.isArray(rev.photos) && rev.photos.length > 0 ? rev.photos[0] : undefined;
   return (
     <article className="snap-start shrink-0 w-[280px] md:w-[320px] rounded-2xl border border-rose-100 bg-white shadow-sm p-4 mr-4 last:mr-0">
-      {photo && (
-        <div className="relative w-full aspect-[16/9] overflow-hidden rounded-xl bg-rose-50 mb-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={photo} alt="review photo" className="w-full h-full object-cover" />
-        </div>
-      )}
-      <div className="flex items-center justify-between">
+      <div className="relative w-full aspect-[4/3] rounded-md overflow-hidden bg-gray-100">
+        {(rev as any)._images?.length ? (
+          <Image
+            src={(rev as any)._images[0]}
+            alt={rev.title ?? "review photo"}
+            fill
+            sizes="(max-width: 768px) 100vw, 33vw"
+            className="object-cover"
+            priority={false}
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-xs opacity-60">
+            No photo
+          </div>
+        )}
+      </div>
+      <div className="flex items-center justify-between mt-3">
         <h4 className="font-semibold text-rose-900 text-sm md:text-base line-clamp-1">
           {rev.masterName || 'Beauty master'}
         </h4>
@@ -58,8 +69,10 @@ export default function ReviewsCarousel() {
         const q = query(collection(db, 'reviews'), orderBy('createdAt', 'desc'), limit(12));
         const snap = await getDocs(q);
         if (!mounted) return;
-        const arr: Review[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
-        setReviews(arr);
+        const raw = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+        const reviewsWithImages = await resolveReviewImages(raw);
+        if (!mounted) return;
+        setReviews(reviewsWithImages);
       } catch (e: any) {
         setError(e?.message || 'Failed to load reviews');
         setReviews([]);

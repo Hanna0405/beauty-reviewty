@@ -1,15 +1,30 @@
+import { getAuth } from 'firebase/auth';
+
 export async function uploadImageViaApi(file: File, folder: string): Promise<string> {
+ const auth = getAuth();
+ const user = auth.currentUser;
+ const token = user ? await user.getIdToken() : null;
+
  const fd = new FormData();
- fd.append('files', file); // use plural
+ fd.append('file', file);
+ fd.append('scope', 'listing');
  fd.append('listingId', folder);
- const res = await fetch('/api/upload', { method: 'POST', body: fd });
- const body = await res.json().catch(() => ({}));
+ const res = await fetch('/api/upload', {
+   method: 'POST',
+   headers: {
+     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+   },
+   body: fd,
+ });
+ const data = await res.json().catch(() => ({}));
  
- if (!res.ok || !body.files) {
-   console.error('[upload] failed:', body);
-   throw new Error(body?.error || 'Upload failed');
+ if (!data.ok) {
+   console.error('[upload failed]', data);
+   throw new Error(data.message || 'Upload failed');
  }
- return body.files[0]?.url || '';
+ 
+ console.log('[upload success]', data.url);
+ return data.url;
 }
 
 export async function deleteFromStorage(path: string): Promise<void> {

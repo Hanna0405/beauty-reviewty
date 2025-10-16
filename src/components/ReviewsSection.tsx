@@ -1,11 +1,14 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { deleteReview, uploadReviewPhoto } from '@/lib/reviews';
+import { deleteReview } from '@/lib/reviews';
+import { uploadReviewPhotos } from '@/lib/reviews/uploadReviewPhotos';
+import { probeStorageRules } from '@/lib/reviews/probeStorageRules';
 import { createReviewViaApi } from '@/lib/reviews/createClient';
 import { fetchReviews } from '@/lib/reviews/fetchList';
 import type { ReviewDoc, ReviewSubject } from '@/lib/reviews/types';
-import type { ReviewPhoto } from '@/lib/reviews/types';
+import ReviewPhotos from '@/components/reviews/ReviewPhotos';
+import ProfileAvatar from '@/components/profile/ProfileAvatar';
 
 function Stars({ value }: { value: number }) {
  return (
@@ -29,6 +32,13 @@ function AddReviewForm({ subject, onCreated }: { subject: { type: 'master'|'list
  const [errorMsg, setErrorMsg] = useState<string | null>(null);
  const canSubmit = !!user && rating >= 1 && rating <= 5 && text.trim().length > 0;
 
+ // Probe storage rules in development
+ useEffect(() => {
+   if (process.env.NODE_ENV === 'development' && user) {
+     probeStorageRules();
+   }
+ }, [user]);
+
  function onPick(e: React.ChangeEvent<HTMLInputElement>) {
  const arr = Array.from(e.target.files ?? []).slice(0, 3);
  setFiles(arr);
@@ -42,18 +52,15 @@ function AddReviewForm({ subject, onCreated }: { subject: { type: 'master'|'list
  setErrorMsg(null);
  setSuccessMsg(null);
  try {
- const photos: ReviewPhoto[] = [];
- for (const f of files) {
- const up = await uploadReviewPhoto(f);
- photos.push({ url: up.url, path: up.path });
- }
+ // Upload photos using stable uploader
+ const photoUrls = await uploadReviewPhotos(files, { masterId: subject.id });
  
  console.debug('[Reviews] Creating review with subject →', subject);
  await createReviewViaApi({
    subject,
    rating: Number(rating),
    text: text.trim(),
-   photos,
+   photos: photoUrls.map(url => ({ url, path: url })), // Convert to expected format
  });
  
  setText('');
@@ -171,36 +178,44 @@ export function ReviewsSection({ listingId, subjectType = 'listing' }: { listing
 
  {loading ? (
    <div className="py-8 text-center text-sm text-gray-500">Loading reviews...</div>
+ ) : items.length === 0 ? (
+   <div className="p-6 text-center text-gray-500 rounded border">No reviews yet</div>
  ) : (
-   <ul className="divide-y rounded border">
+   <div className="space-y-3">
    {items.map((r)=>(
-   <li key={r.id} className="p-4 space-y-2">
-   <div className="flex items-center justify-between">
-   <Stars value={r.rating} />
+   <div key={r.id} className="rv-fade-in border rounded-lg p-4 bg-white shadow-sm">
+   {/* Author info + date */}
+   <div className="flex items-center gap-3 mb-3">
+   <ProfileAvatar user={r.author} size={36} className="border border-gray-200" />
+   <div className="flex-1">
+     <div className="text-sm font-medium text-gray-900">{r.author?.name || 'User'}</div>
+     <div className="text-xs text-gray-500">
+       {r.createdAtISO ? new Date(r.createdAtISO).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : ''}
+     </div>
+   </div>
    {user?.uid === r.authorUid && (
-   <div className="flex gap-2">
    <button onClick={async ()=>{
      if (confirm('Delete this review?')) {
        await deleteReview(r.id);
        loadReviews();
      }
    }} className="text-red-600 hover:underline text-sm">Delete</button>
-   </div>
    )}
    </div>
-   <p className="text-gray-800 whitespace-pre-wrap">{r.text}</p>
-   {!!r.photos?.length && (
-   <div className="flex gap-2 flex-wrap">
-   {r.photos.map((p,i)=>(
-   // eslint-disable-next-line @next/next/no-img-element
-   <img key={p.path ?? p.url ?? i} src={p.url} alt={`review photo ${i+1}`} className="h-24 w-24 object-cover rounded border" />
+   
+   {/* Rating */}
+   <div className="mb-2">
+   <Stars value={r.rating} />
+   </div>
+   
+   {/* Review text */}
+   {r.text && <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap mb-3">{r.text}</p>}
+   
+   {/* Photos */}
+   <ReviewPhotos review={r} />
+   </div>
    ))}
    </div>
-   )}
-   </li>
-   ))}
-   {!items.length && <li className="p-6 text-center text-gray-500">No reviews yet</li>}
-   </ul>
  )}
  </section>
  );

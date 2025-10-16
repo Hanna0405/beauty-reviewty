@@ -9,14 +9,27 @@ import { requireAuth, requireStorage, requireDb } from "@/lib/firebase/client";
 import { uploadFilesAndGetURLs } from "@/lib/services/storage";
 
 async function uploadImageViaApi(file: File, folder: string): Promise<string> {
+  const { getAuth } = await import('firebase/auth');
+  const auth = getAuth();
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+
   const fd = new FormData();
   fd.set('file', file);
   fd.set('folder', folder);
-  const res = await fetch('/api/upload', { method: 'POST', body: fd });
+  const res = await fetch('/api/upload', {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: fd,
+  });
   const data = await res.json();
-  if (!res.ok || !data?.ok || !data?.url) {
+  if (!data?.ok || !data?.url) {
+    console.error('[upload failed]', data);
     throw new Error(data?.error || 'Upload failed');
   }
+  console.log('[upload success]', data.url);
   return data.url as string;
 }
 import { createListingInBoth, patchListingPhotos } from "@/lib/firestore-listings";

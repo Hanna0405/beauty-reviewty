@@ -45,14 +45,28 @@ export async function uploadWithFallback(
   }
 
   // Fallback to server-side API
+  const { getAuth } = await import('firebase/auth');
+  const auth = getAuth();
+  const user = auth.currentUser;
+  const token = user ? await user.getIdToken() : null;
+
   const fd = new FormData(); 
   fd.append("file", file); 
   fd.append("path", path);
 
-  const res = await fetch("/api/upload", { method: "POST", body: fd });
-  if (!res.ok) throw new Error(`API upload failed: ${res.status}`);
-
-  const data = await res.json(); 
+  const res = await fetch("/api/upload", {
+    method: "POST",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: fd,
+  });
+  const data = await res.json();
+  if (!data.ok) {
+    console.error('[upload failed]', data);
+    throw new Error(data.message || 'Upload failed');
+  }
+  console.log('[upload success]', data.url);
   console.info("[BR][Upload] Fallback OK:", path);
   return data as { url: string; path: string };
 }

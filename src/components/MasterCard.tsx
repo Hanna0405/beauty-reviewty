@@ -23,13 +23,18 @@ function formatTagList(items?: any[], fallback?: any[]): string {
 }
 
 export default function MasterCard({ master }: Props) {
+  // Unified avatar fallback: photoURL → avatarUrl → avatar.url
+  const avatarSrc = master?.photoURL || master?.avatarUrl || master?.avatar?.url || null;
+
   return (
     <div className="flex gap-3 rounded-lg border p-3">
-      <div className="relative h-16 w-16 overflow-hidden rounded-full border">
-        {master?.avatarUrl ? (
-          <Image src={master.avatarUrl} alt={master.displayName ?? 'Master'} fill className="object-cover" />
+      <div className="relative h-16 w-16 overflow-hidden rounded-full border bg-pink-100">
+        {avatarSrc ? (
+          <Image src={avatarSrc} alt={master.displayName ?? 'Master'} fill className="object-cover" />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-xs">No photo</div>
+          <div className="flex h-full w-full items-center justify-center text-xs text-pink-400">
+            {(master?.displayName || 'M').substring(0, 2).toUpperCase()}
+          </div>
         )}
       </div>
       <div className="min-w-0 flex-1">

@@ -1,19 +1,37 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { SafeText } from '@/lib/safeText';
+import { normalizeImageUrl } from '@/lib/normalizeImageUrl';
+import { useEffect, useState } from 'react';
+import { resolveGsUrl } from '@/lib/resolveGsUrl';
 
 type Props = {
   listing: any; // expects { id, title, city, services, languages, photos?, rating? }
 };
 
 export default function ListingCard({ listing }: Props) {
-  const cover = listing?.photos?.[0]?.url ?? null;
+  const raw = listing?.photos?.[0]?.url ?? listing?.photos?.[0] ?? listing?.coverUrl;
+  const [coverUrl, setCoverUrl] = useState<string | null>(normalizeImageUrl(raw));
+  
+  useEffect(() => {
+    (async () => {
+      if (!coverUrl && typeof raw === 'string' && raw.startsWith('gs://')) {
+        setCoverUrl(await resolveGsUrl(raw));
+      }
+    })();
+  }, [raw, coverUrl]);
 
   return (
     <div className="flex gap-3 rounded-lg border p-3">
       <div className="relative w-full aspect-[16/10] rounded-lg overflow-hidden bg-neutral-100">
-        {cover ? (
-          <Image src={cover} alt={listing.title ?? 'Listing'} fill className="object-cover" />
+        {coverUrl ? (
+          <Image
+            src={coverUrl}
+            alt={listing.title ?? 'Listing'}
+            fill
+            className="object-cover"
+            unoptimized
+          />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-xs">No photo</div>
         )}

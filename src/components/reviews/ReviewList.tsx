@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchReviews } from '@/lib/reviews/fetchList';
 import type { ReviewDoc } from '@/lib/reviews/types';
+import { ReviewPhotos } from './ReviewPhotos';
+import ProfileAvatar from '@/components/profile/ProfileAvatar';
 
 function Stars({ value }: { value: number }) {
   return (
@@ -46,55 +48,50 @@ export function ReviewList({ subjectType, subjectId }: ReviewListProps) {
   }, [subjectType, subjectId]);
 
   if (loading) return <div className="py-8 text-center text-sm text-gray-500">Loading reviews...</div>;
-  if (!items.length) return <p className="text-sm text-gray-500">No reviews yet</p>;
+  if (!items.length) return <div className="p-6 text-center text-gray-500 rounded border">No reviews yet</div>;
 
   return (
-    <div className="mt-4 space-y-4">
-      <ul className="divide-y rounded border">
-        {items.map((r) => (
-          <li key={r.id} className="p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <Stars value={r.rating} />
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">
-                  {r.createdAt ? new Date(r.createdAt.seconds * 1000).toLocaleDateString() : 'Recently'}
-                </span>
-                {user?.uid === r.authorUid && (
-                  <button
-                    onClick={async () => {
-                      if (confirm('Delete this review?')) {
-                        const { deleteDoc, doc } = await import('firebase/firestore');
-                        const { db } = await import('@/lib/firebase');
-                        await deleteDoc(doc(db, 'reviews', r.id));
-                        loadReviews();
-                      }
-                    }}
-                    className="text-red-600 hover:underline text-sm"
-                  >
-                    Delete
-                  </button>
-                )}
+    <div className="mt-4 space-y-3">
+      {items.map((r) => (
+        <div key={r.id} className="rv-fade-in border rounded-lg p-4 bg-white shadow-sm">
+          {/* Author info + date */}
+          <div className="flex items-center gap-3 mb-3">
+            <ProfileAvatar user={r.author} size={36} className="border border-gray-200" />
+            <div className="flex-1">
+              <div className="text-sm font-medium text-gray-900">{r.author?.name || 'User'}</div>
+              <div className="text-xs text-gray-500">
+                {r.createdAtISO ? new Date(r.createdAtISO).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : ''}
               </div>
             </div>
-            
-            {r.text && <p className="text-gray-800 whitespace-pre-wrap">{r.text}</p>}
-            
-            {!!r.photos?.length && (
-              <div className="flex gap-2 flex-wrap">
-                {r.photos.map((p: any, i: number) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    key={p.path ?? p.url ?? i}
-                    src={p.url}
-                    alt={`review photo ${i+1}`}
-                    className="h-24 w-24 object-cover rounded border"
-                  />
-                ))}
-              </div>
+            {user?.uid === r.authorUid && (
+              <button
+                onClick={async () => {
+                  if (confirm('Delete this review?')) {
+                    const { deleteDoc, doc } = await import('firebase/firestore');
+                    const { db } = await import('@/lib/firebase');
+                    await deleteDoc(doc(db, 'reviews', r.id));
+                    loadReviews();
+                  }
+                }}
+                className="text-red-600 hover:underline text-sm"
+              >
+                Delete
+              </button>
             )}
-          </li>
-        ))}
-      </ul>
+          </div>
+          
+          {/* Rating */}
+          <div className="mb-2">
+            <Stars value={r.rating} />
+          </div>
+          
+          {/* Review text */}
+          {r.text && <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap mb-3">{r.text}</p>}
+          
+          {/* Photos */}
+          <ReviewPhotos review={r} />
+        </div>
+      ))}
     </div>
   );
 }

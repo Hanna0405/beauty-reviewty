@@ -135,18 +135,31 @@ export async function uploadFilesViaAPI(
   onProgress?.(progressArray);
 
   try {
+    const { getAuth } = await import('firebase/auth');
+    const auth = getAuth();
+    const user = auth.currentUser;
+    const token = user ? await user.getIdToken() : null;
+
     const fd = new FormData();
-    files.forEach(f => fd.append('files', f)); // plural
+    files.forEach(f => fd.append('file', f));
+    fd.append('scope', 'listing');
     fd.append('listingId', prefix);
 
-    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: fd,
+    });
     const body = await res.json().catch(() => ({}));
     
-    if (!res.ok || !body.files) {
+    if (!body.ok || !body.files) {
       console.error('[upload] failed:', body);
       throw new Error(body?.error || 'Upload failed');
     }
     
+    console.log('[upload success]', body.url);
     // Expect { files: [{url, path}] }
     const uploadedFiles = body.files || [];
     

@@ -1,8 +1,9 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
+import { cityToDisplay } from "@/lib/city/format";
 
 type Props = {
-  value: string;
+  value: any; // Can be string, object, or null
   onChange: (v: string) => void;
   placeholder?: string;
   autoOpenOnType?: boolean;
@@ -16,16 +17,18 @@ export default function CityAutocompleteNew({
   autoCloseOnSelect = false 
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [inputValue, setInputValue] = useState(value);
+  const [inputValue, setInputValue] = useState<string>(cityToDisplay(value));
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    setInputValue(value);
+    const safeValue = cityToDisplay(value);
+    setInputValue(safeValue);
   }, [value]);
 
   useEffect(() => {
     if (autoOpenOnType) {
-      setIsOpen(inputValue.length > 0);
+      const len = (inputValue ?? '').length;
+      setIsOpen(len > 0);
     }
   }, [autoOpenOnType, inputValue]);
 
@@ -68,24 +71,26 @@ export default function CityAutocompleteNew({
   }, [onChange, autoCloseOnSelect]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
+    const newValue = e.target.value ?? '';
     setInputValue(newValue);
     onChange(newValue);
     
     if (autoOpenOnType) {
-      setIsOpen(newValue.length > 0);
+      const len = (newValue ?? '').length;
+      setIsOpen(len > 0);
     }
   };
 
   return (
     <input
       ref={inputRef}
-      value={inputValue}
+      value={inputValue ?? ''}
       placeholder={placeholder ?? "Start typing your city"}
       className="w-full rounded border px-3 py-2"
       onChange={handleInputChange}
       onFocus={() => {
-        if (autoOpenOnType && inputValue.length > 0) {
+        const len = (inputValue ?? '').length;
+        if (autoOpenOnType && len > 0) {
           setIsOpen(true);
         }
       }}
