@@ -246,17 +246,21 @@ export default function MasterProfileClient({ id }: Props) {
             {listings.map((l) => (
               <div key={l.id} className="rounded border overflow-hidden bg-white/60">
                 <div className="aspect-[16/9] bg-gray-100 relative">
-                  {l._coverUrl ? (
-                    <Image
-                      src={l._coverUrl}
-                      alt={l.title ?? "Listing"}
-                      fill
-                      sizes="(max-width: 768px) 100vw, 33vw"
-                      className="object-cover"
-                      priority={false}
-                      unoptimized={false}
-                    />
-                  ) : (
+                  {(() => {
+                    const coverUrl = l.coverUrl ?? '';
+                    return coverUrl ? (
+                      <Image
+                        src={coverUrl}
+                        alt={l.title ?? "Listing"}
+                        fill
+                        sizes="(max-width: 768px) 100vw, 33vw"
+                        className="object-cover"
+                        priority={false}
+                        unoptimized={false}
+                      />
+                    ) : null;
+                  })()}
+                  {!l.coverUrl && (
                     <div className="w-full h-full flex items-center justify-center text-xs opacity-60">
                       No image
                     </div>

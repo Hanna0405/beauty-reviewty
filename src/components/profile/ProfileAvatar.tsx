@@ -8,9 +8,16 @@ export default function ProfileAvatar({ user, size = 64, className }: Props) {
   const raw = user?.avatarUrl ?? user?.photoURL ?? user?.avatar ?? null;
   const url = normalizeImageUrl(raw);
   const initials = useMemo(() => {
-    const name = (user?.displayName || user?.name || '').trim();
-    return name ? name.split(/\s+/).slice(0,2).map(s=>s[0]).join('').toUpperCase() : 'BR';
-  }, [user?.displayName, user?.name]);
+    const raw = user?.displayName ?? user?.name ?? '';
+    const name = String(raw).trim();
+    if (!name) return 'BR';
+    return name
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((s: string) => s?.[0] ?? '')
+      .join('')
+      .toUpperCase() || 'BR';
+  }, [user]);
 
   // cache-busting key: changes when avatarUpdatedAt changes (or when url changes)
   const kb = (user?.avatarUpdatedAt?.seconds || user?.avatarUpdatedAt) ?? url ?? 'no-avatar';

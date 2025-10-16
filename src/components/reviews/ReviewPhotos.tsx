@@ -3,7 +3,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { useResolvedImages } from "@/lib/media/useResolvedImages";
 
-export default function ReviewPhotos({ review }: { review: any }) {
+function ReviewPhotos({ review }: { review: any }) {
   const urls = useResolvedImages(review); // resolve all we can
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
@@ -77,3 +77,6 @@ export default function ReviewPhotos({ review }: { review: any }) {
     </>
   );
 }
+
+export default ReviewPhotos;
+export { ReviewPhotos };

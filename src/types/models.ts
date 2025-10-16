@@ -56,6 +56,7 @@ export type Listing = {
   cityKey?: string;
   price?: number;
   photos?: string[];
+  coverUrl?: string;
   ownerUid?: string; // common
   profileUid?: string; // legacy/fallback
   masterUid?: string; // alternative
