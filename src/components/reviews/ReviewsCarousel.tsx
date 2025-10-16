@@ -31,8 +31,8 @@ function ReviewCard({ rev }: { rev: Review }) {
       <div className="relative w-full aspect-[4/3] rounded-md overflow-hidden bg-gray-100">
         {(rev as any)._images?.length ? (
           <Image
-            src={(rev as any)._images[0]}
-            alt={rev.title ?? "review photo"}
+            src={(rev as any)?.images?.[0]}
+            alt="review photo"
             fill
             sizes="(max-width: 768px) 100vw, 33vw"
             className="object-cover"
