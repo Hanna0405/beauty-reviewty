@@ -7,10 +7,10 @@ export function pickFirstImage(x: ListingLike): string | null {
     "photos.0", "images.0", "media.0"
   ];
   for (const p of paths) {
-    const v = p.split(".").reduce((a, k) => (a == null ? a : a[k]), x);
-    if (typeof v === "string" && v) {
+    const v = p.split(".").reduce((a, k) => (a == null ? a : a[k]), x) as unknown;
+    if (typeof v === 'string' && v.length > 0) {
       // Only return HTTP/HTTPS URLs, not gs:// paths
-      if (v.startsWith('http')) return v;
+      return v.startsWith('http') ? v : null;
     }
   }
   return null;
