@@ -74,7 +74,7 @@ export default function ListingCard({ item }: { item: any }) {
 
           {profileId ? (
             <Link
-              href={`/profile/${profileId}`}
+              href={`/master/${profileId}`}
               prefetch={false}
               className="text-xs text-zinc-500 hover:text-pink-600 text-center underline underline-offset-2 transition"
               aria-label="View master profile"
@@ -97,4 +97,3 @@ export default function ListingCard({ item }: { item: any }) {
     </div>
   );
 }
-

@@ -1,149 +1,167 @@
-'use client';
-import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { useAuth } from '@/contexts/AuthContext';
-import { useAuthReady } from '@/lib/hooks/useAuthReady';
-import { SafeText } from '@/lib/safeText';
-import DeleteButton from '@/components/listings/DeleteButton';
+"use client";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  orderBy,
+  getDocs,
+  deleteDoc,
+  doc,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuthUser } from "@/hooks/useAuthUser";
+import { SafeText } from "@/lib/safeText";
+import { safeImageSrc } from "@/lib/safeImage";
+import Image from "next/image";
+import DeleteButton from "@/components/listings/DeleteButton";
+import DashboardListingCard from "./DashboardListingCard";
 
 type Listing = {
- id: string;
- title: string;
- city?: string;
- cityName?: string;
- services?: string[];
- serviceNames?: string[];
- languages?: string[];
- languageNames?: string[];
- priceFrom?: number | null;
- priceMin?: number | null;
- priceMax?: number | null;
- status?: 'active' | 'draft';
- photos?: { url: string; path: string }[];
+  id: string;
+  title: string;
+  city?: string;
+  cityName?: string;
+  services?: string[];
+  serviceNames?: string[];
+  languages?: string[];
+  languageNames?: string[];
+  priceFrom?: number | null;
+  priceMin?: number | null;
+  priceMax?: number | null;
+  status?: "active" | "draft";
+  photos?: { url: string; path: string }[];
 };
 
 export default function MyListingsPage() {
- const { user } = useAuth();
- const { initialized, uid } = useAuthReady();
- const [items, setItems] = useState<Listing[]>([]);
- const [loading, setLoading] = useState(true);
+  const { user, loading } = useAuthUser();
+  const [items, setItems] = useState<Listing[]>([]);
+  const [listingsLoading, setListingsLoading] = useState(false);
 
- useEffect(() => {
- let cancelled = false;
+  function handleDelete(listingId: string) {
+    // NOTE: we assume listings are stored in "listings" or "publicListings".
+    // Use the SAME collection name you query in useEffect for fetching.
+    // For example, if useEffect uses collection(db, "listings"), then use that here.
+    const COL = "listings"; // <-- IMPORTANT: set this EXACTLY to the collection you're actually querying.
+    const ref = doc(db, COL, listingId);
+    deleteDoc(ref)
+      .then(() => {
+        console.log("[DashboardListings] deleted listing", listingId);
+      })
+      .catch((err) => {
+        console.error("[DashboardListings] delete error:", err);
+        alert("Failed to delete listing. Check console.");
+      });
+  }
 
- async function loadListings() {
- if (!uid) return;
- setLoading(true);
- try {
- const q = query(
- collection(db, 'listings'),
- where('ownerId', '==', uid),
- orderBy('updatedAt', 'desc')
- );
- const unsubscribe = onSnapshot(q, (snap) => {
- if (cancelled) return;
- setItems(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
- setLoading(false);
- });
- return () => unsubscribe();
- } catch (err: any) {
- if (!cancelled) {
- console.error('Failed to load listings:', err);
- setLoading(false);
- }
- }
- }
+  useEffect(() => {
+    if (!loading && user) {
+      // fetch listings owned by this user.uid using the same logic as profile pages
+      setListingsLoading(true);
 
- if (initialized && uid) {
- const unsubscribe = loadListings();
- return () => {
- cancelled = true;
- unsubscribe?.then(unsub => unsub?.());
- };
- } else if (initialized && !uid) {
- setItems([]);
- setLoading(false);
- }
+      async function fetchListingsForUser() {
+        if (!user) return;
 
- return () => {
- cancelled = true;
- };
- }, [initialized, uid]);
+        const candidates = [
+          ["masterUid", user.uid],
+          ["ownerUid", user.uid],
+          ["authorUid", user.uid],
+          ["userUid", user.uid],
+          ["profileId", user.uid],
+        ];
+        const results: Record<string, Listing> = {};
 
- if (!initialized) {
- return (
- <div className="max-w-5xl mx-auto p-6">
- <div className="flex items-center justify-between mb-6">
- <h1 className="text-2xl font-semibold">My listings</h1>
- </div>
- <p className="mt-2 text-sm opacity-80">Loading your account…</p>
- </div>
- );
- }
+        for (const [field, value] of candidates) {
+          try {
+            const q = query(
+              collection(db, "listings"),
+              where(field as any, "==", value)
+            );
+            const snap = await getDocs(q);
+            snap.forEach((d) => {
+              results[d.id] = { id: d.id, ...d.data() } as Listing;
+            });
+          } catch (err) {
+            console.warn(`Failed to query listings by ${field}:`, err);
+          }
+        }
 
- if (!uid) {
- return (
- <div className="max-w-5xl mx-auto p-6">
- <div className="flex items-center justify-between mb-6">
- <h1 className="text-2xl font-semibold">My listings</h1>
- </div>
- <p className="mt-2 text-sm opacity-80">Please sign in to view your listings.</p>
- </div>
- );
- }
+        const allListings = Object.values(results);
+        // Sort by updatedAt descending
+        allListings.sort((a, b) => {
+          const aTime =
+            (a as any).updatedAt?.toMillis?.() || (a as any).updatedAt || 0;
+          const bTime =
+            (b as any).updatedAt?.toMillis?.() || (b as any).updatedAt || 0;
+          return bTime - aTime;
+        });
 
- return (
- <div className="max-w-5xl mx-auto p-6">
- <div className="flex items-center justify-between mb-6">
- <h1 className="text-2xl font-semibold">My listings</h1>
- <Link href="/dashboard/master/listings/new" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-pink-600 text-white hover:bg-pink-700 transition">
- + Add listing
- </Link>
- </div>
+        setItems(allListings);
+        setListingsLoading(false);
+      }
 
- {loading && (
- <p className="mt-2 text-sm opacity-80">Loading your listings…</p>
- )}
+      fetchListingsForUser();
+    }
+  }, [loading, user]);
 
- {!loading && items.length === 0 && (
- <p className="mt-2 text-sm opacity-80">You don't have any listings yet.</p>
- )}
+  // RENDER LOGIC:
+  if (loading) {
+    return (
+      <section className="p-4 md:p-6">
+        <h1 className="text-xl font-semibold mb-2">My listings</h1>
+        <p className="text-sm text-gray-500">Loading your account…</p>
+      </section>
+    );
+  }
 
- {!loading && items.length > 0 && (
- <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
- {items.map((it) => (
- <div key={it.id} className="rounded-xl border bg-white shadow-sm hover:shadow-md transition overflow-hidden">
- <div className="aspect-[4/3] bg-gray-100">
- {it.photos?.[0]?.url ? (
- // eslint-disable-next-line @next/next/no-img-element
- <img src={it.photos[0].url} alt={it.title} className="h-full w-full object-cover" />
- ) : (
- <div className="h-full w-full flex items-center justify-center text-gray-400">No photo</div>
- )}
- </div>
- <div className="p-4 space-y-2">
- <div className="flex items-center justify-between">
- <h2 className="text-lg font-semibold truncate">{it.title || 'Untitled'}</h2>
- <span className={`text-xs px-2 py-1 rounded-full ${it.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
- {it.status ?? 'draft'}
- </span>
- </div>
- <div className="text-sm text-gray-600 truncate">
-   — <SafeText value={it.cityName ?? it.city} /> • from {it.priceFrom ?? it.priceMin ?? '—'}
- </div>
- <div className="flex gap-2 pt-2">
-        <Link href={`/masters/${String(it.id)}`} className="px-3 py-1.5 rounded-lg border hover:bg-gray-50">View</Link>
- <Link href={`/dashboard/master/listings/${it.id}/edit`} className="px-3 py-1.5 rounded-lg bg-pink-600 text-white hover:bg-pink-700">Edit</Link>
- <DeleteButton id={it.id} />
- </div>
- </div>
- </div>
- ))}
- </div>
- )}
+  if (!user) {
+    return (
+      <section className="p-4 md:p-6">
+        <h1 className="text-xl font-semibold mb-2">My listings</h1>
+        <p className="text-sm text-gray-500">
+          Please sign in to view your listings.
+        </p>
+      </section>
+    );
+  }
 
- </div>
- );
+  // user is present
+  return (
+    <section className="p-4 md:p-6">
+      <div className="flex items-start justify-between flex-wrap gap-4 mb-4">
+        <h1 className="text-xl font-semibold">My listings</h1>
+
+        {user && (
+          <a
+            href="/dashboard/master/listings/new"
+            className="inline-flex items-center rounded-md bg-pink-600 px-3 py-2 text-sm font-medium text-white hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2"
+          >
+            + Add listing
+          </a>
+        )}
+      </div>
+
+      {listingsLoading ? (
+        <p className="text-sm text-gray-500">Loading listings…</p>
+      ) : items.length === 0 ? (
+        <div className="text-sm text-gray-500">
+          You don't have any listings yet.
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {items.map((lst) => (
+            <DashboardListingCard
+              key={lst.id}
+              listing={lst}
+              onDelete={(id) => {
+                handleDelete(id);
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
 }
