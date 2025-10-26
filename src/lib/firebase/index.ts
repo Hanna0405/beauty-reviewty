@@ -1,2 +1,1 @@
-export { auth, db, storage } from './client';
-export { default } from './client';
+export { auth, db, storage } from "./client";
