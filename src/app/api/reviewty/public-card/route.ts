@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { firestore } from '@/lib/firebaseAdmin'; // << use admin version
-import { slugify } from '@/lib/slug';
+import { adminDb } from '@/lib/firebase-admin'; // << use admin version
+import { toSlug as slugify } from '@/lib/slug';
 // Removed client-side Firebase auth import - this is a server-side API route
 
 function slugifyOld(s: string) {
@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
     console.log('[CreatePublicCard] →', { cardPath: `publicCards/${cardId}`, threadKey, uid });
 
     // 1) Create/merge the public card (rules require createdByUid and forbid sensitive fields)
-    const cardRef = firestore.collection('publicCards').doc(cardId);
+    const cardRef = adminDb().collection('publicCards').doc(cardId);
     await cardRef.set({
       createdByUid: uid,
       cityKey,
@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
     }, { merge: true });
 
     // 2) Add the public review to global /reviews (rules: isPublic==true, has threadKey, valid rating)
-    const reviewRef = await firestore.collection('reviews').add({
+    const reviewRef = await adminDb().collection('reviews').add({
       isPublic: true,
       threadKey,
       rating: d.rating,

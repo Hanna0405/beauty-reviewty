@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
   try {
     // Query listings by ownerId
-    const snap = await adminDb
+    const snap = await adminDb()
       .collection("listings")
       .where("ownerId", "==", auth.uid)
       .orderBy("updatedAt", "desc")
