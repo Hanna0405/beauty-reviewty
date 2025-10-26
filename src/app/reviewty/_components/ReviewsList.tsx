@@ -1,21 +1,16 @@
-'use client';
+"use client";
 
-import React, { useMemo } from 'react';
-import { useReviews } from '@/features/reviewty/hooks/useReviews';
-import { buildThreadedFeed } from '@/app/reviewty/_utils/threading';
+import React, { useMemo } from "react";
+import { useReviews } from "@/features/reviewty/hooks/useReviews";
+import { buildThreadedFeed } from "@/app/reviewty/_utils/threading";
 
 type Review = {
   id: string;
   isPublic?: boolean;
-  publicCardId?: string | null;
-  createdAt?: any;
+  publicCardId?: string;
   masterName?: string;
-  masterDisplay?: string;
-  text?: string;
-  photos?: any[];
-  rating?: number;
-  cityKey?: string | null;
-  // ...anything else you already have
+  cityKey?: string;
+  [key: string]: any;
 };
 
 export default function ReviewsList({ cityKey }: { cityKey?: string | null }) {
@@ -25,13 +20,16 @@ export default function ReviewsList({ cityKey }: { cityKey?: string | null }) {
   const feed = useMemo(() => {
     const threaded = buildThreadedFeed(reviews);
     // Quick debug log (temporary)
-    console.debug('THREAD_DEBUG', reviews.map(x => ({
-      id: x.id,
-      isPublic: x.isPublic,
-      publicCardId: x.publicCardId,
-      masterName: x.masterName,
-      cityKey: x.cityKey
-    })));
+    console.debug(
+      "THREAD_DEBUG",
+      (reviews as Review[]).map((x) => ({
+        id: x.id,
+        isPublic: x.isPublic,
+        publicCardId: x.publicCardId,
+        masterName: x.masterName,
+        cityKey: x.cityKey,
+      }))
+    );
     return threaded;
   }, [reviews]);
 
@@ -42,15 +40,15 @@ export default function ReviewsList({ cityKey }: { cityKey?: string | null }) {
   return (
     <ul className="space-y-4">
       {feed.map((node, idx) => {
-        if (node.type === 'flat') {
+        if (node.type === "flat") {
           const r = node.item;
           return (
             <li key={`flat-${r.id}`} className="rounded-lg border p-4">
               <div className="text-[11px] uppercase tracking-wide text-gray-500 mb-1">
-                {r.isPublic ? 'PUBLIC CARD' : 'REVIEW'}
+                {r.isPublic ? "PUBLIC CARD" : "REVIEW"}
               </div>
               <div className="font-medium">
-                {r.masterDisplay || r.masterName || 'Master'}
+                {r.masterDisplay || r.masterName || "Master"}
               </div>
               <div className="text-xs">Rating: {r.rating}★</div>
               {r.text ? <p className="mt-2 text-sm">{r.text}</p> : null}
@@ -62,11 +60,16 @@ export default function ReviewsList({ cityKey }: { cityKey?: string | null }) {
         // public thread
         const { head, replies } = node;
         return (
-          <li key={`thread-${head.id}-${idx}`} className="rounded-lg border overflow-hidden">
+          <li
+            key={`thread-${head.id}-${idx}`}
+            className="rounded-lg border overflow-hidden"
+          >
             {/* Head */}
             <div className="p-4 bg-gray-50 border-b">
-              <div className="text-[11px] uppercase tracking-wide text-gray-500 mb-1">PUBLIC CARD</div>
-              <div className="font-medium">{head.masterName || 'Master'}</div>
+              <div className="text-[11px] uppercase tracking-wide text-gray-500 mb-1">
+                PUBLIC CARD
+              </div>
+              <div className="font-medium">{head.masterName || "Master"}</div>
               <div className="text-xs">Rating: {head.rating}★</div>
               {head.text ? <p className="mt-2 text-sm">{head.text}</p> : null}
             </div>
