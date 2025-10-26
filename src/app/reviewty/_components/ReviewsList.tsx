@@ -44,7 +44,7 @@ export default function ReviewsList({ cityKey }: { cityKey?: string | null }) {
     <ul className="space-y-4">
       {feed.map((node, idx) => {
         if (node.type === "flat") {
-          const r = node.item;
+          const r = node.item as ReviewItem;
           return (
             <li key={`flat-${r.id}`} className="rounded-lg border p-4">
               <div className="text-[11px] uppercase tracking-wide text-gray-500 mb-1">
@@ -62,6 +62,7 @@ export default function ReviewsList({ cityKey }: { cityKey?: string | null }) {
 
         // public thread
         const { head, replies } = node;
+        const headItem = head as ReviewItem;
         return (
           <li
             key={`thread-${head.id}-${idx}`}
@@ -72,21 +73,30 @@ export default function ReviewsList({ cityKey }: { cityKey?: string | null }) {
               <div className="text-[11px] uppercase tracking-wide text-gray-500 mb-1">
                 PUBLIC CARD
               </div>
-              <div className="font-medium">{head.masterName || "Master"}</div>
-              <div className="text-xs">Rating: {head.rating}★</div>
-              {head.text ? <p className="mt-2 text-sm">{head.text}</p> : null}
+              <div className="font-medium">
+                {headItem.masterName || "Master"}
+              </div>
+              <div className="text-xs">Rating: {headItem.rating}★</div>
+              {headItem.text ? (
+                <p className="mt-2 text-sm">{headItem.text}</p>
+              ) : null}
             </div>
 
             {/* Replies */}
             {replies.length > 0 ? (
               <ul className="divide-y">
-                {replies.map((r) => (
-                  <li key={r.id} className="p-4">
-                    <div className="text-xs text-gray-500 mb-1">Review</div>
-                    <div className="text-xs">Rating: {r.rating}★</div>
-                    {r.text ? <p className="mt-1 text-sm">{r.text}</p> : null}
-                  </li>
-                ))}
+                {replies.map((r) => {
+                  const replyItem = r as ReviewItem;
+                  return (
+                    <li key={replyItem.id} className="p-4">
+                      <div className="text-xs text-gray-500 mb-1">Review</div>
+                      <div className="text-xs">Rating: {replyItem.rating}★</div>
+                      {replyItem.text ? (
+                        <p className="mt-1 text-sm">{replyItem.text}</p>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ul>
             ) : null}
           </li>
