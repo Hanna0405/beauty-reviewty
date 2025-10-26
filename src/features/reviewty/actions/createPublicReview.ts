@@ -1,21 +1,44 @@
-import { db } from '@/lib/firebase/client';
-import { addDoc, collection, serverTimestamp, doc, setDoc } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
-import { slugify } from '@/lib/slug';
-import { makeThreadKeyFromCard } from '@/lib/threading';
-import type { PublicReviewPayload } from '@/features/reviews/types';
+import { db } from "@/lib/firebase/client";
+import {
+  addDoc,
+  collection,
+  serverTimestamp,
+  doc,
+  setDoc,
+} from "firebase/firestore";
+import { getAuth } from "firebase/auth";
+import { makeThreadKeyFromCard } from "@/lib/threading";
+import type { PublicReviewPayload } from "@/features/reviews/types";
+
+// local slugify helper (mirrors our usage in AddPublicCardForm)
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-");
+}
 
 function buildPublicThreadKey(cityKey: string, masterName: string) {
-  const ck = (cityKey || '').trim().toLowerCase();
-  const ms = (masterName || '').trim().toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
+  const ck = (cityKey || "").trim().toLowerCase();
+  const ms = (masterName || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
     .slice(0, 80);
-  if (!ck || !ms) throw new Error('[public-card] Missing cityKey or masterName for threadKey');
+  if (!ck || !ms)
+    throw new Error(
+      "[public-card] Missing cityKey or masterName for threadKey"
+    );
   return `pc_${ck}_${ms}`;
 }
 
-export type CreatePublicReviewInput = Omit<PublicReviewPayload, 'createdAt' | 'isPublic' | 'target'> & {
+export type CreatePublicReviewInput = Omit<
+  PublicReviewPayload,
+  "createdAt" | "isPublic" | "target"
+> & {
   publicCardId?: string | null;
   threadKey?: string;
 };
@@ -42,36 +65,54 @@ function compactObject<T extends Record<string, any>>(obj: T): T {
 
 export async function createPublicReview(input: CreatePublicReviewInput) {
   const {
-    mode, masterName, cityKey, rating, text,
-    serviceKeys = [], languageKeys = [], photos = [],
+    mode,
+    masterName,
+    cityKey,
+    rating,
+    text,
+    serviceKeys = [],
+    languageKeys = [],
+    photos = [],
   } = input;
 
   const uid = getAuth().currentUser?.uid;
-  if (!uid) throw new Error('[public-card] Not authenticated');
+  if (!uid) throw new Error("[public-card] Not authenticated");
 
-  if (mode === 'public-card') {
+  if (mode === "public-card") {
     const threadKey = buildPublicThreadKey(cityKey, masterName);
     const cardId = threadKey; // keep id == threadKey for consistency
-    const cardRef = doc(collection(db, 'publicCards'), cardId);
-    console.log('[CreatePublicCard] about to write', { cardPath: cardRef.path, threadKey, cityKey, masterName });
+    const cardRef = doc(collection(db, "publicCards"), cardId);
+    console.log("[CreatePublicCard] about to write", {
+      cardPath: cardRef.path,
+      threadKey,
+      cityKey,
+      masterName,
+    });
 
     // Best-effort: try to create the card, but DO NOT block review creation
     try {
-      await setDoc(cardRef, {
-        createdByUid: uid,
-        type: 'public-card',
-        cityKey,
-        masterName,
-        masterSlug: masterName, // keep simple; can refine later
-        threadKey,
-        serviceKeys,
-        languageKeys,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
-      console.log('[CreatePublicCard] card saved');
+      await setDoc(
+        cardRef,
+        {
+          createdByUid: uid,
+          type: "public-card",
+          cityKey,
+          masterName,
+          masterSlug: masterName, // keep simple; can refine later
+          threadKey,
+          serviceKeys,
+          languageKeys,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      console.log("[CreatePublicCard] card saved");
     } catch (e) {
-      console.warn('[CreatePublicCard] card save failed but continue with review', e);
+      console.warn(
+        "[CreatePublicCard] card save failed but continue with review",
+        e
+      );
     }
 
     // Always create the public review
@@ -86,8 +127,8 @@ export async function createPublicReview(input: CreatePublicReviewInput) {
       photosCount: photos.length || 0,
       createdAt: serverTimestamp(),
     };
-    console.log('[CreatePublicCard] add /reviews', reviewPayload);
-    const reviewRef = await addDoc(collection(db, 'reviews'), {
+    console.log("[CreatePublicCard] add /reviews", reviewPayload);
+    const reviewRef = await addDoc(collection(db, "reviews"), {
       ...reviewPayload,
     });
     return { reviewId: reviewRef.id, threadKey, cardId };
@@ -101,10 +142,10 @@ export async function createPublicReview(input: CreatePublicReviewInput) {
     (cityObj?.slug as string) ||
     (cityObj?.city?.slug as string) ||
     (cityObj?.placeId as string) ||
-    (cityObj?.formatted ? slugify(cityObj.formatted) : '');
+    (cityObj?.formatted ? slugify(cityObj.formatted) : "");
 
-  const masterNameInput = (input.masterName ?? '').toString().trim();
-  const masterSlug = slugify(masterNameInput || '');
+  const masterNameInput = (input.masterName ?? "").toString().trim();
+  const masterSlug = slugify(masterNameInput || "");
 
   // Robust threadKey: never undefined
   const safeThreadKey =
@@ -114,7 +155,7 @@ export async function createPublicReview(input: CreatePublicReviewInput) {
 
   // Build raw payload (timestamps always set on the server)
   const rawPayload = {
-    type: 'public',
+    type: "public",
     threadKey: safeThreadKey,
     masterName: masterNameInput,
     city: cityObj,
@@ -134,8 +175,15 @@ export async function createPublicReview(input: CreatePublicReviewInput) {
   const payload = compactObject(rawPayload);
 
   // Debug (optional)
-  console.log('[createPublicReview] cityKey:', cityKeyResolved, 'masterSlug:', masterSlug, 'threadKey:', payload.threadKey);
+  console.log(
+    "[createPublicReview] cityKey:",
+    cityKeyResolved,
+    "masterSlug:",
+    masterSlug,
+    "threadKey:",
+    payload.threadKey
+  );
 
-  const docRef = await addDoc(collection(db, 'reviews'), payload);
+  const docRef = await addDoc(collection(db, "reviews"), payload);
   return { id: docRef.id, threadKey: payload.threadKey };
 }
