@@ -4,12 +4,15 @@ import React, { useMemo } from "react";
 import { useReviews } from "@/features/reviewty/hooks/useReviews";
 import { buildThreadedFeed } from "@/app/reviewty/_utils/threading";
 
-type Review = {
+type ReviewItem = {
   id: string;
   isPublic?: boolean;
   publicCardId?: string;
+  masterDisplay?: string;
   masterName?: string;
   cityKey?: string;
+  rating?: number | string;
+  text?: string;
   [key: string]: any;
 };
 
@@ -22,7 +25,7 @@ export default function ReviewsList({ cityKey }: { cityKey?: string | null }) {
     // Quick debug log (temporary)
     console.debug(
       "THREAD_DEBUG",
-      (reviews as Review[]).map((x) => ({
+      (reviews as ReviewItem[]).map((x) => ({
         id: x.id,
         isPublic: x.isPublic,
         publicCardId: x.publicCardId,

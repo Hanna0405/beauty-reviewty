@@ -7,8 +7,8 @@ if (!admin.apps.length) {
   // import your existing init if you have one; otherwise minimal init via env vars
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { initAdmin } = require("../../../../server/firebaseAdmin");
-    initAdmin?.();
+    const { getAdminApp } = require("../../../../lib/server/firebaseAdmin");
+    getAdminApp();
   } catch {
     admin.initializeApp();
   }
