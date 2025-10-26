@@ -1,10 +1,26 @@
-'use client';
-import { useEffect, useState } from 'react';
-import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
-import { db } from '@/lib/firebase/client';
+"use client";
+import { useEffect, useState } from "react";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  limit,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase/client";
 // NOTE: fetchThread import disabled for production build (not exported from '@/lib/reviews')
 // import { fetchThread } from '@/lib/reviews';
-import { ThreadBlock } from '@/components/review/ThreadBlock';
+import { ThreadBlock } from "@/components/review/ThreadBlock";
+
+type Thread = {
+  card: {
+    id: string;
+    [key: string]: any;
+  };
+  reviews: any[];
+  [key: string]: any;
+};
 
 export default function ThreadedReviewtyPage() {
   const [threads, setThreads] = useState<any[]>([]);
@@ -16,19 +32,22 @@ export default function ThreadedReviewtyPage() {
       try {
         // Fetch public cards that have reviews
         const publicCardsQuery = query(
-          collection(db, 'publicCards'),
-          orderBy('createdAt', 'desc'),
+          collection(db, "publicCards"),
+          orderBy("createdAt", "desc"),
           limit(20)
         );
         const publicCardsSnap = await getDocs(publicCardsQuery);
-        const publicCards = publicCardsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const publicCards = publicCardsSnap.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
 
         // Temporary fallback so production build succeeds:
-        const validThreads = []; // TODO: restore real fetchThread implementation
-        
+        const validThreads: Thread[] = []; // TODO: restore real fetchThread implementation
+
         setThreads(validThreads);
       } catch (error) {
-        console.error('Error loading threads:', error);
+        console.error("Error loading threads:", error);
       } finally {
         setLoading(false);
       }
@@ -49,8 +68,12 @@ export default function ThreadedReviewtyPage() {
       </header>
 
       <div className="space-y-6">
-        {threads.map(thread => (
-          <ThreadBlock key={thread.card.id} card={thread.card} reviews={thread.reviews} />
+        {threads.map((thread) => (
+          <ThreadBlock
+            key={thread.card.id}
+            card={thread.card}
+            reviews={thread.reviews}
+          />
         ))}
       </div>
 
