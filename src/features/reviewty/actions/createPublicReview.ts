@@ -81,7 +81,7 @@ export async function createPublicReview(input: CreatePublicReviewInput) {
   if (!uid) throw new Error("[public-card] Not authenticated");
 
   // Create public card and review
-  const threadKey = buildPublicThreadKey(cityKey, masterName);
+  const threadKey = buildPublicThreadKey(cityKey || "", masterName || "");
   const cardId = threadKey; // keep id == threadKey for consistency
   const cardRef = doc(collection(db, "publicCards"), cardId);
   console.log("[CreatePublicCard] about to write", {
