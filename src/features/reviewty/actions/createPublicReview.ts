@@ -41,6 +41,9 @@ export type CreatePublicReviewInput = Omit<
 > & {
   publicCardId?: string | null;
   threadKey?: string;
+  serviceKeys?: string[];
+  languageKeys?: string[];
+  photos?: string[];
 };
 
 type PublicReviewInput = {
