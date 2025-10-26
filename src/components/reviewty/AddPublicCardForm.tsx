@@ -213,7 +213,17 @@ export function AddPublicCardForm({
         <label className="block text-sm font-medium mb-1">City *</label>
         <CityAutocomplete
           value={city?.formatted || ""}
-          onSelect={(val) => setCity(val)} // val is normalized object from our pattern
+          onSelect={(val) =>
+            setCity(
+              val
+                ? {
+                    ...val,
+                    cityKey: val.slug,
+                    cityName: val.formatted,
+                  }
+                : null
+            )
+          }
           onClear={() => setCity(null)}
           required
           placeholder="Select a city from the list"
