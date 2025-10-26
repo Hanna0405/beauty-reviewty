@@ -26,12 +26,13 @@ export default async function ReviewtyThreadPage({
   }
 
   const { card, reviews, photos } = data;
+  const safeCard = card as PublicCardData | undefined;
 
   return (
     <div className="mx-auto max-w-3xl p-4 space-y-6">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">
-          {card.title ?? card.masterName ?? "Master"}
+          {safeCard?.title ?? safeCard?.masterName ?? "Master"}
         </h1>
         {/* optional meta: city/service badges if present */}
       </header>
