@@ -227,7 +227,6 @@ export function AddPublicCardForm({
           onClear={() => setCity(null)}
           required
           placeholder="Select a city from the list"
-          disabled={submitting}
         />
         {city?.formatted ? (
           <p className="text-xs text-green-600 mt-1">
