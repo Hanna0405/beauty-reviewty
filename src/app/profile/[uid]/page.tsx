@@ -16,7 +16,8 @@ import DashboardListingCard from "@/app/dashboard/master/listings/DashboardListi
 
 export default function PublicMasterPage() {
   const db = getFirestore(app);
-  const { uid } = useParams();
+  const params = useParams<{ uid: string }>();
+  const uid = params.uid;
   const [profile, setProfile] = useState<any | null>(null);
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
