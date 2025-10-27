@@ -1,18 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CityAutocomplete, ServicesSelect, LanguagesSelect } from "@/components/selects";
-import { SERVICES_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/options";
-
-type CityValue = string;
-
-type ServiceOption = { value: string; label: string };
-type LanguageOption = { value: string; label: string };
+import CityAutocomplete from "@/components/CityAutocomplete";
+import MultiSelectAutocompleteV2 from "@/components/inputs/MultiSelectAutocompleteV2";
+import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/catalog";
+import { ensureKeyObject } from "@/lib/filters/normalize";
+import type { CityNorm } from "@/lib/city";
+import type { TagOption } from "@/types/tags";
 
 export type ReviewtyFilters = {
-  city: CityValue | null;
-  services: ServiceOption[];
-  languages: LanguageOption[];
+  city: CityNorm | null;
+  services: TagOption[];
+  languages: TagOption[];
   ratingGte?: number | null;
   personQuery?: string;
 };
@@ -38,50 +37,46 @@ export default function Filters({
 
   return (
     <div className="flex flex-wrap gap-3 items-center mb-4">
-      {/* City */}
+      {/* City - using same CityAutocomplete as Masters page */}
       <div className="w-full sm:w-64">
         <CityAutocomplete
-          value={local.city || ""}
-          onChange={(city: string) => setLocal((s) => ({ ...s, city: city || null }))}
-          placeholder="City"
-          autoOpenOnType={true}
-          autoCloseOnSelect={true}
+          value={local.city}
+          onChange={(city: CityNorm | null) =>
+            setLocal((s) => ({ ...s, city }))
+          }
+          placeholder="Select city"
         />
       </div>
 
       {/* Services (multi) */}
       <div className="w-full sm:w-80">
-        <ServicesSelect
-          value={local.services.map(s => s.value)}
-          onChange={(services: string[]) => {
-            const serviceOptions = services.map(value => ({
-              value,
-              label: SERVICES_OPTIONS.find(s => s.value === value)?.label || value
-            }));
-            setLocal((s) => ({ ...s, services: serviceOptions }));
+        <MultiSelectAutocompleteV2
+          label=""
+          options={SERVICE_OPTIONS}
+          value={local.services}
+          onChange={(vals) => {
+            const normalized = vals
+              .map((v) => ensureKeyObject<TagOption>(v))
+              .filter(Boolean) as TagOption[];
+            setLocal((s) => ({ ...s, services: normalized }));
           }}
-          options={SERVICES_OPTIONS}
           placeholder="Service (e.g., hair-braids)"
-          autoOpenOnType={true}
-          autoCloseOnSelect={true}
         />
       </div>
 
       {/* Languages (multi) */}
       <div className="w-full sm:w-72">
-        <LanguagesSelect
-          value={local.languages.map(l => l.value)}
-          onChange={(languages: string[]) => {
-            const languageOptions = languages.map(value => ({
-              value,
-              label: LANGUAGE_OPTIONS.find(l => l.value === value)?.label || value
-            }));
-            setLocal((s) => ({ ...s, languages: languageOptions }));
-          }}
+        <MultiSelectAutocompleteV2
+          label=""
           options={LANGUAGE_OPTIONS}
+          value={local.languages}
+          onChange={(vals) => {
+            const normalized = vals
+              .map((v) => ensureKeyObject<TagOption>(v))
+              .filter(Boolean) as TagOption[];
+            setLocal((s) => ({ ...s, languages: normalized }));
+          }}
           placeholder="Languages"
-          autoOpenOnType={true}
-          autoCloseOnSelect={true}
         />
       </div>
 

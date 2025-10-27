@@ -1,498 +1,304 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import { db } from "@/lib/firebase/client";
 import {
   collection,
   getDocs,
   limit,
   orderBy,
   query,
-  startAfter,
   where,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase.client";
-import Link from "next/link";
 import ReviewtyCreateModal from "./ReviewtyCreateModal";
-import { fetchMastersByUids, type MinimalMaster } from "./lib/joinMasters";
-import { buildPersonLabel } from "./lib/personLabel";
-import { cityToDisplay } from "@/lib/city/format";
-import CityAutocomplete from "@/components/CityAutocomplete";
-import MultiSelectAutocompleteV2 from "@/components/inputs/MultiSelectAutocompleteV2";
+import Filters, { type ReviewtyFilters } from "./Filters";
 import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/catalog";
-import { ensureKeyObject } from "@/lib/filters/normalize";
-import type { TagOption } from "@/types/tags";
-
-function safeJoin(v: any): string {
-  if (!v) return "";
-  if (Array.isArray(v)) return v.filter(Boolean).join(", ");
-  return String(v);
-}
-
-function safeText(v: any): string {
-  if (v == null) return "";
-  if (typeof v === "object") {
-    // Do NOT render objects; try to stringify most common cases
-    if ("name" in v) return String((v as any).name ?? "");
-    return "";
-  }
-  return String(v);
-}
 
 type ReviewDoc = {
   id: string;
-  text: string;
-  rating: number;
-  photos?: { url: string; path: string }[];
-  city?: string;
-  services?: string[];
-  languages?: string[];
+  masterName?: string;
+  masterDisplay?: string;
+  cityName?: string;
+  serviceName?: string;
+  rating?: number;
+  text?: string;
+  photos?: (string | { url: string; path?: string })[];
   createdAt?: any;
   masterRef?: {
     type: "listing" | "community";
     id: string;
     slug?: string;
-    listingId?: string;
   };
-  masterUid?: string;
-  displayName?: string;
-  nickname?: string;
-  contactName?: string;
-  phone?: string;
-  // Denormalized fields for public reviews
   masterId?: string;
   masterCity?: string;
   masterServices?: string[];
   masterLanguages?: string[];
-  masterDisplay?: string;
   masterKeywords?: string[];
   masterSlug?: string;
+  masterKey?: string;
+  source?: string;
 };
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 20;
 
 export default function ReviewtyPage() {
-  // State for filters (matching Masters page pattern)
-  const [city, setCity] = useState<any | null>(null);
-  const [services, setServices] = useState<TagOption[]>([]);
-  const [languages, setLanguages] = useState<TagOption[]>([]);
-  const [ratingGte, setRatingGte] = useState<number | undefined>(undefined);
-  const [personQuery, setPersonQuery] = useState<string>("");
+  const [reviews, setReviews] = useState<ReviewDoc[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState<ReviewtyFilters>({
+    city: null,
+    services: [],
+    languages: [],
+    ratingGte: null,
+    personQuery: "",
+  });
 
-  const [items, setItems] = useState<ReviewDoc[]>([]);
-  const [cursor, setCursor] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
-  const [mastersMap, setMastersMap] = useState<Record<string, MinimalMaster>>(
-    {}
-  );
-
-  const queryParams = useMemo(() => {
-    const params: any = {};
-    if (city?.formatted) {
-      params.city = city.formatted;
-    }
-    if (services.length) {
-      params.services = services.map((s) => s.key);
-    }
-    if (languages.length) {
-      params.languages = languages.map((l) => l.key);
-    }
-    if (ratingGte != null) {
-      params.ratingGte = ratingGte;
-    }
-    return params;
-  }, [city, services, languages, ratingGte]);
-
-  async function fetchPage(reset = false) {
-    if (loading || (done && !reset)) return;
-    setLoading(true);
+  async function loadReviews() {
     try {
-      // Build Firestore query with proper ordering and filters
-      const baseConstraints: any[] = [
+      setLoading(true);
+
+      // Build query constraints
+      const constraints: any[] = [
         orderBy("createdAt", "desc"),
         limit(PAGE_SIZE),
       ];
 
-      // exact match filters (safe to stack)
-      if (queryParams.city) {
-        baseConstraints.unshift(where("masterCity", "==", queryParams.city));
+      // Add filters
+      if (filters.city) {
+        constraints.unshift(where("masterCity", "==", filters.city.formatted));
       }
-      if (queryParams.ratingGte != null) {
-        baseConstraints.unshift(where("rating", ">=", queryParams.ratingGte));
+      if (filters.ratingGte) {
+        constraints.unshift(where("rating", ">=", filters.ratingGte));
       }
-
-      // we are only allowed ONE array-contains.
-      // Priority order: services first, then languages.
-      // We'll record whichever one we used; the other one will be applied client-side.
-      let usedArrayContains: null | { field: string; value: string } = null;
-
-      if (queryParams.services?.length) {
-        baseConstraints.unshift(
-          where("masterServices", "array-contains", queryParams.services[0])
+      if (filters.services.length > 0) {
+        constraints.unshift(
+          where("masterServices", "array-contains", filters.services[0].value)
         );
-        usedArrayContains = {
-          field: "masterServices",
-          value: queryParams.services[0],
-        };
-      } else if (queryParams.languages?.length) {
-        baseConstraints.unshift(
-          where("masterLanguages", "array-contains", queryParams.languages[0])
-        );
-        usedArrayContains = {
-          field: "masterLanguages",
-          value: queryParams.languages[0],
-        };
       }
 
-      if (personQuery?.trim()) {
-        const keyword = personQuery.trim().toLowerCase();
-        const phoneDigits = keyword.replace(/\D+/g, "");
-        const term = phoneDigits.length >= 6 ? phoneDigits : keyword;
-        if (term)
-          baseConstraints.unshift(
-            where("masterKeywords", "array-contains", term)
-          );
-      }
+      const q = query(collection(db, "reviews"), ...constraints);
+      const snap = await getDocs(q);
 
-      const q = query(collection(db, "publicReviews"), ...baseConstraints);
-
-      const snap = await getDocs(
-        reset
-          ? query(q, limit(PAGE_SIZE))
-          : cursor
-          ? query(q, startAfter(cursor))
-          : q
-      );
-
-      // Normalize data before setState
-      const raw = snap.docs.map((d) => {
+      const items: ReviewDoc[] = snap.docs.map((d) => {
         const data = d.data() as any;
         return {
           id: d.id,
-          rating: Number(data.rating ?? 0),
-          text: safeText(data.text),
-          photos: Array.isArray(data.photos) ? data.photos : [],
-          city: data.city, // keep as-is, render via cityName()
-          services: data.services, // can be string[] or string
-          languages: data.languages,
-          listingId: data.listingId,
-          createdAt: data.createdAt,
-          author: data.author ?? data.authorMasked ?? null,
+          masterName: data.masterName || data.master?.name || "",
+          masterDisplay: data.masterDisplay || data.master?.displayName || "",
+          cityName: data.cityName || data.city?.formatted || "",
+          serviceName: data.serviceName || data.service?.name || "",
+          rating: data.rating ?? null,
+          text: data.text || data.comment || "",
+          photos: Array.isArray(data.photos)
+            ? data.photos
+            : Array.isArray(data.images)
+            ? data.images
+            : [],
+          createdAt: data.createdAt || null,
           masterRef: data.masterRef,
-          masterUid: data.masterUid,
-          displayName: data.displayName,
-          nickname: data.nickname,
-          contactName: data.contactName,
-          phone: data.phone,
           masterId: data.masterId,
           masterCity: data.masterCity,
           masterServices: data.masterServices,
           masterLanguages: data.masterLanguages,
-          masterDisplay: data.masterDisplay,
           masterKeywords: data.masterKeywords,
           masterSlug: data.masterSlug,
+          masterKey: data.masterKey,
+          source: data.source,
         };
-      }) as ReviewDoc[];
+      });
 
-      // Now do post-filter on the client side
-      let filtered = raw;
+      // Apply client-side filters
+      let filtered = items;
 
-      // If we *didn't* use services filter in Firestore,
-      // but services filter is set, filter locally:
-      if (
-        queryParams.services?.length &&
-        (!usedArrayContains || usedArrayContains.field !== "masterServices")
-      ) {
-        filtered = filtered.filter((rev) => {
-          if (!Array.isArray(rev.masterServices)) return false;
-          return queryParams.services.some((service: string) =>
-            rev.masterServices?.includes(service)
+      // Filter by languages (if not already applied in query)
+      if (filters.languages.length > 0) {
+        filtered = filtered.filter((review) => {
+          if (!Array.isArray(review.masterLanguages)) return false;
+          return filters.languages.some((lang) =>
+            review.masterLanguages?.includes(lang.value)
           );
         });
       }
 
-      // If we *didn't* use languages filter in Firestore,
-      // but languages filter is set, filter locally:
-      if (
-        queryParams.languages?.length &&
-        (!usedArrayContains || usedArrayContains.field !== "masterLanguages")
-      ) {
-        filtered = filtered.filter((rev) => {
-          if (!Array.isArray(rev.masterLanguages)) return false;
-          return queryParams.languages.some((language: string) =>
-            rev.masterLanguages?.includes(language)
-          );
+      // Filter by person query
+      if (filters.personQuery) {
+        const query = filters.personQuery.toLowerCase();
+        filtered = filtered.filter((review) => {
+          const searchText = [
+            review.masterName,
+            review.masterDisplay,
+            review.cityName,
+            ...(review.masterKeywords || []),
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return searchText.includes(query);
         });
       }
 
-      const last = snap.docs[snap.docs.length - 1] ?? null;
-
-      console.log("[reviewty] loaded", filtered.length);
-
-      setItems(reset ? filtered : [...items, ...filtered]);
-      setCursor(last);
-      setDone(snap.size < PAGE_SIZE);
+      setReviews(filtered);
+    } catch (err) {
+      console.error("[reviewty] failed to load reviews", err);
     } finally {
       setLoading(false);
     }
   }
 
-  // Fetch master data when items change
-  const masterUids = useMemo(
-    () =>
-      Array.from(new Set(items.map((r: any) => r.masterUid).filter(Boolean))),
-    [items]
-  );
-
   useEffect(() => {
-    if (masterUids.length > 0) {
-      fetchMastersByUids(masterUids).then(setMastersMap);
-    }
-  }, [masterUids]);
+    loadReviews();
+  }, [filters.city, filters.services, filters.languages, filters.ratingGte]);
 
-  // Apply person query filter
-  const filteredItems = useMemo(() => {
-    if (!personQuery?.trim()) return items;
-
-    const q = personQuery.trim().toLowerCase();
-    return items.filter((r: any) => {
-      const m = mastersMap[r.masterUid];
-      const label = buildPersonLabel(r, m)?.toLowerCase() ?? "";
-      const extra = [
-        r.displayName,
-        r.nickname,
-        r.contactName,
-        r.phone,
-        m?.displayName,
-        m?.nickname,
-        m?.phone,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return label.includes(q) || extra.includes(q);
+  const handleResetFilters = () => {
+    setFilters({
+      city: null,
+      services: [],
+      languages: [],
+      ratingGte: null,
+      personQuery: "",
     });
-  }, [items, mastersMap, personQuery]);
-
-  useEffect(() => {
-    // refetch when filters change (except personQuery which is client-side)
-    setCursor(null);
-    setDone(false);
-    fetchPage(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [city, services, languages, ratingGte]);
+  };
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-6">
-      <header className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="text-2xl font-semibold">People's Reviews</h1>
-        <button
-          onClick={() =>
-            window.dispatchEvent(new CustomEvent("reviewty:openCreate"))
-          }
-          className="px-4 py-2 rounded-lg bg-pink-600 text-white hover:bg-pink-700"
-        >
-          Add review
-        </button>
-      </header>
-
-      {/* Filters */}
-      <form
-        className="flex w-full flex-wrap items-start gap-2 md:flex-nowrap md:items-end bg-pink-50/60 rounded-md p-3 border border-pink-200"
-        onSubmit={(e) => e.preventDefault()}
-      >
-        {/* City */}
-        <div className="flex-1 min-w-[140px]">
-          <CityAutocomplete
-            value={city}
-            onChange={(val: any) => {
-              // val could be string or object depending on component,
-              // normalize to string city name for our filter state
-              if (typeof val === "string") {
-                setCity({ formatted: val });
-              } else if (val && typeof val.label === "string") {
-                setCity({ formatted: val.label });
-              } else if (val && typeof val.cityName === "string") {
-                setCity({ formatted: val.cityName });
-              } else if (val && val.formatted) {
-                setCity(val);
-              } else {
-                setCity(null);
-              }
-            }}
-            placeholder="City"
-          />
-        </div>
-
-        {/* Service */}
-        <div className="flex-1 min-w-[160px]">
-          <MultiSelectAutocompleteV2
-            label=""
-            options={SERVICE_OPTIONS}
-            value={services}
-            onChange={(vals) => {
-              const normalized = vals
-                .map((v) => ensureKeyObject<TagOption>(v))
-                .filter(Boolean) as TagOption[];
-              setServices(normalized);
-            }}
-            placeholder="Service (e.g., hair-braids)"
-          />
-        </div>
-
-        {/* Languages */}
-        <div className="flex-1 min-w-[140px]">
-          <MultiSelectAutocompleteV2
-            label=""
-            options={LANGUAGE_OPTIONS}
-            value={languages}
-            onChange={(vals) => {
-              const normalized = vals
-                .map((v) => ensureKeyObject<TagOption>(v))
-                .filter(Boolean) as TagOption[];
-              setLanguages(normalized);
-            }}
-            placeholder="Languages"
-          />
-        </div>
-
-        {/* Rating */}
-        <div className="w-[90px]">
-          <select
-            className="block w-full rounded-md border border-pink-300 bg-white px-2 py-2 text-sm text-gray-800 shadow-sm focus:border-pink-500 focus:ring-pink-500"
-            value={ratingGte ?? ""}
-            onChange={(e) =>
-              setRatingGte(e.target.value ? Number(e.target.value) : undefined)
+    <div className="min-h-screen bg-gradient-to-b from-pink-50 to-white">
+      <div className="max-w-6xl mx-auto p-6 space-y-6">
+        {/* Header */}
+        <header className="flex items-center justify-between gap-4 flex-wrap">
+          <h1 className="text-2xl font-semibold text-gray-900">
+            People's Reviews
+          </h1>
+          <button
+            onClick={() =>
+              window.dispatchEvent(new CustomEvent("reviewty:openCreate"))
             }
+            className="px-4 py-2 rounded-lg bg-pink-600 text-white hover:bg-pink-700 font-medium transition-colors"
           >
-            <option value="">Rating</option>
-            <option value="5">5★</option>
-            <option value="4">4★+</option>
-            <option value="3">3★+</option>
-            <option value="2">2★+</option>
-            <option value="1">1★+</option>
-          </select>
-        </div>
+            Add review
+          </button>
+        </header>
 
-        {/* Name / nickname / phone */}
-        <div className="flex-1 min-w-[160px]">
-          <input
-            type="text"
-            className="block w-full rounded-md border border-pink-300 bg-white px-2 py-2 text-sm text-gray-800 shadow-sm placeholder-gray-400 focus:border-pink-500 focus:ring-pink-500"
-            placeholder="Name / nickname / phone"
-            value={personQuery}
-            onChange={(e) => setPersonQuery(e.target.value)}
+        {/* Filters */}
+        <div className="bg-pink-50/60 rounded-lg p-4 border border-pink-200">
+          <Filters
+            value={filters}
+            onChange={setFilters}
+            onReset={handleResetFilters}
           />
         </div>
 
-        {/* Reset */}
-        <div className="flex-none">
-          <button
-            type="button"
-            onClick={() => {
-              setCity(null);
-              setServices([]);
-              setLanguages([]);
-              setRatingGte(undefined);
-              setPersonQuery("");
-            }}
-            className="inline-flex items-center rounded-md border border-pink-300 bg-white px-3 py-2 text-xs font-medium text-pink-700 hover:bg-pink-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2"
-          >
-            Reset
-          </button>
-        </div>
-      </form>
-
-      {/* Feed */}
-      <ul className="grid md:grid-cols-2 gap-4">
-        {filteredItems.map((r) => {
-          const master = mastersMap[r.masterUid || ""];
-          const personLabel = buildPersonLabel(r, master);
-
-          return (
-            <li key={r.id} className="rounded-xl border bg-white p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="font-medium">
-                  {"★".repeat(Math.round(r.rating || 0))}
-                </div>
-                <div className="text-sm text-gray-500">
-                  {safeText(r.masterCity) || cityToDisplay(r.city) || "—"}
-                </div>
-              </div>
-              <p className="text-gray-800 line-clamp-4">{safeText(r.text)}</p>
-              {!!r.photos?.length && (
-                <div className="flex gap-2">
-                  {r.photos.slice(0, 3).map((p, i) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      key={p.path ?? i}
-                      src={p.url}
-                      alt={`photo ${i + 1}`}
-                      className="h-24 w-24 object-cover rounded"
-                    />
-                  ))}
-                </div>
-              )}
-              {/* Master info and link */}
-              <div className="mt-2 text-sm text-zinc-600">
-                <span className="font-medium">
-                  {safeText(r.masterCity) || "—"}
-                </span>
-              </div>
-              <div className="mt-1">
-                {/* Link to master */}
-                {r.masterRef?.type === "listing" && r.masterRef.id && (
-                  <Link
-                    href={`/masters/${String(r.masterRef.id)}`}
-                    className="text-pink-600 underline"
-                  >
-                    Master card —{" "}
-                    {safeText(r.masterDisplay) ||
-                      safeText(personLabel) ||
-                      "Unknown"}
-                  </Link>
-                )}
-                {r.masterRef?.type === "community" && r.masterRef.slug && (
-                  <Link
-                    href={`/reviewty/m/${r.masterRef.slug}`}
-                    className="text-pink-600 underline"
-                  >
-                    Master card —{" "}
-                    {safeText(r.masterDisplay) ||
-                      safeText(personLabel) ||
-                      "Unknown"}
-                  </Link>
-                )}
-                {!r.masterRef && r.masterId && (
-                  <Link
-                    href={`/reviewty/m/${r.masterSlug || r.masterId}`}
-                    className="text-pink-600 underline"
-                  >
-                    Master card — {safeText(r.masterDisplay) || "Unknown"}
-                  </Link>
-                )}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-
-      <div className="pt-4 flex justify-center">
-        {!done && !personQuery ? (
-          <button
-            onClick={() => fetchPage()}
-            disabled={loading}
-            className="px-4 py-2 rounded-lg border hover:bg-gray-50 disabled:opacity-60"
-          >
-            {loading ? "Loading..." : "Show more"}
-          </button>
+        {/* Reviews List */}
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-gray-500">Loading reviews...</div>
+          </div>
+        ) : reviews.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-gray-500 text-lg">No reviews yet.</div>
+            <div className="text-gray-400 text-sm mt-2">
+              Be the first to share your experience!
+            </div>
+          </div>
         ) : (
-          <div className="text-gray-500">That's all</div>
-        )}
-      </div>
+          <ul className="grid md:grid-cols-2 gap-4">
+            {reviews.map((review) => {
+              const cardContent = (
+                <>
+                  {/* Rating and Location */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1">
+                      <span className="text-yellow-500">
+                        {"★".repeat(Math.round(review.rating || 0))}
+                      </span>
+                      <span className="text-sm text-gray-600 ml-1">
+                        {review.rating || 0}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {review.cityName || review.masterCity || "—"}
+                    </div>
+                  </div>
 
-      {/* Creation modal is handled below */}
-      <ReviewtyCreateModal />
+                  {/* Master Name */}
+                  <div className="font-medium text-gray-900">
+                    {review.masterDisplay ||
+                      review.masterName ||
+                      "Unknown master"}
+                  </div>
+
+                  {/* Review Text */}
+                  <p className="text-gray-800 line-clamp-4">{review.text}</p>
+
+                  {/* Photos */}
+                  {review.photos && review.photos.length > 0 && (
+                    <div className="flex gap-2">
+                      {review.photos.slice(0, 3).map((photo, i) => {
+                        // Handle both formats: string URLs or objects with url property
+                        const photoUrl =
+                          typeof photo === "string" ? photo : photo.url;
+                        const photoKey =
+                          typeof photo === "string" ? i : photo.path || i;
+
+                        return (
+                          <div
+                            key={photoKey}
+                            className="h-20 w-20 rounded overflow-hidden bg-gray-100 border border-gray-200"
+                          >
+                            {photoUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={photoUrl}
+                                alt={`Photo ${i + 1}`}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="h-full w-full flex items-center justify-center text-xs text-gray-400">
+                                No photo
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Services */}
+                  {review.masterServices &&
+                    review.masterServices.length > 0 && (
+                      <div className="text-xs text-gray-500">
+                        Services: {review.masterServices.join(", ")}
+                      </div>
+                    )}
+                </>
+              );
+
+              return (
+                <li key={review.id}>
+                  {review.source === "public-card" && review.masterKey ? (
+                    <Link
+                      href={`/reviewty/${review.masterKey}`}
+                      className="block rounded-xl border bg-white p-4 space-y-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                    >
+                      {cardContent}
+                    </Link>
+                  ) : (
+                    <div className="rounded-xl border bg-white p-4 space-y-3 shadow-sm hover:shadow-md transition-shadow">
+                      {cardContent}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {/* Footer */}
+        <div className="text-center py-4">
+          <div className="text-gray-500 text-sm">That's all</div>
+        </div>
+
+        {/* Modal */}
+        <ReviewtyCreateModal />
+      </div>
     </div>
   );
 }

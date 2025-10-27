@@ -10,22 +10,20 @@ import {
   limit,
   orderBy,
   query,
-  getFirestore,
 } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db } from "@/lib/firebase.client";
-import { app } from "@/lib/firebase.client";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, storage } from "@/lib/firebase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { createReviewViaApi } from "@/lib/reviews/createClient";
 import type { ReviewPhoto } from "@/lib/reviews/types";
 import type { CommunityMaster } from "@/types/community";
 import AutocompleteList from "@/components/AutocompleteList";
-import {
-  CityAutocomplete,
-  ServicesSelect,
-  LanguagesSelect,
-} from "@/components/selects";
-import { SERVICES_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/options";
+import CityAutocomplete from "@/components/CityAutocomplete";
+import MultiSelectAutocompleteV2 from "@/components/inputs/MultiSelectAutocompleteV2";
+import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/catalog";
+import { ensureKeyObject } from "@/lib/filters/normalize";
+import type { CityNorm } from "@/lib/city";
+import type { TagOption } from "@/types/tags";
 import { cityToDisplay } from "@/lib/city/format";
 
 function slugifyCityName(name: string) {
@@ -85,11 +83,16 @@ export default function ReviewtyCreateModal({
         services: presetMaster.services || [],
         contact: presetMaster.contact || {},
       });
-      setCity(presetMaster.city || null);
+      // Convert presetMaster.city to CityNorm if it's an object
+      if (presetMaster.city && typeof presetMaster.city === "object") {
+        setCity(presetMaster.city as CityNorm);
+      } else {
+        setCity(null);
+      }
       setSelectedServices(
         (presetMaster.services || []).map((s) => ({
-          value: s,
-          label: SERVICES_OPTIONS.find((opt) => opt.value === s)?.label || s,
+          key: s,
+          label: SERVICE_OPTIONS.find((opt) => opt.value === s)?.label || s,
         }))
       );
     }
@@ -116,13 +119,9 @@ export default function ReviewtyCreateModal({
   });
 
   // structured form state for community master
-  const [city, setCity] = useState<any>(null); // Can be string or object from CityAutocomplete
-  const [selectedServices, setSelectedServices] = useState<
-    { value: string; label: string }[]
-  >([]);
-  const [selectedLanguages, setSelectedLanguages] = useState<
-    { value: string; label: string }[]
-  >([]);
+  const [city, setCity] = useState<CityNorm | null>(null);
+  const [selectedServices, setSelectedServices] = useState<TagOption[]>([]);
+  const [selectedLanguages, setSelectedLanguages] = useState<TagOption[]>([]);
 
   // review form
   const [rating, setRating] = useState<1 | 2 | 3 | 4 | 5>(5);
@@ -192,55 +191,147 @@ export default function ReviewtyCreateModal({
     };
   }
 
+  // Helper function to remove undefined values recursively
+  function sanitize<T extends Record<string, any>>(obj: T): T {
+    // remove keys that are strictly undefined (but keep null, keep [])
+    Object.keys(obj).forEach((key) => {
+      if (obj[key] === undefined) {
+        delete obj[key];
+      } else if (
+        obj[key] &&
+        typeof obj[key] === "object" &&
+        !Array.isArray(obj[key])
+      ) {
+        sanitize(obj[key]);
+      }
+    });
+    return obj;
+  }
+
+  // Helper function to create a URL-safe slug
+  function slugify(text: string): string {
+    return text
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, "") // Remove special characters
+      .replace(/[\s_-]+/g, "-") // Replace spaces and underscores with hyphens
+      .replace(/^-+|-+$/g, ""); // Remove leading/trailing hyphens
+  }
+
   async function handleSubmitPublicCard() {
     try {
-      const db = getFirestore(app);
-      const storage = getStorage(app);
+      // A. Collect form data into explicit local variables
+      const displayName = cm.displayName?.trim() || "";
+      const selectedCity = city;
+      const services = selectedServices.map((s) => ({
+        key: s.key || "",
+        name: s.label || "",
+        emoji: SERVICE_OPTIONS.find((opt) => opt.value === s.key)?.emoji || "",
+      }));
+      const languages = selectedLanguages.map((l) => ({
+        key: l.key || "",
+        name: l.label || "",
+        emoji: LANGUAGE_OPTIONS.find((opt) => opt.value === l.key)?.emoji || "",
+      }));
+      const ratingValue = Number(rating) || 0;
+      const textValue = text || "";
+      const filesToUpload = files || [];
 
-      // 1. upload any images (if files exists)
-      const uploadedPhotoUrls: string[] = [];
+      // Validate required fields
+      if (!displayName) {
+        alert("Please enter a name/nickname/salon");
+        return;
+      }
+      if (!selectedCity) {
+        alert("Please select a city");
+        return;
+      }
 
-      for (const file of files) {
-        // we'll generate a storage path under reviews/publicCard/<randomId>/<filename>
-        // use doc-like random id: Date.now() + '_' + file.name is fine for now
+      // B. Upload images to Firebase Storage
+      const photoUrls: string[] = [];
+      for (const file of filesToUpload) {
         const path = `reviews/publicCard/${Date.now()}_${file.name}`;
         const fileRef = ref(storage, path);
         await uploadBytes(fileRef, file);
         const url = await getDownloadURL(fileRef);
-        uploadedPhotoUrls.push(url);
+        photoUrls.push(url);
       }
 
-      // 2. build the Firestore document
-      // Normalize service/language fields: they might be string or array-of-tags,
-      // we store them in arrays so filtering later is easy.
-      const servicesArr = selectedServices.map((s) => s.value);
-      const languagesArr = selectedLanguages.map((l) => l.value);
+      // C. Build the Firestore document object manually - NO undefined values
+      const masterPublic: any = {
+        displayName: displayName,
+        services: Array.isArray(services) ? services : [],
+        languages: Array.isArray(languages) ? languages : [],
+      };
 
-      const docData = {
-        // who/where
-        displayName: cm.displayName || "",
-        cityName: cityToDisplay(city) || "",
-        services: servicesArr,
-        languages: languagesArr,
+      // Attach city info if we have it
+      if (selectedCity) {
+        masterPublic.city = {
+          city: selectedCity.city ?? null,
+          state: selectedCity.state ?? null,
+          stateCode: selectedCity.stateCode ?? null,
+          country: selectedCity.country ?? null,
+          countryCode: selectedCity.countryCode ?? null,
+          formatted: selectedCity.formatted ?? null,
+          lat: selectedCity.lat ?? null,
+          lng: selectedCity.lng ?? null,
+          placeId: selectedCity.placeId ?? null,
+          slug: selectedCity.slug ?? null,
+        };
 
-        // review content
-        rating: Number(rating) || 0,
-        text: text || "",
+        // mirrors used for filtering/search
+        masterPublic.cityName = selectedCity.formatted ?? "";
+        masterPublic.cityKey = selectedCity.slug ?? "";
+      }
 
-        // photos from upload
-        photos: uploadedPhotoUrls,
-
-        // housekeeping
+      const reviewDoc: any = {
+        masterPublic,
+        rating: ratingValue,
+        text: textValue,
+        photos: photoUrls || [],
         createdAt: serverTimestamp(),
         source: "public-card",
       };
 
-      // 3. write to Firestore
-      // We'll store in collection "publicCards" (matches our storage.rules block for publicCards).
-      const colRef = collection(db, "publicCards");
-      await addDoc(colRef, docData);
+      // Generate masterKey for URL routing (only if city exists)
+      if (selectedCity) {
+        const citySlug =
+          selectedCity.slug || slugify(selectedCity.formatted || "");
+        const masterKey = slugify(`${displayName}-${citySlug}`);
+        reviewDoc.masterKey = masterKey;
+      }
 
-      // 4. optional UX: clear form and close modal
+      // Add master info for filtering (only if city exists)
+      if (selectedCity) {
+        reviewDoc.masterDisplay = displayName;
+        reviewDoc.masterCity = selectedCity.formatted ?? "";
+        reviewDoc.masterServices = services
+          .map((s) => s.key)
+          .filter((key) => key);
+        reviewDoc.masterLanguages = languages
+          .map((l) => l.key)
+          .filter((key) => key);
+
+        // Build keywords array safely - no undefined values
+        const keywords = [
+          displayName.toLowerCase(),
+          selectedCity.formatted?.toLowerCase() || "",
+          ...services.map((s) => s.key.toLowerCase()).filter((key) => key),
+          ...languages.map((l) => l.key.toLowerCase()).filter((key) => key),
+        ].filter((keyword) => keyword && keyword.length > 0);
+        reviewDoc.masterKeywords = keywords;
+      }
+
+      // IMPORTANT: remove any remaining `undefined` recursively
+      sanitize(reviewDoc);
+
+      console.log("[reviewDoc]", reviewDoc);
+
+      // D. Write to Firestore
+      const colRef = collection(db, "reviews");
+      await addDoc(colRef, reviewDoc);
+
+      // Success: clear form and close modal
       setCM({ displayName: "", city: "", services: [] });
       setCity(null);
       setSelectedServices([]);
@@ -250,75 +341,89 @@ export default function ReviewtyCreateModal({
       setFiles([]);
 
       alert("Thank you! Your review card has been submitted.");
+      setOpen(false);
     } catch (err) {
-      console.error("[Create public card] submit failed", err);
-      alert("Sorry, something went wrong while saving your public card.");
+      console.error("[Submit review] failed", err);
+      alert("Sorry, something went wrong while saving your review.");
     }
   }
 
   async function handleSubmit() {
     if (!user) return alert("Log in first");
-    let masterRef: any = null;
-    let city = "";
-    let services: string[] = [];
 
-    if (mode === "listing" && listingId) {
-      const snap = await getDoc(doc(db, "listings", listingId));
-      if (!snap.exists()) return alert("Listing not found");
-      const data = snap.data() as any;
-      masterRef = { type: "listing", id: listingId };
-      city = cityToDisplay(data.city);
-      services = Array.isArray(data.services) ? data.services : [];
-    } else {
-      // create community master
-      const cityStr = cityToDisplay(city);
-      const slug = `m-${slugifyCityName(cityStr || "city")}-${Math.random()
-        .toString(36)
-        .slice(2, 8)}`;
-      const ref = await addDoc(collection(db, "community_masters"), {
-        slug,
-        displayName: cm.displayName?.trim() || "Master",
-        city: cityStr,
-        services: selectedServices.map((s) => s.value),
-        languages: selectedLanguages.map((l) => l.value),
-        contact: cm.contact || {},
-        createdByUid: user.uid,
-        createdAt: serverTimestamp(),
-        claimedListingId: null,
-      });
-      masterRef = { type: "community", id: ref.id, slug };
-      city = cityStr;
-      services = selectedServices.map((s) => s.value);
+    try {
+      // Upload photos (max 3)
+      const uploadedPhotos: { url: string; path: string }[] = [];
+      for (const f of files.slice(0, 3)) {
+        const path = `reviews/listing/${Date.now()}_${f.name}`;
+        const fileRef = ref(storage, path);
+        await uploadBytes(fileRef, f);
+        const url = await getDownloadURL(fileRef);
+        uploadedPhotos.push({ url, path });
+      }
+
+      if (mode === "listing" && listingId) {
+        // Existing master: get master data and create review
+        const snap = await getDoc(doc(db, "listings", listingId));
+        if (!snap.exists()) return alert("Listing not found");
+        const data = snap.data() as any;
+
+        const docData = {
+          // Master info (for filtering)
+          masterId: listingId,
+          masterDisplay: data.title || data.displayName || "Unknown master",
+          masterCity: cityToDisplay(data.city) || "",
+          masterServices: Array.isArray(data.services) ? data.services : [],
+          masterLanguages: Array.isArray(data.languages) ? data.languages : [],
+          masterKeywords: [
+            data.title?.toLowerCase(),
+            cityToDisplay(data.city)?.toLowerCase(),
+            ...(Array.isArray(data.services)
+              ? data.services.map((s: string) => s.toLowerCase())
+              : []),
+            ...(Array.isArray(data.languages)
+              ? data.languages.map((l: string) => l.toLowerCase())
+              : []),
+          ].filter(Boolean),
+
+          // Review content
+          rating: Number(rating) || 0,
+          text: text || "",
+          photos: uploadedPhotos,
+
+          // Master reference
+          masterRef: { type: "listing", id: listingId },
+
+          // Housekeeping
+          createdAt: serverTimestamp(),
+          source: "existing-master",
+        };
+
+        // Write to Firestore in "reviews" collection
+        const colRef = collection(db, "reviews");
+        await addDoc(colRef, docData);
+
+        alert("Thank you! Your review has been submitted.");
+      } else {
+        // Community mode: Create public card
+        await handleSubmitPublicCard();
+        return; // handleSubmitPublicCard already handles cleanup and closing
+      }
+
+      // Cleanup and close modal
+      setOpen(false);
+      setListingId("");
+      setCM({});
+      setFiles([]);
+      setText("");
+      setRating(5);
+      setCity(null);
+      setSelectedServices([]);
+      setSelectedLanguages([]);
+    } catch (err) {
+      console.error("[Submit review] failed", err);
+      alert("Sorry, something went wrong while saving your review.");
     }
-
-    // upload photos (max 3)
-    const photos: ReviewPhoto[] = [];
-    for (const f of files.slice(0, 3)) {
-      photos.push(await upload(f));
-    }
-
-    // Use API for listing mode only
-    if (mode === "listing" && listingId) {
-      await createReviewViaApi({
-        subject: { type: "listing", id: listingId },
-        rating,
-        text,
-        photos,
-      });
-    } else {
-      // Community mode: Create public card
-      await handleSubmitPublicCard();
-    }
-
-    setOpen(false);
-    setListingId("");
-    setCM({});
-    setFiles([]);
-    setText("");
-    setRating(5);
-    setCity(null);
-    setSelectedServices([]);
-    setSelectedLanguages([]);
   }
 
   if (!open) return null;
@@ -394,46 +499,36 @@ export default function ReviewtyCreateModal({
               <CityAutocomplete
                 value={city}
                 placeholder="City"
-                autoOpenOnType={true}
-                autoCloseOnSelect={true}
-                onChange={(c: any) => setCity(c)}
+                onChange={(c: CityNorm | null) => setCity(c)}
               />
             </div>
 
             {/* Services */}
-            <ServicesSelect
-              value={selectedServices.map((s) => s.value)}
-              onChange={(vals: string[]) => {
-                const serviceOptions = vals.map((value) => ({
-                  value,
-                  label:
-                    SERVICES_OPTIONS.find((s) => s.value === value)?.label ||
-                    value,
-                }));
-                setSelectedServices(serviceOptions);
+            <MultiSelectAutocompleteV2
+              label=""
+              options={SERVICE_OPTIONS}
+              value={selectedServices}
+              onChange={(vals) => {
+                const normalized = vals
+                  .map((v) => ensureKeyObject<TagOption>(v))
+                  .filter(Boolean) as TagOption[];
+                setSelectedServices(normalized);
               }}
-              options={SERVICES_OPTIONS}
               placeholder="Services (start typing...)"
-              autoOpenOnType={true}
-              autoCloseOnSelect={true}
             />
 
             {/* Languages */}
-            <LanguagesSelect
-              value={selectedLanguages.map((l) => l.value)}
-              onChange={(vals: string[]) => {
-                const languageOptions = vals.map((value) => ({
-                  value,
-                  label:
-                    LANGUAGE_OPTIONS.find((l) => l.value === value)?.label ||
-                    value,
-                }));
-                setSelectedLanguages(languageOptions);
-              }}
+            <MultiSelectAutocompleteV2
+              label=""
               options={LANGUAGE_OPTIONS}
+              value={selectedLanguages}
+              onChange={(vals) => {
+                const normalized = vals
+                  .map((v) => ensureKeyObject<TagOption>(v))
+                  .filter(Boolean) as TagOption[];
+                setSelectedLanguages(normalized);
+              }}
               placeholder="Languages"
-              autoOpenOnType={true}
-              autoCloseOnSelect={true}
             />
           </div>
         )}

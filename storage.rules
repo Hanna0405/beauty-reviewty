@@ -7,14 +7,20 @@ service firebase.storage {
 
  // Avatars
  match /avatars/{uid}/{allPaths=**} {
- allow read: if true;
- allow write: if signedIn() && request.auth.uid == uid && isImage() && under8MB();
+   allow read: if true;
+   allow write: if signedIn() && request.auth.uid == uid && isImage() && under8MB();
  }
 
  // Listing images (if used)
  match /listing-images/{uid}/{allPaths=**} {
- allow read: if true;
- allow write: if signedIn() && request.auth.uid == uid && isImage() && under8MB();
+   allow read: if true;
+   allow write: if signedIn() && request.auth.uid == uid && isImage() && under8MB();
+ }
+
+ // Reviews - TEMPORARY for local/dev only - allow uploads without auth
+ match /reviews/{allPaths=**} {
+   allow read: if true;
+   allow write: if isImage() && under8MB();
  }
  }
 }
