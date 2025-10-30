@@ -1,124 +1,187 @@
 rules_version = '2';
 service cloud.firestore {
  match /databases/{database}/documents {
+
+ // ===== Common helpers (без request/resource внутри) =====
  function isSignedIn() { return request.auth != null; }
  function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
- 
- /* --- booking helpers --- */
- function isParticipant() {
-   return isSignedIn() &&
-   (request.auth.uid == resource.data.clientId || request.auth.uid == resource.data.masterUid);
+
+ // --- Public Cards helpers (упрощённые проверки массивов/объектов) ---
+ function pc_isString(v) { return v is string && v.size() <= 2000; }
+ function pc_isArray(a) { return a is list && a.size() <= 50; }
+ function pc_isNumber(v) { return v is int || v is float; }
+ function pc_isCity(o) {
+ return o is map
+ && pc_isString(o.city)
+ && (
+ // FULL normalized city object
+ (
+ ('state' in o) && ('stateCode' in o) && ('country' in o) && ('countryCode' in o)
+ && ('formatted' in o) && ('placeId' in o) && ('slug' in o)
+ && ('lat' in o) && ('lng' in o)
+ && pc_isString(o.state) && pc_isString(o.stateCode)
+ && pc_isString(o.country) && pc_isString(o.countryCode)
+ && pc_isString(o.formatted) && pc_isString(o.placeId) && pc_isString(o.slug)
+ && pc_isNumber(o.lat) && pc_isNumber(o.lng)
+ )
+ ||
+ // LEGACY lightweight city object: city + (cityKey | slug | cityName), lat/lng опциональны
+ (
+ (('cityKey' in o) || ('slug' in o) || ('cityName' in o))
+ && (!('lat' in o) || pc_isNumber(o.lat))
+ && (!('lng' in o) || pc_isNumber(o.lng))
+ )
+ );
  }
- function newParticipant() {
-   return isSignedIn() &&
-   (request.auth.uid == request.resource.data.clientId || request.auth.uid == request.resource.data.masterUid);
- }
- function isValidStatus(s) {
-   return s in ['pending','confirmed','declined','canceled','completed'];
- }
- function unchangedCoreFields() {
-   // forbid changing immutable fields
-   return request.resource.data.clientId == resource.data.clientId
-   && request.resource.data.masterUid == resource.data.masterUid
-   && request.resource.data.listingId == resource.data.listingId
-   && request.resource.data.startsAt == resource.data.startsAt
-   && request.resource.data.durationMin == resource.data.durationMin;
+ function pc_validPublicCard(d) {
+ return d is map
+ && pc_isString(d.masterName)
+ && pc_isCity(d.city)
+ && (d.rating is int || d.rating is float) && d.rating >= 1 && d.rating <= 5
+ && (!('text' in d) || pc_isString(d.text))
+ && (!('photos' in d) || pc_isArray(d.photos))
+ && (!('serviceKeys' in d) || pc_isArray(d.serviceKeys))
+ && (!('serviceNames' in d) || pc_isArray(d.serviceNames))
+ && (!('languageKeys' in d) || pc_isArray(d.languageKeys))
+ && (!('languageNames' in d) || pc_isArray(d.languageNames))
+ && (!('services' in d) || pc_isArray(d.services))
+ && (!('languages' in d) || pc_isArray(d.languages))
+ && (!('createdAt' in d) || d.createdAt is timestamp)
+ && (!('updatedAt' in d) || d.updatedAt is timestamp);
  }
 
+ // ===== Read-only directories =====
  match /services/{docId} { allow read: if true; allow write: if false; }
  match /cities/{docId} { allow read: if true; allow write: if false; }
 
+ // ===== Users =====
  match /users/{userId} {
  allow read: if true;
- allow create: if isOwner(userId);
- allow update: if isOwner(userId);
+ allow create, update: if isOwner(userId);
  allow delete: if false;
  }
 
+ // ===== Masters =====
  match /masters/{userId} {
  allow read: if true;
  allow create, update: if isOwner(userId);
  allow delete: if false;
- 
- // Master reviews subcollection
+
+ // Subcollection: reviews for a master
  match /reviews/{reviewId} {
-   allow read: if true; // anyone can read master reviews
-   allow create: if request.auth != null && 
-     request.resource.data.authorUid == request.auth.uid &&
-     request.resource.data.rating >= 1 && 
-     request.resource.data.rating <= 5;
-   allow update, delete: if request.auth != null && 
-     request.auth.uid == resource.data.authorUid;
+ allow read: if true;
+ allow create: if request.auth != null
+ && request.resource.data.authorUid == request.auth.uid
+ && request.resource.data.rating is int
+ && request.resource.data.rating >= 1
+ && request.resource.data.rating <= 5;
+ allow update, delete: if request.auth != null
+ && request.auth.uid == resource.data.authorUid;
  }
  }
 
+ // ===== Profiles =====
  match /profiles/{uid} {
  allow read: if true;
  allow create, update, delete: if request.auth != null && request.auth.uid == uid;
- 
- // Allow owner to edit added notification fields only
+
  allow update: if isOwner(uid)
-   && request.resource.data.diff(resource.data).changedKeys().hasOnly(['notifyEmail','notifyOnBooking','role','updatedAt'])
-   && (request.resource.data.notifyEmail == null || request.resource.data.notifyEmail is string)
-   && (request.resource.data.notifyOnBooking == null || request.resource.data.notifyOnBooking is bool)
-   && (request.resource.data.role == null || request.resource.data.role in ['client','master']);
+ && request.resource.data.diff(resource.data).changedKeys().hasOnly(
+ ['notifyEmail','notifyOnBooking','role','updatedAt']
+ )
+ && (request.resource.data.notifyEmail == null || request.resource.data.notifyEmail is string)
+ && (request.resource.data.notifyOnBooking == null || request.resource.data.notifyOnBooking is bool)
+ && (request.resource.data.role == null || request.resource.data.role in ['client','master']);
  }
 
+ // ===== Listings =====
  match /listings/{id} {
  allow read: if true;
- allow create: if request.auth != null
- && request.resource.data.ownerId == request.auth.uid;
- allow update, delete: if request.auth != null
- && resource.data.ownerId == request.auth.uid;
+ allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
+ allow update, delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
  }
 
- // -------- Bookings --------
+ // ===== Bookings =====
  match /bookings/{bookingId} {
-   allow create: if request.auth != null
-   && request.resource.data.clientId == request.auth.uid
-   && request.resource.data.masterId is string
-   && request.resource.data.startISO is string
-   && request.resource.data.endISO is string
-   && request.resource.data.durationMin is number;
-   allow read: if request.auth != null
-   && (resource.data.clientId == request.auth.uid
-   || resource.data.masterId == request.auth.uid);
-   allow update: if request.auth != null
-   && ((resource.data.clientId == request.auth.uid && resource.data.status == 'pending')
-   || resource.data.masterId == request.auth.uid);
-   allow delete: if false;
+ allow create: if request.auth != null
+ && request.resource.data.clientId == request.auth.uid
+ && request.resource.data.masterId is string
+ && request.resource.data.startISO is string
+ && request.resource.data.endISO is string
+ && request.resource.data.durationMin is number;
+ allow read: if request.auth != null
+ && (resource.data.clientId == request.auth.uid || resource.data.masterId == request.auth.uid);
+ allow update: if request.auth != null
+ && ((resource.data.clientId == request.auth.uid && resource.data.status == 'pending')
+ || resource.data.masterId == request.auth.uid);
+ allow delete: if false;
  }
 
-// Reviews
-match /reviews/{reviewId} {
-  allow read: if true; // anyone can read reviews
-  allow create: if true; // TEMPORARY for local/dev only - allow writes without auth
-  allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
-}
+ // ===== Generic reviews collection (dev create allowed) =====
+ match /reviews/{reviewId} {
+ allow read: if true;
+ allow create: if true; // TEMPORARY for dev
+ allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+ }
 
- // Community Masters
+ // ===== Community Masters =====
  match /community_masters/{mid} {
  allow read: if true;
- allow create: if request.auth != null
- && request.resource.data.createdByUid == request.auth.uid;
- allow update, delete: if request.auth != null
- && resource.data.createdByUid == request.auth.uid;
+ allow create: if request.auth != null && request.resource.data.createdByUid == request.auth.uid;
+ allow update, delete: if request.auth != null && resource.data.createdByUid == request.auth.uid;
  }
 
- // Public feed of people's reviews shown on /reviewty
- match /publicReviews/{pubId} {
-   // Anyone can read the public feed
-   allow read: if true;
+  // ===== Public Reviews =====
+  match /publicReviews/{pubId} {
+    allow read: if true;
+    allow create: if isSignedIn()
+    // accept masterId or publicCardSlug (your component uses publicCardSlug)
+    && (
+      (request.resource.data.masterId is string) ||
+      (request.resource.data.publicCardSlug is string)
+    )
+    && ((request.resource.data.rating is int) || (request.resource.data.rating is float))
+    && request.resource.data.rating >= 1
+    && request.resource.data.rating <= 5
+    && request.resource.data.authorUid == request.auth.uid
+    && (!('text' in request.resource.data) || (request.resource.data.text is string))
+    && (!('photos' in request.resource.data) || (request.resource.data.photos is list))
+    && (!('createdAt' in request.resource.data) || request.resource.data.createdAt is timestamp);
+    allow update, delete: if false;
+  }
 
-   // Only authenticated users can create; basic validation
-   allow create: if request.auth != null
-     && request.resource.data.masterId is string
-     && request.resource.data.rating is int
-     && request.resource.data.rating >= 1
-     && request.resource.data.rating <= 5;
+ // ===== Reviewty Masters (public read only) =====
+ match /reviewtyMasters/{masterId} {
+ allow read: if true;
+ allow write: if false;
 
-   // Disallow updates/deletes from clients for now (optional: allow if authorUid == request.auth.uid)
-   allow update, delete: if false;
+ match /reviews/{reviewId} {
+ allow read: if true;
+ allow create: if request.auth != null;
+ allow update, delete: if false;
+ }
+ }
+
+ // ===== Public Cards (create с валидацией) =====
+ match /publicCards/{cardId} {
+ allow read: if true;
+ allow create: if isSignedIn()
+ && pc_validPublicCard(request.resource.data)
+ && request.resource.data.createdByUid == request.auth.uid;
+ allow update, delete: if false;
+ }
+
+ // --- Fallback для любых подколлекций reviews (страница slug) ---
+match /{parent=**}/reviews/{reviewId} {
+ allow read: if true;
+ allow create: if isSignedIn()
+ && request.resource.data.authorUid == request.auth.uid
+ && ((request.resource.data.rating is int) || (request.resource.data.rating is float))
+ && request.resource.data.rating >= 1
+ && request.resource.data.rating <= 5
+ // необязательно, но полезно: разрешаем serverTimestamp для даты
+ && (!('createdAt' in request.resource.data) || request.resource.data.createdAt is timestamp);
+ allow update, delete: if false;
  }
  }
 }

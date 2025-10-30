@@ -162,20 +162,13 @@ export default function ReviewtyCreateModal({
   }, []);
 
   async function upload(file: File) {
-    const { getAuth } = await import("firebase/auth");
-    const auth = getAuth();
-    const user = auth.currentUser;
-    const token = user ? await user.getIdToken() : null;
-
     const fd = new FormData();
     fd.append("file", file);
     fd.append("scope", "listing");
+    fd.append("dir", "reviews");
     fd.append("listingId", "reviews");
-    const res = await fetch("/api/upload", {
+    const res = await fetch("/api/upload-public", {
       method: "POST",
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
       body: fd,
     });
     const data = await res.json();
@@ -186,8 +179,8 @@ export default function ReviewtyCreateModal({
     console.log("[upload success]", data.url);
     // Expect { files: [{url, path}] }
     return {
-      url: data.files?.[0]?.url || "",
-      path: data.files?.[0]?.path || "",
+      url: data.files?.[0]?.url || data.url || "",
+      path: data.files?.[0]?.path || data.path || "",
     };
   }
 
@@ -221,7 +214,7 @@ export default function ReviewtyCreateModal({
   async function handleSubmitPublicCard() {
     try {
       // A. Collect form data into explicit local variables
-      const displayName = cm.displayName?.trim() || "";
+      const masterName = cm.displayName?.trim() || "";
       const selectedCity = city;
       const services = selectedServices.map((s) => ({
         key: s.key || "",
@@ -238,7 +231,7 @@ export default function ReviewtyCreateModal({
       const filesToUpload = files || [];
 
       // Validate required fields
-      if (!displayName) {
+      if (!masterName) {
         alert("Please enter a name/nickname/salon");
         return;
       }
@@ -247,89 +240,80 @@ export default function ReviewtyCreateModal({
         return;
       }
 
-      // B. Upload images to Firebase Storage
-      const photoUrls: string[] = [];
+      // B. Upload images using the legacy upload method that works without auth
+      const uploadedPhotoURLs: string[] = [];
       for (const file of filesToUpload) {
-        const path = `reviews/publicCard/${Date.now()}_${file.name}`;
-        const fileRef = ref(storage, path);
-        await uploadBytes(fileRef, file);
-        const url = await getDownloadURL(fileRef);
-        photoUrls.push(url);
+        const result = await upload(file);
+        uploadedPhotoURLs.push(result.url);
       }
 
-      // C. Build the Firestore document object manually - NO undefined values
-      const masterPublic: any = {
-        displayName: displayName,
-        services: Array.isArray(services) ? services : [],
-        languages: Array.isArray(languages) ? languages : [],
+      // C. Build the Firestore document in the exact "old / working" shape
+      const now = serverTimestamp();
+
+      const docData = {
+        masterName: masterName || "",
+        text: textValue || "",
+        rating: typeof ratingValue === "number" ? ratingValue : 5,
+
+        photos: Array.isArray(uploadedPhotoURLs) ? uploadedPhotoURLs : [],
+
+        services: Array.isArray(services)
+          ? services.map((s) => ({
+              key: s.key || "",
+              name: s.name || "",
+              emoji: s.emoji || "",
+            }))
+          : [],
+        serviceKeys: Array.isArray(services)
+          ? services.map((s) => s.key || "")
+          : [],
+        serviceNames: Array.isArray(services)
+          ? services.map((s) => s.name || "")
+          : [],
+
+        languages: Array.isArray(languages)
+          ? languages.map((l) => ({
+              key: l.key || "",
+              name: l.name || "",
+              emoji: l.emoji || "",
+            }))
+          : [],
+        languageKeys: Array.isArray(languages)
+          ? languages.map((l) => l.key || "")
+          : [],
+        languageNames: Array.isArray(languages)
+          ? languages.map((l) => l.name || "")
+          : [],
+
+        city: selectedCity
+          ? {
+              city: selectedCity.city || "",
+              cityKey: selectedCity.cityKey || selectedCity.slug || "",
+              cityName: selectedCity.cityName || selectedCity.formatted || "",
+              country: selectedCity.country || "",
+              countryCode: selectedCity.countryCode || "",
+              formatted: selectedCity.formatted || selectedCity.cityName || "",
+              lat: selectedCity.lat ?? null,
+              lng: selectedCity.lng ?? null,
+              placeId: selectedCity.placeId || "",
+              state: selectedCity.state || "",
+              stateCode: selectedCity.stateCode || "",
+            }
+          : null,
+
+        createdAt: now,
+        updatedAt: now,
+        createdByUid: user?.uid || null,
+
+        type: "public-card",
+        status: "approved", // or 'pending' if we moderate before showing
       };
 
-      // Attach city info if we have it
-      if (selectedCity) {
-        masterPublic.city = {
-          city: selectedCity.city ?? null,
-          state: selectedCity.state ?? null,
-          stateCode: selectedCity.stateCode ?? null,
-          country: selectedCity.country ?? null,
-          countryCode: selectedCity.countryCode ?? null,
-          formatted: selectedCity.formatted ?? null,
-          lat: selectedCity.lat ?? null,
-          lng: selectedCity.lng ?? null,
-          placeId: selectedCity.placeId ?? null,
-          slug: selectedCity.slug ?? null,
-        };
+      console.log("[publicCard docData]", docData);
 
-        // mirrors used for filtering/search
-        masterPublic.cityName = selectedCity.formatted ?? "";
-        masterPublic.cityKey = selectedCity.slug ?? "";
-      }
-
-      const reviewDoc: any = {
-        masterPublic,
-        rating: ratingValue,
-        text: textValue,
-        photos: photoUrls || [],
-        createdAt: serverTimestamp(),
-        source: "public-card",
-      };
-
-      // Generate masterKey for URL routing (only if city exists)
-      if (selectedCity) {
-        const citySlug =
-          selectedCity.slug || slugify(selectedCity.formatted || "");
-        const masterKey = slugify(`${displayName}-${citySlug}`);
-        reviewDoc.masterKey = masterKey;
-      }
-
-      // Add master info for filtering (only if city exists)
-      if (selectedCity) {
-        reviewDoc.masterDisplay = displayName;
-        reviewDoc.masterCity = selectedCity.formatted ?? "";
-        reviewDoc.masterServices = services
-          .map((s) => s.key)
-          .filter((key) => key);
-        reviewDoc.masterLanguages = languages
-          .map((l) => l.key)
-          .filter((key) => key);
-
-        // Build keywords array safely - no undefined values
-        const keywords = [
-          displayName.toLowerCase(),
-          selectedCity.formatted?.toLowerCase() || "",
-          ...services.map((s) => s.key.toLowerCase()).filter((key) => key),
-          ...languages.map((l) => l.key.toLowerCase()).filter((key) => key),
-        ].filter((keyword) => keyword && keyword.length > 0);
-        reviewDoc.masterKeywords = keywords;
-      }
-
-      // IMPORTANT: remove any remaining `undefined` recursively
-      sanitize(reviewDoc);
-
-      console.log("[reviewDoc]", reviewDoc);
-
-      // D. Write to Firestore
-      const colRef = collection(db, "reviews");
-      await addDoc(colRef, reviewDoc);
+      // D. Write to Firestore in publicCards collection
+      const colRef = collection(db, "publicCards");
+      await addDoc(colRef, docData);
 
       // Success: clear form and close modal
       setCM({ displayName: "", city: "", services: [] });
@@ -349,17 +333,12 @@ export default function ReviewtyCreateModal({
   }
 
   async function handleSubmit() {
-    if (!user) return alert("Log in first");
-
     try {
-      // Upload photos (max 3)
+      // Upload photos (max 3) - use the legacy upload method that works without auth
       const uploadedPhotos: { url: string; path: string }[] = [];
       for (const f of files.slice(0, 3)) {
-        const path = `reviews/listing/${Date.now()}_${f.name}`;
-        const fileRef = ref(storage, path);
-        await uploadBytes(fileRef, f);
-        const url = await getDownloadURL(fileRef);
-        uploadedPhotos.push({ url, path });
+        const result = await upload(f);
+        uploadedPhotos.push({ url: result.url, path: result.path });
       }
 
       if (mode === "listing" && listingId) {
@@ -393,6 +372,9 @@ export default function ReviewtyCreateModal({
 
           // Master reference
           masterRef: { type: "listing", id: listingId },
+
+          // Legacy flow - explicitly set clientUid to null
+          clientUid: null,
 
           // Housekeeping
           createdAt: serverTimestamp(),
