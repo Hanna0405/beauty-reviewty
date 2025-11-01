@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { db } from "@/lib/firebase/client";
-import { doc, getDoc, collection, getDocs, query, where, orderBy } from "firebase/firestore";
+import { doc, getDoc, getDocFromCache, collection, getDocs, query, where, orderBy } from "firebase/firestore";
 import PublicCardReviewForm from "@/components/reviewty/PublicCardReviewForm";
 import PhotoGallery from "@/components/reviewty/PhotoGallery";
 import { normalizePhotos } from "@/components/reviewty/getPhotoUrl";
@@ -41,6 +41,35 @@ function Stars({ rating }: { rating: number }) {
   );
 }
 
+// Safe load function with offline/cache fallback
+async function loadPublicCard(id: string) {
+  const ref = doc(db, "publicCards", id);
+
+  // 1) try normal getDoc (it will use cache + server)
+  try {
+    const snap = await getDoc(ref);
+    if (snap.exists()) {
+      return { id: snap.id, ...snap.data() };
+    }
+  } catch (err: any) {
+    // if it's offline/unavailable – try cache
+    if (err?.message?.includes("offline") || err?.code === "unavailable") {
+      try {
+        const cached = await getDocFromCache(ref);
+        if (cached.exists()) {
+          return { id: cached.id, ...cached.data() };
+        }
+      } catch (_) {
+        // ignore – will return null below
+      }
+    } else {
+      throw err;
+    }
+  }
+
+  return null;
+}
+
 export default async function PublicCardPage({
   params,
 }: {
@@ -48,15 +77,23 @@ export default async function PublicCardPage({
 }) {
   const { slug } = params;
 
-  // 1. load Firestore doc by id = slug
-  const ref = doc(db, "publicCards", slug);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) {
-    return notFound();
+  // 1. load Firestore doc by id = slug (with offline tolerance)
+  const cardData = await loadPublicCard(slug);
+  if (!cardData) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-6">
+        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">Not Available</h1>
+          <p className="text-sm text-gray-600">
+            This public card is not available right now.
+          </p>
+        </div>
+      </div>
+    );
   }
 
-  const data: any = snap.data();
-  const cardId = snap.id;
+  const data: any = cardData;
+  const cardId = cardData.id;
 
   const photos: string[] = Array.isArray(data.photos) ? data.photos : [];
   const normalizedPhotos = normalizePhotos(data.photos ?? data.images);
