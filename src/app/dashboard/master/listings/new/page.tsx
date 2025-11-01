@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { doc, collection } from "firebase/firestore";
-import { requireDb, requireAuth } from "@/lib/firebase";
+import { requireDb, auth } from "@/lib/firebase/client";
 import { createListing } from "@/lib/firestore-listings";
 import { toDisplayText } from "@/lib/safeText";
 import CityAutocomplete from "@/components/CityAutocomplete";
@@ -73,8 +73,7 @@ export default function NewListingPage() {
 
  const onSubmit = async (e: React.FormEvent) => {
  e.preventDefault();
- const auth = requireAuth();
- const user = auth.currentUser;
+ const user = auth?.currentUser;
     if (!user) {
       console.error("Please sign in");
       setErrorMsg("Please sign in to create a listing");
@@ -129,6 +128,8 @@ export default function NewListingPage() {
  setSaving(false);
  }
  };
+
+ const currentUid = auth?.currentUser?.uid ?? "";
 
  return (
  <MapContainer>
@@ -262,7 +263,7 @@ export default function NewListingPage() {
             photos={photos}
             onChange={setPhotos}
             maxPhotos={10}
-            userId={requireAuth().currentUser?.uid || ""}
+            userId={currentUid}
           />
         </div>
 

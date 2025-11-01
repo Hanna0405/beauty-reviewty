@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { doc, getDoc } from "firebase/firestore";
-import { requireDb, requireAuth } from "@/lib/firebase/client";
+import { requireDb, auth } from "@/lib/firebase/client";
 import { updateListing } from "@/lib/firestore-listings";
 import { toDisplayText } from "@/lib/safeText";
 import CityAutocomplete from "@/components/CityAutocomplete";
@@ -26,6 +26,8 @@ export default function EditListingPage() {
  const router = useRouter();
  const params = useParams() as { id: string };
  const id = params.id;
+
+ const currentUid = auth?.currentUser?.uid ?? "";
 
  const [loading, setLoading] = useState(true);
  const [saving, setSaving] = useState(false);
@@ -185,9 +187,8 @@ export default function EditListingPage() {
   };
 
       // Save using standardized helper
-      const auth = requireAuth();
- if (!auth.currentUser) throw new Error('User not authenticated');
- await updateListing(auth.currentUser, id, formData);
+      if (!auth?.currentUser) throw new Error('User not authenticated');
+      await updateListing(auth.currentUser, id, formData);
       console.info("[BR][EditListing] Updated successfully:", id);
       
       alert(`Listing updated successfully: ${toDisplayText(title)} in ${toDisplayText(formData.cityName)}`);
@@ -311,7 +312,7 @@ export default function EditListingPage() {
             photos={photos}
             onChange={setPhotos}
             maxPhotos={10}
-            userId={requireAuth().currentUser?.uid || ""}
+            userId={currentUid}
             listingId={id}
           />
         </div>

@@ -8,6 +8,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const type = searchParams.get('type');
     const id = searchParams.get('id');
+    console.log("[api/reviews/list] query =", searchParams.toString());
     if (type !== 'master' && type !== 'listing') {
       return NextResponse.json({ ok: false, error: 'Invalid type' }, { status: 400 });
     }
@@ -59,6 +60,8 @@ export async function GET(req: Request) {
       const bu = b?.updatedAt?.seconds ?? b?.createdAt?.seconds ?? 0;
       return bu - au;
     });
+    console.log("[api/reviews/list] result count =", items.length);
+    console.log("[api/reviews/list] sample =", items[0]);
     return NextResponse.json({ ok: true, items });
   } catch (e: any) {
     console.error('[api/reviews/list] error', e);

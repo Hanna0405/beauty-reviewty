@@ -17,12 +17,23 @@ import { masterId } from "@/lib/listings/presenters";
 
 // Используй ту же инициализацию Firestore, что у тебя уже есть.
 // В твоём проекте судя по импорту — '@/lib/firebase-client' экспортирует db.
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase.client';
+import {
+ collection,
+ doc,
+ getDocs,
+ getDoc,
+ query,
+ where,
+ orderBy,
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase/client';
 
 export default function ClientListing({ id }: { id: string }) {
   const [listing, setListing] = useState<any | null>(null);
   const [open, setOpen] = useState(false);
+  const [allReviews, setAllReviews] = useState<any[]>([]);
+  const [avgRating, setAvgRating] = useState(0);
+  const [totalReviews, setTotalReviews] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -30,7 +41,64 @@ export default function ClientListing({ id }: { id: string }) {
       try {
         const snap = await getDoc(doc(db, 'listings', id));
         if (!alive) return;
-        setListing({ id, ...(snap.data() || {}) });
+        const listingData = { id, ...(snap.data() || {}) };
+        setListing(listingData);
+
+        // load reviews from subcollection (old source)
+        const masterReviewsRef = collection(db, "masters", id, "reviews");
+        let masterReviews: any[] = [];
+        try {
+          const masterReviewsSnap = await getDocs(
+            query(masterReviewsRef, orderBy("createdAt", "desc"))
+          );
+          masterReviews = masterReviewsSnap.docs.map((d) => ({
+            id: d.id,
+            ...d.data(),
+          }));
+        } catch (e) {
+          console.warn("Failed to load master subcollection reviews", e);
+        }
+
+        // load reviews from root collection (new source from "Existing master")
+        let rootReviews: any[] = [];
+        try {
+          const rootReviewsRef = collection(db, "reviews");
+          const rootReviewsSnap = await getDocs(
+            query(
+              rootReviewsRef,
+              where("type", "==", "listing"),
+              where("listingId", "==", id)
+            )
+          );
+          rootReviews = rootReviewsSnap.docs.map((d) => ({
+            id: d.id,
+            ...d.data(),
+          }));
+        } catch (e) {
+          console.warn("Failed to load root reviews", e);
+        }
+
+        // merge reviews
+        const allReviews = [...rootReviews, ...masterReviews];
+        
+        // calculate unified stats
+        const totalReviews = allReviews.length;
+        const avgRating =
+          totalReviews > 0
+            ? allReviews.reduce((s, r) => s + (Number(r.rating) || 0), 0) / totalReviews
+            : 0;
+        
+        // sort by creation date (new first)
+        const sortedReviews = [...allReviews].sort((a, b) => {
+          const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+          const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+          return tb - ta;
+        });
+        
+        if (!alive) return;
+        setAllReviews(sortedReviews);
+        setAvgRating(avgRating);
+        setTotalReviews(totalReviews);
       } catch (e) {
         console.error('Failed to load listing', e);
       }
@@ -77,7 +145,49 @@ export default function ClientListing({ id }: { id: string }) {
 
       {/* Reviews below */}
       <section className="mt-8 lg:mt-12">
+        <h2 className="text-xl font-semibold mb-4">Reviews</h2>
+        
+        {/* header */}
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <span>★ {avgRating.toFixed(1)} / 5</span>
+          <span>· {totalReviews} review{totalReviews === 1 ? "" : "s"}</span>
+        </div>
+
+        {/* Add review form */}
         <ReviewsSection listingId={listing.id} subjectType="listing" />
+
+        {/* list */}
+        <div className="mt-4 space-y-3">
+          {allReviews.map((r) => (
+            <div key={r.id} className="border rounded-lg p-4 bg-white shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="text-yellow-400">
+                  {'★'.repeat(Math.round(r.rating || 0))}
+                  {'☆'.repeat(5 - Math.round(r.rating || 0))}
+                </div>
+                <span className="text-sm font-medium">{r.authorName || 'Verified client'}</span>
+                {r.createdAt?.toDate && (
+                  <span className="text-xs text-gray-500">
+                    · {r.createdAt.toDate().toLocaleDateString()}
+                  </span>
+                )}
+              </div>
+              {r.text && <p className="text-gray-800 text-sm mb-2">{r.text}</p>}
+              {Array.isArray(r.photos) && r.photos.length > 0 && (
+                <div className="flex gap-2 flex-wrap mt-2">
+                  {r.photos.map((url: string, idx: number) => (
+                    <img
+                      key={idx}
+                      src={url}
+                      alt=""
+                      className="w-20 h-20 object-cover rounded"
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </section>
 
       <Modal open={open} onClose={()=>setOpen(false)} title="Request booking">

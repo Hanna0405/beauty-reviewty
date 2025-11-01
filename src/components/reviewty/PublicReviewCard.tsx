@@ -11,6 +11,7 @@ type PublicReviewCardProps = {
   slugCandidate3?: string;
   debugItem?: any;
   rating?: number;
+  totalReviews?: number;
   masterName?: string;
   masterDisplay?: string;
   cityName?: string;
@@ -29,6 +30,7 @@ export default function PublicReviewCard({
   slugCandidate3,
   debugItem,
   rating,
+  totalReviews,
   masterName,
   masterDisplay,
   cityName,
@@ -51,7 +53,9 @@ export default function PublicReviewCard({
           <span className="text-yellow-500">
             {"★".repeat(Math.round(rating || 0))}
           </span>
-          <span className="text-sm text-gray-600 ml-1">{rating || 0}</span>
+          <span className="text-sm text-gray-600 ml-1">
+            {typeof rating === "number" ? rating.toFixed(1) : "0.0"} · {totalReviews ?? 1} review{(totalReviews ?? 1) === 1 ? "" : "s"}
+          </span>
         </div>
         <div className="text-sm text-gray-500">
           {cityName || masterCity || "—"}

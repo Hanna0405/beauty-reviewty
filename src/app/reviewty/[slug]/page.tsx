@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { db } from "@/lib/firebase/client";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, getDocs, query, where, orderBy } from "firebase/firestore";
 import PublicCardReviewForm from "@/components/reviewty/PublicCardReviewForm";
 import PhotoGallery from "@/components/reviewty/PhotoGallery";
 import { normalizePhotos } from "@/components/reviewty/getPhotoUrl";
@@ -9,11 +9,6 @@ import dynamic from "next/dynamic";
 
 const PublicCardReviews = dynamic(
   () => import("@/components/review/PublicCardReviews"),
-  { ssr: false }
-);
-
-const PublicCardReviewStats = dynamic(
-  () => import("@/components/review/PublicCardReviewStats"),
   { ssr: false }
 );
 
@@ -61,6 +56,7 @@ export default async function PublicCardPage({
   }
 
   const data: any = snap.data();
+  const cardId = snap.id;
 
   const photos: string[] = Array.isArray(data.photos) ? data.photos : [];
   const normalizedPhotos = normalizePhotos(data.photos ?? data.images);
@@ -71,7 +67,7 @@ export default async function PublicCardPage({
     data.city?.formatted || data.city?.cityName || data.cityKey || "";
 
   const card: PublicCard = {
-    id: snap.id,
+    id: cardId,
     masterName: data.masterName || data.masterSlug || "Unknown master",
     rating: typeof data.rating === "number" ? data.rating : 5.0,
     serviceKeys: Array.isArray(data.serviceKeys) ? data.serviceKeys : [],
@@ -80,9 +76,67 @@ export default async function PublicCardPage({
     photos,
   };
 
-  // temp reviews (we'll wire actual reviews later)
-  const reviewCount = 1; // hardcode "1 review" to match old UI screenshot
-  // const reviewCount = reviews.length in future
+  async function loadAllReviews(slug: string, listingId?: string) {
+    const all: any[] = [];
+
+    // 1) publicCards/{slug}/reviews
+    try {
+      const q1 = query(
+        collection(db, "publicCards", slug, "reviews"),
+        orderBy("createdAt", "desc")
+      );
+      const s1 = await getDocs(q1);
+      s1.forEach((d) => all.push({ id: d.id, ...d.data() }));
+    } catch (_) {}
+
+    // 2) reviewty/{slug}/reviews
+    try {
+      const q2 = query(
+        collection(db, "reviewty", slug, "reviews"),
+        orderBy("createdAt", "desc")
+      );
+      const s2 = await getDocs(q2);
+      s2.forEach((d) => all.push({ id: d.id, ...d.data() }));
+    } catch (_) {}
+
+    // 3) TOP collection publicReviews (from "existing master" flow)
+    try {
+      const q3 = query(
+        collection(db, "publicReviews"),
+        where("publicCardSlug", "==", slug)
+        // ВАЖНО: без orderBy, потому что у части доков createdAt ещё null
+      );
+      const s3 = await getDocs(q3);
+      s3.forEach((d) => all.push({ id: d.id, ...d.data() }));
+    } catch (_) {}
+
+    // 4) listings/{listingId}/reviews (from "existing master" flow)
+    if (listingId) {
+      try {
+        const q4 = collection(db, "listings", listingId, "reviews");
+        const s4 = await getDocs(q4);
+        s4.forEach((d) => all.push({ id: d.id, source: "listing", ...d.data() }));
+      } catch (_) {}
+    }
+
+    // filter and sort
+    const filtered = all.filter((r) => r.rating);
+    filtered.sort((a, b) => {
+      const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds || 0) * 1000;
+      const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds || 0) * 1000;
+      return tb - ta;
+    });
+
+    // calc rating
+    const total = filtered.reduce((sum, r) => sum + (Number(r.rating) || 0), 0);
+    const avg = filtered.length ? total / filtered.length : 0;
+
+    return { reviews: filtered, avg, count: filtered.length };
+  }
+
+  // Get listingId from card data
+  const listingId = data.listingId || data.masterListingId || data.listing?.id;
+  const { reviews, avg, count } = await loadAllReviews(slug, listingId);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 space-y-6">
@@ -94,7 +148,12 @@ export default async function PublicCardPage({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 text-sm text-gray-700">
-            <PublicCardReviewStats publicCardSlug={card.id} />
+            <div className="flex items-center gap-2">
+              <span>{avg.toFixed(1)}</span>
+              <span className="text-sm text-gray-500">
+                • {count} review{count === 1 ? "" : "s"}
+              </span>
+            </div>
 
             {card.cityDisplay && (
               <>
@@ -149,7 +208,9 @@ export default async function PublicCardPage({
 
         <div className="text-sm text-gray-700 mb-2 flex items-center gap-2">
           <span className="text-gray-900 font-medium">Current rating</span>
-          <PublicCardReviewStats publicCardSlug={card.id} />
+          <span>
+            {avg.toFixed(1)} · {count} review{count === 1 ? "" : "s"}
+          </span>
         </div>
 
         {/* review submission form */}

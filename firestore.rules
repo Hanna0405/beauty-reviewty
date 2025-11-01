@@ -94,11 +94,26 @@ service cloud.firestore {
  && (request.resource.data.role == null || request.resource.data.role in ['client','master']);
  }
 
- // ===== Listings =====
+// ===== Listings =====
  match /listings/{id} {
+ // сами листинги
  allow read: if true;
- allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
- allow update, delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
+ allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+ allow update, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+
+ // ДОБАВИЛИ: отзывы под листингом
+ match /reviews/{reviewId} {
+ allow read: if true;
+ allow create: if isSignedIn()
+ && ((request.resource.data.rating is int) || (request.resource.data.rating is float))
+ && request.resource.data.rating >= 1
+ && request.resource.data.rating <= 5
+ // кто создал отзыв
+ && request.resource.data.authorUid == request.auth.uid
+ // дата можно serverTimestamp
+ && (!('createdAt' in request.resource.data) || request.resource.data.createdAt is timestamp);
+ allow update, delete: if false;
+ }
  }
 
  // ===== Bookings =====

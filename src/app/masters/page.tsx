@@ -101,55 +101,137 @@ function PageContent() {
   // Use UI selection first, fallback to ?city=<key> from URL
   const cityKey = extractCityKey(selectedCity) ?? urlCity;
 
-  // Enhanced city matcher: supports legacy region-only keys
-  const cityMatches = (docKey?: string, selKey?: string): boolean => {
-    if (!selKey) return true; // no city selected -> pass
-    if (!docKey) return false;
-    const dk = docKey.toLowerCase();
-    const sk = selKey.toLowerCase();
-    if (dk === sk) return true; // exact city match
-    const selRegion = toRegionKey(sk); // "-ca-on"
-    if (selRegion && dk === selRegion) return true; // legacy region-only doc
-    return false;
+  // Helper functions for city matching
+  const normalize = (val: any) => {
+    if (!val) return "";
+    return val
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replace(/[.,]/g, "")
+      .replace(/\s+/g, " ");
   };
 
-  // Helper to explain why an item was excluded
-  const explainMismatch = (
-    item: any,
-    selSvc: string[],
-    selLng: string[],
-    cityKey?: string
-  ) => {
-    const docCity = docCityKeyDeep(item);
-    const svcKeys = docServiceKeysDeep(item);
-    const lngKeys = docLanguageKeysDeep(item);
+  // detect city-like fields from current data
+  const detectCityFields = (items: any[]) => {
+    const result = new Set<string>();
+    const base = [
+      "city",
+      "cityKey",
+      "citySlug",
+      "cityName",
+      "location",
+      "formattedAddress",
+      "addressFormatted",
+    ];
 
-    const cityPass = cityMatches(docCity, cityKey);
-    const svcPass = includesAll(svcKeys, selSvc);
-    const lngPass = includesAll(lngKeys, selLng);
+    items.slice(0, 5).forEach((it) => {
+      if (!it) return;
+      Object.keys(it).forEach((k) => {
+        const lk = k.toLowerCase();
+        if (lk.includes("city") || lk.includes("location") || lk.includes("address")) {
+          result.add(k);
+        }
+      });
 
-    return {
-      id: item?.id,
-      cityPass,
-      svcPass,
-      lngPass,
-      docCityKey: docCity,
-      docServiceKeys: svcKeys,
-      docLanguageKeys: lngKeys,
-    };
+      if (it.location && typeof it.location === "object") {
+        Object.keys(it.location).forEach((k) => {
+          const lk = k.toLowerCase();
+          if (lk.includes("city") || lk.includes("slug") || lk.includes("formatted") || lk.includes("address")) {
+            result.add("location." + k);
+          }
+        });
+      }
+    });
+
+    base.forEach((b) => result.add(b));
+
+    return Array.from(result);
   };
 
-  // 2) City predicate: supports exact match + legacy region keys
-  type ItemBase = {
-    cityKey?: string;
-    serviceKeys?: string[];
-    languageKeys?: string[];
-  };
-  const byCity = (x: ItemBase) => cityMatches(docCityKeyDeep(x), cityKey);
+  // ---- CITY FILTER (dynamic) ----
+  let filteredMasters = allMasters;
+  let filteredListings = allListings;
 
-  // Client-side filtering from the FULL dataset (never refetches!)
-  const filteredMasters = allMasters
-    .filter(byCity)
+  const selectedCityValue =
+    selectedCity ||
+    cityKey ||
+    null;
+
+  if (selectedCityValue) {
+    const selectedNorms = [
+      typeof selectedCityValue === "string" ? selectedCityValue : null,
+      selectedCityValue.slug,
+      selectedCityValue.cityKey,
+      selectedCityValue.city,
+      selectedCityValue.formatted,
+      selectedCityValue.label,
+      selectedCityValue.value,
+      selectedCityValue.name,
+      selectedCityValue.displayName,
+    ]
+      .filter(Boolean)
+      .map(normalize);
+
+    if (selectedNorms.length > 0) {
+      // detect fields from actual data
+      const masterCityFields = detectCityFields(allMasters || []);
+      const listingCityFields = detectCityFields(allListings || []);
+
+      // filter masters
+      filteredMasters = filteredMasters.filter((m: any) => {
+        const itemVals: string[] = [];
+
+        masterCityFields.forEach((field) => {
+          if (field.startsWith("location.")) {
+            const sub = field.split(".")[1];
+            const v = m.location?.[sub];
+            if (v) itemVals.push(normalize(v));
+          } else {
+            const v = m?.[field];
+            if (v) itemVals.push(normalize(v));
+          }
+        });
+
+        if (itemVals.length === 0) return false;
+
+        return itemVals.some((iv) =>
+          selectedNorms.some((sv) => {
+            if (!iv || !sv) return false;
+            return iv === sv || iv.startsWith(sv) || sv.startsWith(iv);
+          })
+        );
+      });
+
+      // filter listings
+      filteredListings = filteredListings.filter((l: any) => {
+        const itemVals: string[] = [];
+
+        listingCityFields.forEach((field) => {
+          if (field.startsWith("location.")) {
+            const sub = field.split(".")[1];
+            const v = l.location?.[sub];
+            if (v) itemVals.push(normalize(v));
+          } else {
+            const v = l?.[field];
+            if (v) itemVals.push(normalize(v));
+          }
+        });
+
+        if (itemVals.length === 0) return false;
+
+        return itemVals.some((iv) =>
+          selectedNorms.some((sv) => {
+            if (!iv || !sv) return false;
+            return iv === sv || iv.startsWith(sv) || sv.startsWith(iv);
+          })
+        );
+      });
+    }
+  }
+
+  // Apply other filters after city filter
+  filteredMasters = filteredMasters
     .filter(m => includesAll(docServiceKeysDeep(m), selectedServiceKeys))
     .filter(m => includesAll(docLanguageKeysDeep(m), selectedLanguageKeys))
     .filter(m => {
@@ -160,8 +242,7 @@ function PageContent() {
       return true;
     });
 
-  const filteredListings = allListings
-    .filter(byCity)
+  filteredListings = filteredListings
     .filter(l => includesAll(docServiceKeysDeep(l), selectedServiceKeys))
     .filter(l => includesAll(docLanguageKeysDeep(l), selectedLanguageKeys))
     .filter(l => {

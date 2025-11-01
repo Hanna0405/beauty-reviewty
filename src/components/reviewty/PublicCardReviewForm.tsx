@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { db } from "@/lib/firebase/client"; // IMPORTANT: use the same client-side Firestore you already use in other client components. If your project calls it something else (like `firebaseClient`), update this import.
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { addDoc, collection, serverTimestamp, getDocs, query, where, doc, updateDoc } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 // If you already have a photo uploader component/hook used in "Add review", import and reuse it instead of the simple placeholder below.
@@ -53,6 +53,54 @@ export default function PublicCardReviewForm({ publicCardSlug }: Props) {
         authorName: auth.currentUser?.displayName || "Verified client",
         createdAt: serverTimestamp(),
       });
+
+      // Update public card statistics
+      try {
+        // Load all reviews for this public card from all sources
+        const allReviews: any[] = [];
+        
+        // 1) publicCards/{slug}/reviews
+        try {
+          const q1 = query(collection(db, "publicCards", publicCardSlug, "reviews"));
+          const s1 = await getDocs(q1);
+          s1.forEach((d) => allReviews.push(d.data()));
+        } catch (_) {}
+        
+        // 2) reviewty/{slug}/reviews
+        try {
+          const q2 = query(collection(db, "reviewty", publicCardSlug, "reviews"));
+          const s2 = await getDocs(q2);
+          s2.forEach((d) => allReviews.push(d.data()));
+        } catch (_) {}
+        
+        // 3) publicReviews collection
+        try {
+          const q3 = query(
+            collection(db, "publicReviews"),
+            where("publicCardSlug", "==", publicCardSlug)
+          );
+          const s3 = await getDocs(q3);
+          s3.forEach((d) => allReviews.push(d.data()));
+        } catch (_) {}
+        
+        // Calculate new avgRating and totalReviews
+        const validRatings = allReviews
+          .map((r: any) => Number(r.rating))
+          .filter((r) => !Number.isNaN(r) && r > 0);
+        const newTotalReviews = validRatings.length;
+        const newAvgRating = newTotalReviews > 0
+          ? validRatings.reduce((sum, r) => sum + r, 0) / newTotalReviews
+          : 0;
+        
+        // Update public card document
+        const cardRef = doc(db, "publicCards", publicCardSlug);
+        await updateDoc(cardRef, {
+          avgRating: newAvgRating,
+          totalReviews: newTotalReviews,
+        });
+      } catch (err) {
+        console.warn("failed to update public card statistics", err);
+      }
 
       // simple reset UI
       setRating(5);

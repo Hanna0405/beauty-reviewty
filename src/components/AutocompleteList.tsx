@@ -19,14 +19,52 @@ export default function AutocompleteList({
  useEffect(() => setQ(value), [value]);
 
  const filtered = useMemo(() => {
- const s = q.trim().toLowerCase();
- if (!s) return options.slice(0, maxVisible);
+ const ql = (q || "").trim().toLowerCase();
+ if (!ql) return options.slice(0, maxVisible);
+
+ // helper to normalize service item to string
+ const toStr = (sv: any) => {
+ if (!sv) return '';
+ if (typeof sv === 'string') return sv;
+ if (typeof sv === 'object') {
+ return (
+ sv.name ||
+ sv.title ||
+ sv.label ||
+ sv.key ||
+ ''
+ );
+ }
+ return String(sv);
+ };
+
  return options
- .filter(o =>
- (o.title || '').toLowerCase().includes(s) ||
- (o.city || '').toLowerCase().includes(s) ||
- (o.services || []).some(sv => sv.toLowerCase().includes(s))
- )
+ .filter((o) => {
+ const title = (o.title || o.name || "").toLowerCase();
+ const city =
+ (o.city?.formatted ||
+ o.city?.name ||
+ o.city ||
+ "").toLowerCase();
+ const servicesArr = Array.isArray(o.services) ? o.services : [];
+ const serviceHit = servicesArr.some((sv: any) => {
+ if (typeof sv === "string") return sv.toLowerCase().includes(ql);
+ if (typeof sv === "object")
+ return (
+ (sv.name && sv.name.toLowerCase().includes(ql)) ||
+ (sv.title && sv.title.toLowerCase().includes(ql)) ||
+ (sv.key && sv.key.toLowerCase().includes(ql))
+ );
+ return false;
+ });
+
+ return (
+ !ql ||
+ title.includes(ql) ||
+ city.includes(ql) ||
+ serviceHit
+ );
+ })
  .slice(0, maxVisible);
  }, [q, options, maxVisible]);
 
