@@ -1,9 +1,9 @@
-// storage.rules
 rules_version = '2';
+
 service firebase.storage {
  match /b/{bucket}/o {
 
- // ==== Общие хелперы (оставил как у тебя) ====
+ // ==== Общие хелперы ====
  function signedIn() { return request.auth != null; }
  function isImage() { return request.resource.contentType.matches('image/.*'); }
  function under8MB() { return request.resource.size < 8 * 1024 * 1024; }
@@ -11,39 +11,46 @@ service firebase.storage {
  // ==== Доп. хелпер только для publicReviews ====
  // Разрешаем типы, которые часто приходят с iOS (HEIC/HEIF) или как octet-stream
  function isImageRelaxed() {
- return isImage() ||
- request.resource.contentType in [
- 'image/jpeg','image/jpg','image/png','image/webp','image/heic','image/heif'
- ] ||
- request.resource.contentType == 'application/octet-stream';
+   return isImage() ||
+     request.resource.contentType in [
+       'image/jpeg','image/jpg','image/png','image/webp','image/heic','image/heif'
+     ] ||
+     request.resource.contentType == 'application/octet-stream';
  }
 
- // ==== Avatars ====
- match /avatars/{uid}/{allPaths=**} {
- allow read: if true;
- allow write: if signedIn() && request.auth.uid == uid && isImage() && under8MB();
+ // ==== Profiles / Avatars ====
+ match /profiles/{userId}/{allPaths=**} {
+   // everyone can read avatars
+   allow read: if true;
+   // only owner can write
+   allow write: if request.auth != null && request.auth.uid == userId;
  }
 
- // ==== Listing images (if used) ====
+ // ==== Listing images ====
  match /listing-images/{uid}/{allPaths=**} {
- allow read: if true;
- allow write: if signedIn() && request.auth.uid == uid && isImage() && under8MB();
+   allow read: if true;
+   allow write: if signedIn() && request.auth.uid == uid && isImage() && under8MB();
  }
 
- // ==== Reviews (TEMP для локалки/дева — оставляю как есть) ====
+ // ==== Reviews ====
  match /reviews/{allPaths=**} {
- allow read: if true;
- allow write: if isImage() && under8MB();
+   allow read: if true;
+   allow write: if isImage() && under8MB();
  }
 
  // ==== Public Reviews photos ====
- // Сюда грузим файлы из формы отзывов: publicReviews/{uid}/...
  match /publicReviews/{uid}/{file=**} {
- allow read: if true; // можно ограничить до signedIn(), если нужно
- allow write: if signedIn()
- && request.auth.uid == uid
- && isImageRelaxed()
- && under8MB();
+   allow read: if true;
+   allow write: if signedIn()
+     && request.auth.uid == uid
+     && isImageRelaxed()
+     && under8MB();
  }
+
+ // ==== Other public files ====
+ match /{path=**} {
+   allow read: if true;
+ }
+
  }
 }

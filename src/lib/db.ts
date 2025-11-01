@@ -37,7 +37,7 @@ export async function saveMyProfile(data: any) {
 export async function uploadAvatar(file: File) {
   const user = auth.currentUser;
   if (!user) throw new Error("Not signed in");
-  const key = `avatars/${user.uid}/${Date.now()}_${file.name}`;
+  const key = `profiles/${user.uid}/avatar.jpg`;
   const r = ref(storage, key);
   await uploadBytes(r, file);
   return await getDownloadURL(r);
