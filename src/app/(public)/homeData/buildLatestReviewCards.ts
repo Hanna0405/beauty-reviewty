@@ -18,14 +18,16 @@ export async function buildLatestReviewCards(): Promise<ReviewCard[]> {
       let imageUrl: string | null = null;
 
       // First try to get photo from review itself
-      if (
-        review.photos &&
-        Array.isArray(review.photos) &&
-        review.photos.length > 0
-      ) {
-        const firstPhoto = review.photos[0];
-        imageUrl =
-          typeof firstPhoto === "string" ? firstPhoto : firstPhoto?.url || null;
+      // photos can be undefined, empty, array of strings, or array of {url: string}
+      const photos = Array.isArray(review.photos) ? review.photos : [];
+
+      if (photos.length > 0) {
+        const first = photos[0];
+        if (typeof first === "string") {
+          imageUrl = first;
+        } else if (first && typeof first === "object" && "url" in first) {
+          imageUrl = (first as { url?: string }).url ?? null;
+        }
       }
 
       // If no review photo, try to get listing photo as fallback

@@ -1,11 +1,12 @@
 import { doc, deleteDoc } from 'firebase/firestore';
-import { requireDb, requireAuth } from '@/lib/firebase/client';
+import { db, auth } from '@/lib/firebase/client';
 
 export async function deleteListingById(listingId: string) {
-  const auth = await requireAuth();
   const user = auth.currentUser;
   if (!user) throw new Error("Not signed in");
-  const db = requireDb();
+  // we already imported ready-to-use db
+  // just use db
+
   // Optional: authorize owner; adapt if you store ownerId on doc.
   // If you need strict ownership check, fetch doc and compare ownerId === user.uid.
 
