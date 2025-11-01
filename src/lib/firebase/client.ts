@@ -47,3 +47,19 @@ const storage: FirebaseStorage = getStorage(app);
 // Named exports (do not change names, other code may rely on them):
 export const firebaseApp = app;
 export { db, auth, storage, app };
+
+// Helper functions for compatibility with older code
+export function requireAuth(opts?: { assert?: boolean }) {
+  if (opts?.assert && !auth.currentUser) {
+    throw new Error('Not authenticated');
+  }
+  return auth;
+}
+
+export function requireDb() {
+  return db;
+}
+
+export function requireStorage() {
+  return storage;
+}

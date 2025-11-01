@@ -1,22 +1,23 @@
-import { NextResponse } from 'next/server';
-import { adminBucket } from '@/lib/firebaseAdmin';
-
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+import { NextResponse } from "next/server";
+import { adminBucket } from "@/lib/firebase-admin";
 
 export async function GET() {
- try {
- const envBucket = process.env.FIREBASE_STORAGE_BUCKET || '(unset)';
- const bucket = await adminBucket();
- const [exists] = await bucket.exists(); // network call to GCS
- return NextResponse.json({
- ok: true,
- envBucket,
- adminBucket: bucket.name,
- exists,
- hint: 'envBucket must equal adminBucket and exists must be true',
- });
- } catch (e: any) {
- return NextResponse.json({ ok:false, error: e?.message || 'diag failed' }, { status: 500 });
- }
+  try {
+    const bucket = adminBucket(); // this is a real bucket instance
+    const [exists] = await bucket.exists();
+
+    return NextResponse.json({
+      ok: true,
+      bucketExists: exists,
+      bucketName: bucket.name,
+    });
+  } catch (err: any) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: err?.message || "Failed to check bucket",
+      },
+      { status: 500 }
+    );
+  }
 }
