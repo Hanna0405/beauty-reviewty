@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState, Suspense, useCallback } from "react";
+import { useEffect, useState, Suspense, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import MasterFilters from "@/components/Filters/MasterFilters";
@@ -12,6 +12,8 @@ import { fetchMastersOnce, fetchListingsOnce, MasterFilters as FM } from "@/lib/
 import { includesAll } from "@/lib/filters/matchers";
 import { selectedToKeys, docServiceKeysDeep, docLanguageKeysDeep, extractCityKey, normalizeCitySelection, toKey, docCityKeyDeep, toRegionKey } from "@/lib/filters/normalize";
 import dynamicImport from 'next/dynamic';
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 const MastersMapNoSSR = dynamicImport(() => import('@/components/mapComponents').then(m => m.MastersMap), { ssr: false });
 
@@ -30,6 +32,7 @@ function PageContent() {
   // Full dataset loaded once (never changes after initial load)
   const [allMasters, setAllMasters] = useState<any[]>([]);
   const [allListings, setAllListings] = useState<any[]>([]);
+  const [allReviews, setAllReviews] = useState<any[]>([]);
   
   const [loading, setLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true); // Track initial data load
@@ -93,6 +96,53 @@ function PageContent() {
     })();
     return () => { alive = false; };
   }, []); // Run only ONCE on mount - no refetching!
+
+  // Load reviews for listings after listings are loaded
+  useEffect(() => {
+    if (!allListings.length || initialLoad) return;
+    
+    let cancelled = false;
+    (async () => {
+      try {
+        // Collect all listing IDs
+        const listingIds = allListings.map(l => l.id || l._id).filter(Boolean);
+        if (listingIds.length === 0) return;
+
+        // Fetch reviews for these listings (split into batches if needed)
+        const reviewsBatch: any[] = [];
+        for (let i = 0; i < listingIds.length; i += 10) {
+          const batch = listingIds.slice(i, i + 10);
+          try {
+            // Try new schema first (subjectId for listings)
+            const q1 = query(collection(db, 'reviews'), where('subjectType', '==', 'listing'), where('subjectId', 'in', batch));
+            const snap1 = await getDocs(q1);
+            reviewsBatch.push(...snap1.docs.map(d => ({ id: d.id, ...d.data() })));
+            
+            // Also try legacy schema (listingId)
+            const q2 = query(collection(db, 'reviews'), where('listingId', 'in', batch));
+            const snap2 = await getDocs(q2);
+            // Avoid duplicates
+            const existingIds = new Set(reviewsBatch.map(r => r.id));
+            snap2.docs.forEach(d => {
+              if (!existingIds.has(d.id)) {
+                reviewsBatch.push({ id: d.id, ...d.data() });
+              }
+            });
+          } catch (batchError) {
+            console.error('[Masters] Failed to load reviews batch:', batchError);
+          }
+        }
+
+        if (!cancelled) {
+          setAllReviews(reviewsBatch);
+        }
+      } catch (error) {
+        console.error('[Masters] Reviews load error:', error);
+      }
+    })();
+    
+    return () => { cancelled = true; };
+  }, [allListings, initialLoad]);
 
   // 1) Normalize UI selections to KEYS
   const selectedServiceKeys = selectedToKeys(selectedServices as any);
@@ -230,34 +280,133 @@ function PageContent() {
     }
   }
 
-  // Apply other filters after city filter
-  filteredMasters = filteredMasters
+  // Compute listing ratings from reviews
+  const enhancedListings = useMemo(() => {
+    // Group reviews by listingId (support both new schema subjectId and legacy listingId)
+    const reviewsByListing = new Map<string, any[]>();
+    allReviews.forEach((review) => {
+      // New schema: subjectId when subjectType === 'listing'
+      // Legacy: listingId
+      const listingId = (review.subjectType === 'listing' ? review.subjectId : null) || review.listingId;
+      if (!listingId) return;
+      if (!reviewsByListing.has(listingId)) {
+        reviewsByListing.set(listingId, []);
+      }
+      reviewsByListing.get(listingId)!.push(review);
+    });
+
+    // Enhance listings with computed ratings
+    return filteredListings.map((listing) => {
+      const listingId = listing.id || listing._id;
+      const reviews = listingId ? reviewsByListing.get(listingId) || [] : [];
+      
+      // Compute rating from reviews
+      const computedRating = reviews.length > 0
+        ? reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length
+        : null;
+      const computedReviewsCount = reviews.length;
+
+      // Prefer existing rating, fallback to computed
+      const finalRating = listing.averageRating ?? listing.rating ?? listing.avgRating ?? listing.stars ?? computedRating;
+      const finalCount = listing.ratingCount ?? listing.reviewsCount ?? listing.totalReviews ?? listing.reviews?.length ?? computedReviewsCount;
+
+      return {
+        ...listing,
+        computedRating,
+        computedReviewsCount,
+        finalRating,
+        finalCount,
+      };
+    });
+  }, [filteredListings, allReviews]);
+
+  // Apply filters and compute ratings
+  const filteredMastersFiltered = filteredMasters
     .filter(m => includesAll(docServiceKeysDeep(m), selectedServiceKeys))
     .filter(m => includesAll(docLanguageKeysDeep(m), selectedLanguageKeys))
     .filter(m => {
-      // Apply minRating filter
-      if (minRating && m.rating < minRating) return false;
       // Apply name search filter
       if (name && m.displayName && !m.displayName.toLowerCase().includes(name.toLowerCase())) return false;
       return true;
     });
 
-  filteredListings = filteredListings
+  const filteredListingsWithRatings = enhancedListings
     .filter(l => includesAll(docServiceKeysDeep(l), selectedServiceKeys))
     .filter(l => includesAll(docLanguageKeysDeep(l), selectedLanguageKeys))
     .filter(l => {
-      // Apply minRating filter
-      if (minRating && l.rating < minRating) return false;
+      // Apply minRating filter using finalRating
+      if (minRating) {
+        const r = l.finalRating;
+        if (typeof r !== "number" || r < minRating) return false;
+      }
       return true;
     });
 
-
-  const hasResults = filteredMasters.length > 0 || filteredListings.length > 0;
+  // Compute master ratings from their listings (using enhanced listings with computed ratings)
+  const masterRatings = useMemo(() => {
+    const ratings = new Map<string, { rating: number | null; count: number }>();
+    
+    // Group listings by master
+    const listingsByMaster = new Map<string, any[]>();
+    filteredListingsWithRatings.forEach((listing) => {
+      // Try multiple field names to link listing to master
+      const masterId = listing.masterId || listing.ownerId || listing.userId || listing.uid || listing.userUID || listing.ownerUid || listing.profileUid || listing.masterUid || listing.userUid || listing.authorUid;
+      if (!masterId) return;
+      
+      if (!listingsByMaster.has(masterId)) {
+        listingsByMaster.set(masterId, []);
+      }
+      listingsByMaster.get(masterId)!.push(listing);
+    });
+    
+    // Compute aggregated rating for each master
+    listingsByMaster.forEach((listings, masterId) => {
+      const rated = listings.filter((l) => {
+        const r = l.finalRating;
+        return typeof r === "number";
+      });
+      
+      if (!rated.length) {
+        ratings.set(masterId, { rating: null, count: 0 });
+        return;
+      }
+      
+      let totalWeighted = 0;
+      let totalReviews = 0;
+      
+      rated.forEach((l) => {
+        const r = l.finalRating;
+        const c = l.finalCount;
+        totalWeighted += r * c;
+        totalReviews += c;
+      });
+      
+      ratings.set(masterId, {
+        rating: totalWeighted / totalReviews,
+        count: totalReviews,
+      });
+    });
+    
+    return ratings;
+  }, [filteredListingsWithRatings]);
+  
+  // Filter masters by minRating if set (using aggregated ratings)
+  const filteredMastersFinal = filteredMastersFiltered.filter(m => {
+    if (minRating) {
+      const masterId = m.id || m.uid;
+      const ratingData = masterId ? masterRatings.get(masterId) : null;
+      const r = ratingData?.rating;
+      if (typeof r !== "number" || r < minRating) return false;
+    }
+    return true;
+  });
+  
+  const hasResults = filteredMastersFinal.length > 0 || filteredListingsWithRatings.length > 0;
   
   // Combine all items for map markers
   const allMapMarkers = [
-    ...filteredMasters.map(m => ({ lat: m.geo?.lat ?? 0, lng: m.geo?.lng ?? 0, title: m.displayName ?? 'Master' })),
-    ...filteredListings.map(l => ({ lat: l.geo?.lat ?? 0, lng: l.geo?.lng ?? 0, title: l.title ?? 'Listing' }))
+    ...filteredMastersFinal.map(m => ({ lat: m.geo?.lat ?? 0, lng: m.geo?.lng ?? 0, title: m.displayName ?? 'Master' })),
+    ...filteredListingsWithRatings.map(l => ({ lat: l.geo?.lat ?? 0, lng: l.geo?.lng ?? 0, title: l.title ?? 'Listing' }))
   ];
 
   // Show loading screen during initial data load
@@ -328,21 +477,25 @@ function PageContent() {
           ) : (
             <div className="space-y-10">
               {/* Masters Section */}
-              {filteredMasters.length > 0 && (
+              {filteredMastersFinal.length > 0 && (
                 <section>
-                  <h2 className="text-base font-semibold mb-3">Masters ({filteredMasters.length})</h2>
+                  <h2 className="text-base font-semibold mb-3">Masters ({filteredMastersFinal.length})</h2>
                   <div className="grid gap-3 md:grid-cols-2">
-                    {filteredMasters.map(m => <MasterCard key={m.id} master={m} />)}
+                    {filteredMastersFinal.map(m => {
+                      const masterId = m.id || m.uid;
+                      const ratingData = masterId ? masterRatings.get(masterId) : null;
+                      return <MasterCard key={m.id} master={m} rating={ratingData?.rating} reviewCount={ratingData?.count} />;
+                    })}
                   </div>
                 </section>
               )}
 
               {/* Listings Section */}
-              {filteredListings.length > 0 && (
+              {filteredListingsWithRatings.length > 0 && (
                 <section>
-                  <h2 className="text-base font-semibold mb-3">Listings ({filteredListings.length})</h2>
+                  <h2 className="text-base font-semibold mb-3">Listings ({filteredListingsWithRatings.length})</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-                    {filteredListings.map(l => <ListingCard key={l.id || l._id} item={l} />)}
+                    {filteredListingsWithRatings.map(l => <ListingCard key={l.id || l._id} item={l} />)}
                   </div>
                 </section>
               )}

@@ -4,7 +4,7 @@ import {
   getDownloadURL,
   StorageReference 
 } from 'firebase/storage';
-import { getStorageSafe } from './firebase';
+import { requireStorage } from '@/lib/firebase';
 
 /**
  * Upload a file to Firebase Storage and return the download URL
@@ -18,10 +18,7 @@ export async function uploadFileToStorage(file: File, path: string): Promise<str
   try {
     console.log('[upload] Starting upload to path:', path);
     
-    const storage = getStorageSafe();
-    if (!storage) {
-      throw new Error("Firebase Storage is not initialized. Check Firebase settings.");
-    }
+    const storage = requireStorage();
     
     // Create storage reference
     const storageRef: StorageReference = ref(storage, path);

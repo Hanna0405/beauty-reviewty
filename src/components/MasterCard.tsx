@@ -1,8 +1,9 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { SafeText } from '@/lib/safeText';
+import Stars from '@/app/masters/components/Stars';
 
-type Props = { master: any };
+type Props = { master: any; rating?: number | null; reviewCount?: number | null };
 
 // Helper functions for safe rendering
 function formatCity(city?: any): string {
@@ -22,7 +23,7 @@ function formatTagList(items?: any[], fallback?: any[]): string {
   return arr.map(formatTag).filter(Boolean).join(', ');
 }
 
-export default function MasterCard({ master }: Props) {
+export default function MasterCard({ master, rating, reviewCount }: Props) {
   // Unified avatar fallback: photoURL → avatarUrl → avatar.url
   const avatarSrc = master?.photoURL || master?.avatarUrl || master?.avatar?.url || null;
 
@@ -45,6 +46,11 @@ export default function MasterCard({ master }: Props) {
         <div className="text-sm text-gray-600">
           {formatCity(master?.city)}
         </div>
+        {typeof rating === "number" && (
+          <div className="mt-2">
+            <Stars value={rating} count={reviewCount ?? 0} />
+          </div>
+        )}
         <div className="mt-1 line-clamp-1 text-sm">
           {formatTagList(master?.services, master?.serviceNames)}
         </div>

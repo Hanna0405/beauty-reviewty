@@ -2,43 +2,31 @@
 
 export default function Stars({ value = 0, count = 0 }: { value?: number | null; count?: number }) {
   if (typeof value !== "number") return null;
-  const full = Math.floor(value);
-  const half = value - full >= 0.5;
-  const empty = 5 - full - (half ? 1 : 0);
   
-  const fullStar = (idx: number) => (
-    <svg key={`f${idx}`} width="16" height="16" viewBox="0 0 24 24" className="inline-block fill-amber-400">
-      <path d="M12 .587l3.668 7.431 8.2 1.192-5.934 5.788 1.401 8.169L12 18.896l-7.335 3.871 1.401-8.169L.132 9.21l8.2-1.192z" />
-    </svg>
-  );
-  
-  const halfStar = () => (
-    <svg key="half" width="16" height="16" viewBox="0 0 24 24" className="inline-block">
-      <defs>
-        <linearGradient id="half">
-          <stop offset="50%" stopColor="#fbbf24" />
-          <stop offset="50%" stopColor="transparent" />
-        </linearGradient>
-      </defs>
-      <path d="M12 .587l3.668 7.431 8.2 1.192-5.934 5.788 1.401 8.169L12 18.896l-7.335 3.871 1.401-8.169L.132 9.21l8.2-1.192z" fill="url(#half)"/>
-      <path d="M12 .587l3.668 7.431 8.2 1.192-5.934 5.788 1.401 8.169L12 18.896l-7.335 3.871 1.401-8.169L.132 9.21l8.2-1.192z" fill="none" stroke="#fbbf24"/>
-    </svg>
-  );
-  
-  const emptyStar = (idx: number) => (
-    <svg key={`e${idx}`} width="16" height="16" viewBox="0 0 24 24" className="inline-block">
-      <path d="M12 .587l3.668 7.431 8.2 1.192-5.934 5.788 1.401 8.169L12 18.896l-7.335 3.871 1.401-8.169L.132 9.21l8.2-1.192z" fill="none" stroke="#fbbf24"/>
-    </svg>
-  );
+  function Star({ filled }: { filled: boolean }) {
+    return (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 20 20"
+        fill={filled ? "#FFD700" : "#E5E7EB"}
+        className="w-3.5 h-3.5 sm:w-4 sm:h-4"
+      >
+        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.967a1 1 0 00.95.69h4.178c.969 0 1.371 1.24.588 1.81l-3.385 2.462a1 1 0 00-.364 1.118l1.287 3.966c.3.922-.755 1.688-1.54 1.118l-3.385-2.462a1 1 0 00-1.176 0l-3.385 2.462c-.784.57-1.838-.196-1.539-1.118l1.287-3.966a1 1 0 00-.364-1.118L2.048 9.394c-.783-.57-.38-1.81.588-1.81h4.178a1 1 0 00.95-.69l1.285-3.967z" />
+      </svg>
+    );
+  }
   
   return (
-    <div className="flex items-center gap-1 text-amber-500">
-      <span className="flex items-center">
-        {Array.from({length: full}).map((_, idx) => fullStar(idx))}
-        {half && halfStar()}
-        {Array.from({length: empty}).map((_, idx) => emptyStar(idx))}
+    <div className="flex gap-[2px] items-center">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Star key={i} filled={i <= Math.round(value)} />
+      ))}
+      <span className="ml-1 text-sm text-slate-800 font-medium">
+        {value.toFixed(1)}
       </span>
-      <span className="text-xs text-zinc-600">({count})</span>
+      {count ? (
+        <span className="text-xs text-slate-400 ml-0.5">({count})</span>
+      ) : null}
     </div>
   );
 }

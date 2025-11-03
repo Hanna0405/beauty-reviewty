@@ -1,12 +1,12 @@
 "use client";
 
 import React from "react";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider } from "@/context/AuthContext";
 
 export default function MasterDashboardLayout({
-  children,
+ children,
 }: {
-  children: React.ReactNode;
+ children: React.ReactNode;
 }) {
-  return <AuthProvider>{children}</AuthProvider>;
+ return <AuthProvider>{children}</AuthProvider>;
 }

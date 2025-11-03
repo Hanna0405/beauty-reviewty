@@ -44,6 +44,19 @@ const db: Firestore = getFirestore(app);
 const auth: Auth = getAuth(app);
 const storage: FirebaseStorage = getStorage(app);
 
+// Helper functions for compatibility
+export function requireAuth() {
+  return auth;
+}
+
+export function requireDb() {
+  return db;
+}
+
+export function requireStorage() {
+  return storage;
+}
+
 // Named exports (do not change names, other code may rely on them):
 export const firebaseApp = app;
 export { db, auth, storage, app };

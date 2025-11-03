@@ -241,15 +241,20 @@ export default function MasterProfileClient({ id }: Props) {
 
       <div className="mt-4 rounded-xl border p-4 bg-white/60">
         <div className="flex items-center gap-4">
-          {master.photoURL ? (
-            <img
-              src={master.photoURL}
-              alt={master.displayName || master.nickname || "Master"}
-              className="h-20 w-20 rounded-full object-cover"
-            />
-          ) : (
-            <div className="h-20 w-20 rounded-full bg-gray-200" />
-          )}
+          {(() => {
+            const avatar = master.avatarUrl || master.photoUrl || master.photoURL || master.imageUrl || master.image || "";
+            return avatar ? (
+              <img
+                src={avatar}
+                alt={master.displayName || master.nickname || "Master"}
+                className="h-20 w-20 rounded-full object-cover"
+              />
+            ) : (
+              <div className="h-20 w-20 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
+                {(master.displayName || master.nickname || "M")[0].toUpperCase()}
+              </div>
+            );
+          })()}
           <div>
             <h1 className="text-xl font-semibold">
               {master.displayName || master.nickname || "Master"}

@@ -61,7 +61,7 @@ export function titleLabel(x: ListingLike): string {
 }
 
 export function ratingValue(x: ListingLike): number | null {
-  const v = x?.rating ?? x?.avgRating ?? x?.stars;
+  const v = x?.finalRating ?? x?.rating ?? x?.avgRating ?? x?.stars;
   return typeof v === "number" ? v : null;
 }
 
@@ -74,7 +74,7 @@ export function masterId(x: ListingLike): string | null {
 }
 
 export function reviewsCountValue(x: ListingLike): number {
-  const v = x?.reviewsCount ?? x?.reviews?.length ?? x?.ratingCount ?? 0;
+  const v = x?.finalCount ?? x?.reviewsCount ?? x?.reviews?.length ?? x?.ratingCount ?? 0;
   return typeof v === "number" ? v : 0;
 }
 

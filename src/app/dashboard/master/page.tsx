@@ -1,98 +1,104 @@
 "use client";
 
 import Link from "next/link";
-import { useUserProfile } from "@/hooks/useUserProfile";
+import { useAuth } from "@/context/AuthContext";
 
 export default function MasterDashboardPage() {
- const { user, profile, role, loading } = useUserProfile();
- const name = profile?.displayName || user?.email || "master";
- 
- // choose whatever names you already have; this is safe and typed
- const computedRole = (profile?.role as string) ?? 'client';
-
- if (loading) {
-  return <div className="text-sm text-gray-500 px-4 py-2">Loading profile…</div>;
- }
+ const { user } = useAuth();
 
  return (
- <div className="mx-auto max-w-3xl px-4 py-6 sm:py-8">
- <header className="mb-5 sm:mb-6">
- <h1 className="text-2xl font-bold text-gray-900">Welcome, {name}</h1>
- <p className="mt-1 text-sm text-gray-600">Your master workspace</p>
- <div className="mt-3 space-y-2">
- <span className="inline-flex items-center rounded-full bg-pink-50 px-3 py-1 text-xs font-medium text-pink-700 ring-1 ring-inset ring-pink-200">
- Role: {computedRole}
+ <div className="space-y-6">
+ {/* top header */}
+ <div className="flex flex-col gap-2">
+ <h1 className="text-2xl font-bold">
+ Welcome, {user?.email || "beauty master"}
+ </h1>
+ <p className="text-sm text-gray-500">Your master workspace</p>
+ <div className="flex items-center gap-3 text-sm text-gray-600">
+ <span className="inline-flex items-center gap-1 rounded-full bg-pink-100 px-3 py-1 text-pink-700">
+ Role: master
  </span>
- <div className="text-xs text-gray-500">
- <div><b>Email:</b> {user?.email ?? '—'}</div>
- <div><b>UID:</b> {user?.uid ? user.uid.slice(0, 8) + '...' : '—'}</div>
+ {user?.email && <span>Email: {user.email}</span>}
+ {user?.uid && <span>UID: {user.uid.slice(0, 10)}...</span>}
  </div>
  </div>
- </header>
 
- {/* Cards grid – mobile 1col, tablet 2col */}
- <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
- <DashCard
- emoji="📋"
- title="My Listings"
- text="Manage your services, photos and pricing."
- href="/dashboard/master/listings"
- cta="Manage Listings"
- />
- <DashCard
- emoji="👤"
- title="My Profile"
- text="Edit profile, photos and social links."
- href="/profile/edit" // correct path
- cta="Edit Profile"
- />
- <DashCard
- emoji="📅"
- title="Bookings"
- text="Manage booking requests"
- href="/dashboard/bookings"
- cta="Open"
- />
- <DashCard
- emoji="⚙️"
- title="Settings"
- text="General preferences."
- href="/settings"
- cta="Open Settings"
- />
+ {/* cards */}
+ <div className="grid gap-4 md:grid-cols-2">
+ {/* My Listings */}
+ <div className="rounded-xl bg-white shadow-sm border border-pink-100 p-5 flex flex-col gap-3">
+ <div className="flex items-center gap-2">
+ <span className="text-2xl">📋</span>
+ <div>
+ <h2 className="font-semibold">My Listings</h2>
+ <p className="text-xs text-gray-500">
+ Manage your services, photos and pricing.
+ </p>
  </div>
  </div>
- );
-}
-
-function DashCard({
- emoji,
- title,
- text,
- href,
- cta,
-}: {
- emoji: string;
- title: string;
- text: string;
- href: string;
- cta: string;
-}) {
- return (
- <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
- <div className="mb-2 flex items-center gap-2">
- <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-fuchsia-600/10 text-lg">
- {emoji}
- </span>
- <h3 className="text-base font-semibold text-gray-900">{title}</h3>
- </div>
- <p className="mb-3 text-sm text-gray-600">{text}</p>
  <Link
- href={href}
- className="inline-flex rounded-md bg-pink-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-pink-700"
+ href="/dashboard/master/listings"
+ className="inline-flex w-fit rounded-md bg-pink-500 px-4 py-2 text-sm font-medium text-white hover:bg-pink-600"
  >
- {cta}
+ Manage Listings
  </Link>
+ </div>
+
+ {/* My Profile */}
+ <div className="rounded-xl bg-white shadow-sm border border-pink-100 p-5 flex flex-col gap-3">
+ <div className="flex items-center gap-2">
+ <span className="text-2xl">🧍</span>
+ <div>
+ <h2 className="font-semibold">My Profile</h2>
+ <p className="text-xs text-gray-500">
+ Edit profile, photos and socials.
+ </p>
+ </div>
+ </div>
+ <Link
+ href="/dashboard/master/profile"
+ className="inline-flex w-fit rounded-md bg-pink-500 px-4 py-2 text-sm font-medium text-white hover:bg-pink-600"
+ >
+ Manage Profile
+ </Link>
+ </div>
+
+ {/* Bookings */}
+ <div className="rounded-xl bg-white shadow-sm border border-pink-100 p-5 flex flex-col gap-3">
+ <div className="flex items-center gap-2">
+ <span className="text-2xl">📅</span>
+ <div>
+ <h2 className="font-semibold">Bookings</h2>
+ <p className="text-xs text-gray-500">
+ Manage booking requests.
+ </p>
+ </div>
+ </div>
+ <Link
+ href="/dashboard/master/bookings"
+ className="inline-flex w-fit rounded-md bg-white px-4 py-2 text-sm font-medium text-pink-600 border border-pink-200 hover:bg-pink-50"
+ >
+ Open
+ </Link>
+ </div>
+
+ {/* Settings */}
+ <div className="rounded-xl bg-white shadow-sm border border-pink-100 p-5 flex flex-col gap-3">
+ <div className="flex items-center gap-2">
+ <span className="text-2xl">⚙️</span>
+ <div>
+ <h2 className="font-semibold">Settings</h2>
+ <p className="text-xs text-gray-500">General preferences.</p>
+ </div>
+ </div>
+ <Link
+ href="/dashboard/settings"
+ className="inline-flex w-fit rounded-md bg-white px-4 py-2 text-sm font-medium text-pink-600 border border-pink-200 hover:bg-pink-50"
+ >
+ Open Settings
+ </Link>
+ </div>
+ </div>
  </div>
  );
 }

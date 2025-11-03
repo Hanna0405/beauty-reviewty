@@ -77,7 +77,6 @@ function AccountMenu({ nameOrEmail, onLogout, user, profile }: { nameOrEmail?: s
  <div className="px-3 py-2 text-sm font-medium text-gray-900 truncate">{nameOrEmail}</div>
  <div className="h-px bg-gray-100" />
  <Link href="/dashboard/master" onClick={close} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">Dashboard</Link>
- <Link href="/profile" onClick={close} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">My profile</Link>
  <button onClick={() => { close(); onLogout(); }} className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50">Log out</button>
  </div>
  )}
