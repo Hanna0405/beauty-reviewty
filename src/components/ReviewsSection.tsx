@@ -159,10 +159,28 @@ export function ReviewsSection({ listingId, subjectType = 'listing' }: { listing
    loadReviews();
  }, [listingId, subjectType]);
 
- const avg = useMemo(() => {
- if (!items.length) return 0;
- return Math.round((items.reduce((s,r)=>s+r.rating,0)/items.length)*10)/10;
+ // Deduplicate reviews by id before rendering
+ const uniqueReviews = useMemo(() => {
+   const unique: ReviewDoc[] = [];
+   const seen = new Set<string>();
+   for (const r of items) {
+     if (!r.id) {
+       // Reviews without id are allowed (shouldn't happen, but safe fallback)
+       unique.push(r);
+       continue;
+     }
+     if (!seen.has(r.id)) {
+       seen.add(r.id);
+       unique.push(r);
+     }
+   }
+   return unique;
  }, [items]);
+
+ const avg = useMemo(() => {
+ if (!uniqueReviews.length) return 0;
+ return Math.round((uniqueReviews.reduce((s,r)=>s+r.rating,0)/uniqueReviews.length)*10)/10;
+ }, [uniqueReviews]);
 
  return (
  <section className="mt-10 space-y-6">
@@ -170,7 +188,7 @@ export function ReviewsSection({ listingId, subjectType = 'listing' }: { listing
  <h2 className="text-xl font-semibold">Reviews</h2>
  <div className="flex items-center gap-2 text-sm text-gray-600">
  <Stars value={Math.round(avg)} /> <span>{avg || '—'} / 5</span>
- <span>• {items.length} review(s)</span>
+ <span>• {uniqueReviews.length} review(s)</span>
  </div>
  </div>
 
@@ -178,11 +196,11 @@ export function ReviewsSection({ listingId, subjectType = 'listing' }: { listing
 
  {loading ? (
    <div className="py-8 text-center text-sm text-gray-500">Loading reviews...</div>
- ) : items.length === 0 ? (
+ ) : uniqueReviews.length === 0 ? (
    <div className="p-6 text-center text-gray-500 rounded border">No reviews yet</div>
  ) : (
    <div className="space-y-3">
-   {items.map((r)=>(
+   {uniqueReviews.map((r)=>(
    <div key={r.id} className="rv-fade-in border rounded-lg p-4 bg-white shadow-sm">
    {/* Author info + date */}
    <div className="flex items-center gap-3 mb-3">

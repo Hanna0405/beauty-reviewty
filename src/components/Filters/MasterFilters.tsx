@@ -12,6 +12,8 @@ type Props = {
   value: { 
     city?: string; 
     cityPlaceId?: string;
+    lat?: number;
+    lng?: number;
     services: TagOption[]; 
     languages: TagOption[]; 
     minRating?: number; 
@@ -42,6 +44,8 @@ export default function MasterFilters({ value, onChange, showName }: Props) {
     onChange({ 
       city: city?.formatted, 
       cityPlaceId: city?.placeId,
+      lat: city?.lat,
+      lng: city?.lng,
       services, 
       languages, 
       minRating, 
@@ -50,7 +54,7 @@ export default function MasterFilters({ value, onChange, showName }: Props) {
   }, [city, services, languages, minRating, name, onChange]);
 
   const clearAll = () => {
-    onChange({ city: undefined, cityPlaceId: undefined, services: [], languages: [], minRating: undefined, name: '' });
+    onChange({ city: undefined, cityPlaceId: undefined, lat: undefined, lng: undefined, services: [], languages: [], minRating: undefined, name: '' });
     // sync local states so inputs reflect immediately
     setCity(null);
     setServices([]);

@@ -38,6 +38,10 @@ function PageContent() {
   const [initialLoad, setInitialLoad] = useState(true); // Track initial data load
   const [showMap, setShowMap] = useState(true); // for mobile toggle
 
+  // Map center and marker state
+  const [mapCenter, setMapCenter] = useState<{lat: number; lng: number}>({ lat: 43.6532, lng: -79.3832 }); // default Toronto
+  const [mapMarker, setMapMarker] = useState<{lat: number; lng: number} | null>(null);
+
   // Handlers with normalization
   const handleServicesChange = useCallback((next: any[]) => {
     const norm = Array.isArray(next) 
@@ -55,7 +59,12 @@ function PageContent() {
 
   const handleCityChange = useCallback((next: any) => {
     const norm = normalizeCitySelection(next);
-    setSelectedCity(norm);
+    // Preserve the full city object with lat/lng if available
+    if (next && typeof next.lat === 'number' && typeof next.lng === 'number') {
+      setSelectedCity({ ...norm, lat: next.lat, lng: next.lng });
+    } else {
+      setSelectedCity(norm);
+    }
   }, []);
 
   // Consolidated filter change handler for MasterFilters component
@@ -63,15 +72,30 @@ function PageContent() {
     if (newFilters.services !== undefined) handleServicesChange(newFilters.services);
     if (newFilters.languages !== undefined) handleLanguagesChange(newFilters.languages);
     if ((newFilters as any).cityPlaceId || newFilters.city) {
+      // Preserve any lat/lng that might be in the filter object
       handleCityChange({
         formatted: newFilters.city,
         placeId: (newFilters as any).cityPlaceId,
         cityKey: (newFilters as any).cityKey,
+        lat: (newFilters as any).lat,
+        lng: (newFilters as any).lng,
       });
     }
     if (newFilters.minRating !== undefined) setMinRating(newFilters.minRating);
     if (newFilters.name !== undefined) setName(newFilters.name);
   }, [handleServicesChange, handleLanguagesChange, handleCityChange]);
+
+  // Update map center and marker when city filter changes
+  useEffect(() => {
+    if (selectedCity && typeof selectedCity.lat === 'number' && typeof selectedCity.lng === 'number') {
+      setMapCenter({ lat: selectedCity.lat, lng: selectedCity.lng });
+      setMapMarker({ lat: selectedCity.lat, lng: selectedCity.lng });
+    } else {
+      // If city cleared – back to default center
+      setMapMarker(null);
+      setMapCenter({ lat: 43.6532, lng: -79.3832 });
+    }
+  }, [selectedCity]);
 
   // Initial data load on mount (ONCE - loads ALL data, no filters)
   useEffect(() => {
@@ -199,85 +223,63 @@ function PageContent() {
     return Array.from(result);
   };
 
-  // ---- CITY FILTER (dynamic) ----
+  // Helper to normalize strings for city comparison
+  const normalizeCityVal = (v?: string) => v ? v.toLowerCase().trim() : "";
+
+  // ---- CITY FILTER ----
   let filteredMasters = allMasters;
   let filteredListings = allListings;
 
-  const selectedCityValue =
-    selectedCity ||
-    cityKey ||
+  // Get city slug from URL query param
+  const queryCitySlug = urlCity || undefined;
+
+  // Build effective city slug from either filters or URL
+  const effectiveCitySlug =
+    selectedCity?.slug ||
+    selectedCity?.cityKey ||
+    queryCitySlug ||
     null;
 
-  if (selectedCityValue) {
-    const selectedNorms = [
-      typeof selectedCityValue === "string" ? selectedCityValue : null,
-      selectedCityValue.slug,
-      selectedCityValue.cityKey,
-      selectedCityValue.city,
-      selectedCityValue.formatted,
-      selectedCityValue.label,
-      selectedCityValue.value,
-      selectedCityValue.name,
-      selectedCityValue.displayName,
-    ]
-      .filter(Boolean)
-      .map(normalize);
+  if (effectiveCitySlug) {
+    const normalizedSlug = normalizeCityVal(effectiveCitySlug);
 
-    if (selectedNorms.length > 0) {
-      // detect fields from actual data
-      const masterCityFields = detectCityFields(allMasters || []);
-      const listingCityFields = detectCityFields(allListings || []);
+    // Filter listings
+    filteredListings = filteredListings.filter((l: any) => {
+      const itemSlug =
+        l.cityKey ||
+        l.citySlug ||
+        l.city?.slug ||
+        "";
+      const itemName =
+        l.cityName ||
+        l.city?.formatted ||
+        l.city ||
+        "";
 
-      // filter masters
-      filteredMasters = filteredMasters.filter((m: any) => {
-        const itemVals: string[] = [];
+      return (
+        normalizeCityVal(itemSlug) === normalizedSlug ||
+        normalizeCityVal(itemName).startsWith(normalizedSlug.split("-")[0])
+      );
+    });
 
-        masterCityFields.forEach((field) => {
-          if (field.startsWith("location.")) {
-            const sub = field.split(".")[1];
-            const v = m.location?.[sub];
-            if (v) itemVals.push(normalize(v));
-          } else {
-            const v = m?.[field];
-            if (v) itemVals.push(normalize(v));
-          }
-        });
+    // Filter masters
+    filteredMasters = filteredMasters.filter((m: any) => {
+      const itemSlug =
+        m.cityKey ||
+        m.citySlug ||
+        m.city?.slug ||
+        "";
+      const itemName =
+        m.cityName ||
+        m.city?.formatted ||
+        m.city ||
+        "";
 
-        if (itemVals.length === 0) return false;
-
-        return itemVals.some((iv) =>
-          selectedNorms.some((sv) => {
-            if (!iv || !sv) return false;
-            return iv === sv || iv.startsWith(sv) || sv.startsWith(iv);
-          })
-        );
-      });
-
-      // filter listings
-      filteredListings = filteredListings.filter((l: any) => {
-        const itemVals: string[] = [];
-
-        listingCityFields.forEach((field) => {
-          if (field.startsWith("location.")) {
-            const sub = field.split(".")[1];
-            const v = l.location?.[sub];
-            if (v) itemVals.push(normalize(v));
-          } else {
-            const v = l?.[field];
-            if (v) itemVals.push(normalize(v));
-          }
-        });
-
-        if (itemVals.length === 0) return false;
-
-        return itemVals.some((iv) =>
-          selectedNorms.some((sv) => {
-            if (!iv || !sv) return false;
-            return iv === sv || iv.startsWith(sv) || sv.startsWith(iv);
-          })
-        );
-      });
-    }
+      return (
+        normalizeCityVal(itemSlug) === normalizedSlug ||
+        normalizeCityVal(itemName).startsWith(normalizedSlug.split("-")[0])
+      );
+    });
   }
 
   // Compute listing ratings from reviews
@@ -409,6 +411,11 @@ function PageContent() {
     ...filteredListingsWithRatings.map(l => ({ lat: l.geo?.lat ?? 0, lng: l.geo?.lng ?? 0, title: l.title ?? 'Listing' }))
   ];
 
+  // Add city marker if available
+  const mapMarkersWithCity = mapMarker 
+    ? [{ lat: mapMarker.lat, lng: mapMarker.lng, title: selectedCity?.formatted || 'Selected city' }, ...allMapMarkers]
+    : allMapMarkers;
+
   // Show loading screen during initial data load
   if (initialLoad) {
     return (
@@ -443,6 +450,8 @@ function PageContent() {
             value={{
               city: selectedCity?.formatted,
               cityPlaceId: selectedCity?.cityKey,
+              lat: selectedCity?.lat,
+              lng: selectedCity?.lng,
               services: selectedServices,
               languages: selectedLanguages,
               minRating: minRating,
@@ -465,7 +474,11 @@ function PageContent() {
           {/* Map */}
           <div className={`mb-4 ${showMap ? 'block' : 'hidden md:block'}`}>
             <div className="relative z-0">
-              <MastersMapNoSSR markers={allMapMarkers} />
+              <MastersMapNoSSR 
+                center={mapCenter} 
+                zoom={10}
+                markers={mapMarkersWithCity}
+              />
             </div>
           </div>
 

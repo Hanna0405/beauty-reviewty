@@ -132,11 +132,17 @@ service cloud.firestore {
  allow delete: if false;
  }
 
- // ===== Generic reviews collection (dev create allowed) =====
+ // ===== Generic reviews collection =====
+ // allow users to delete only their own reviews
  match /reviews/{reviewId} {
  allow read: if true;
- allow create: if true; // TEMPORARY for dev
- allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+ allow create: if request.auth != null;
+ allow update, delete: if request.auth != null
+ && (
+ request.auth.uid == resource.data.userId ||
+ request.auth.uid == resource.data.createdBy ||
+ request.auth.uid == resource.data.authorId
+ );
  }
 
  // ===== Community Masters =====
@@ -197,6 +203,74 @@ match /{parent=**}/reviews/{reviewId} {
  // необязательно, но полезно: разрешаем serverTimestamp для даты
  && (!('createdAt' in request.resource.data) || request.resource.data.createdAt is timestamp);
  allow update, delete: if false;
+ }
+
+ ////////////////////
+ // REVIEWS DELETE //
+ ////////////////////
+
+ // 1) top-level reviews
+ match /reviews/{reviewId} {
+ allow read: if true;
+ allow create: if request.auth != null;
+ allow update, delete: if request.auth != null &&
+ (
+ request.auth.uid == resource.data.userId ||
+ request.auth.uid == resource.data.createdBy ||
+ request.auth.uid == resource.data.authorId
+ );
+ }
+
+ // 2) reviews under masters/{masterId}/reviews/{reviewId}
+ match /masters/{masterId}/reviews/{reviewId} {
+ allow read: if true;
+ allow create: if request.auth != null;
+ allow update, delete: if request.auth != null &&
+ (
+ request.auth.uid == resource.data.userId ||
+ request.auth.uid == resource.data.createdBy ||
+ request.auth.uid == resource.data.authorId
+ );
+ }
+
+ // 3) reviews under listings/{listingId}/reviews/{reviewId}
+ match /listings/{listingId}/reviews/{reviewId} {
+ allow read: if true;
+ allow create: if request.auth != null;
+ allow update, delete: if request.auth != null &&
+ (
+ request.auth.uid == resource.data.userId ||
+ request.auth.uid == resource.data.createdBy ||
+ request.auth.uid == resource.data.authorId
+ );
+ }
+
+ // 4) reviews under masters/{masterId}/listings/{listingId}/reviews/{reviewId}
+ match /masters/{masterId}/listings/{listingId}/reviews/{reviewId} {
+ allow read: if true;
+ allow create: if request.auth != null;
+ allow update, delete: if request.auth != null &&
+ (
+ request.auth.uid == resource.data.userId ||
+ request.auth.uid == resource.data.createdBy ||
+ request.auth.uid == resource.data.authorId
+ );
+ }
+
+ ////////////////////////////////////////////////////
+ // Allow user to delete THEIR review in any nested
+ // collection called "reviews", no matter the path.
+ ////////////////////////////////////////////////////
+ match /{path=**}/reviews/{reviewId} {
+ // everyone can read reviews
+ allow read: if true;
+
+ // only logged-in can create
+ allow create: if request.auth != null;
+
+ // TEMP: allow any logged-in user to delete a review
+ // (we do this because some reviews are saved without userId/clientId fields)
+ allow update, delete: if request.auth != null;
  }
  }
 }

@@ -48,12 +48,14 @@ type Props = {
   open?: boolean;
   onClose?: () => void;
   presetMaster?: PresetMaster;
+  initialMode?: "listing" | "community";
 };
 
 export default function ReviewtyCreateModal({
   open: controlledOpen,
   onClose,
   presetMaster,
+  initialMode = "listing",
 }: Props = {}) {
   const [internalOpen, setInternalOpen] = useState(false);
   const { user } = useAuth();
@@ -72,7 +74,14 @@ export default function ReviewtyCreateModal({
     }
   }, [controlledOpen]);
 
-  const [mode, setMode] = useState<"listing" | "community">("listing");
+  const [mode, setMode] = useState<"listing" | "community">(initialMode);
+
+  // Reset mode to initialMode when modal opens
+  useEffect(() => {
+    if (open) {
+      setMode(initialMode);
+    }
+  }, [open, initialMode]);
 
   // Pre-fill form when preset master is provided
   useEffect(() => {

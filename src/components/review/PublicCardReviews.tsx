@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { db } from "@/lib/firebase/client";
 import {
   collection,
@@ -22,6 +23,7 @@ type Review = {
 export default function PublicCardReviews({ publicCardSlug }: Props) {
   const [items, setItems] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeImageIndex, setActiveImageIndex] = useState<{ reviewIndex: number; photoIndex: number } | null>(null);
 
   useEffect(() => {
     if (!publicCardSlug) return;
@@ -80,18 +82,88 @@ export default function PublicCardReviews({ publicCardSlug }: Props) {
               {Array.isArray(r.photos) && r.photos.length ? (
                 <div className="mt-3 flex gap-2 flex-wrap">
                   {r.photos.map((url, idx) => (
-                    <img
+                    <button
                       key={idx}
-                      src={url}
-                      alt=""
-                      className="w-20 h-20 object-cover rounded"
-                    />
+                      type="button"
+                      onClick={() => setActiveImageIndex({ reviewIndex: i, photoIndex: idx })}
+                      className="relative w-20 h-20 overflow-hidden rounded border bg-slate-100"
+                      aria-label={`Open review photo ${idx + 1}`}
+                    >
+                      <img
+                        src={url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    </button>
                   ))}
                 </div>
               ) : null}
             </li>
           ))}
         </ul>
+      )}
+
+      {/* Image preview modal */}
+      {activeImageIndex !== null && items[activeImageIndex.reviewIndex]?.photos && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setActiveImageIndex(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="relative w-full max-w-3xl aspect-[4/3]">
+            <Image
+              src={items[activeImageIndex.reviewIndex].photos[activeImageIndex.photoIndex]}
+              alt={`review photo ${activeImageIndex.photoIndex + 1}`}
+              fill
+              sizes="100vw"
+              className="object-contain"
+              priority
+            />
+            {/* Controls */}
+            {items[activeImageIndex.reviewIndex].photos.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const photos = items[activeImageIndex.reviewIndex].photos;
+                    const newIndex = activeImageIndex.photoIndex > 0 
+                      ? activeImageIndex.photoIndex - 1 
+                      : photos.length - 1;
+                    setActiveImageIndex({ reviewIndex: activeImageIndex.reviewIndex, photoIndex: newIndex });
+                  }}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 rounded bg-white/70 px-3 py-2 text-sm hover:bg-white/90"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const photos = items[activeImageIndex.reviewIndex].photos;
+                    const newIndex = (activeImageIndex.photoIndex + 1) % photos.length;
+                    setActiveImageIndex({ reviewIndex: activeImageIndex.reviewIndex, photoIndex: newIndex });
+                  }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded bg-white/70 px-3 py-2 text-sm hover:bg-white/90"
+                >
+                  ›
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveImageIndex(null);
+              }}
+              className="absolute right-2 top-2 rounded bg-white/80 px-3 py-1 text-sm hover:bg-white"
+            >
+              Close
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

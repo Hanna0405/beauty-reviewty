@@ -11,10 +11,21 @@ import {
   query,
   where,
 } from "firebase/firestore";
+
 import ReviewtyCreateModal from "./ReviewtyCreateModal";
 import Filters, { type ReviewtyFilters } from "./Filters";
 import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/catalog";
 import PublicReviewCard from "@/components/reviewty/PublicReviewCard";
+
+// Helper function to calculate stats from reviews
+function calcStats(reviews: any[]) {
+  if (!reviews || reviews.length === 0) return { avg: null, count: 0 };
+  const sum = reviews.reduce((acc, r) => acc + (r.rating || 0), 0);
+  return {
+    avg: sum / reviews.length,
+    count: reviews.length,
+  };
+}
 
 type ReviewDoc = {
   id: string;
@@ -42,6 +53,8 @@ type ReviewDoc = {
   masterSlug?: string;
   masterKey?: string;
   source?: string;
+  computedRating?: number | null;
+  computedReviewsCount?: number;
 };
 
 const PAGE_SIZE = 20;
@@ -57,6 +70,8 @@ export default function ReviewtyPage() {
     ratingGte: null,
     personQuery: "",
   });
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [modalInitialMode, setModalInitialMode] = useState<"listing" | "community">("listing");
 
   async function loadReviews() {
     try {
@@ -100,7 +115,77 @@ export default function ReviewtyPage() {
         };
       });
 
-      setPublicCards(items);
+      // Collect all card IDs
+      const cardIds = items.map((card) => card.id);
+
+      // Query reviews collection in batches (Firestore 'in' query limit is 10)
+      const reviewsByCardId = new Map<string, any[]>();
+      
+      if (cardIds.length > 0) {
+        // Split into batches of 10
+        const batchSize = 10;
+        for (let i = 0; i < cardIds.length; i += batchSize) {
+          const batch = cardIds.slice(i, i + batchSize);
+          
+          try {
+            // Query publicReviews collection where publicCardSlug is in the batch
+            const publicReviewsQuery = query(
+              collection(db, "publicReviews"),
+              where("publicCardSlug", "in", batch)
+            );
+            const publicReviewsSnap = await getDocs(publicReviewsQuery);
+            
+            publicReviewsSnap.docs.forEach((doc) => {
+              const reviewData = doc.data();
+              const cardId = reviewData.publicCardSlug;
+              if (cardId) {
+                if (!reviewsByCardId.has(cardId)) {
+                  reviewsByCardId.set(cardId, []);
+                }
+                reviewsByCardId.get(cardId)!.push(reviewData);
+              }
+            });
+          } catch (err) {
+            console.error("[reviewty] failed to query publicReviews batch", err);
+          }
+          
+          try {
+            // Also query reviews collection where publicCardId is in the batch
+            const reviewsQuery = query(
+              collection(db, "reviews"),
+              where("publicCardId", "in", batch)
+            );
+            const reviewsSnap = await getDocs(reviewsQuery);
+            
+            reviewsSnap.docs.forEach((doc) => {
+              const reviewData = doc.data();
+              const cardId = reviewData.publicCardId;
+              if (cardId) {
+                if (!reviewsByCardId.has(cardId)) {
+                  reviewsByCardId.set(cardId, []);
+                }
+                reviewsByCardId.get(cardId)!.push(reviewData);
+              }
+            });
+          } catch (err) {
+            console.error("[reviewty] failed to query reviews batch", err);
+          }
+        }
+      }
+
+      // Calculate stats for each card and merge into items
+      const itemsWithStats = items.map((card) => {
+        const cardReviews = reviewsByCardId.get(card.id) || [];
+        const stats = calcStats(cardReviews);
+        
+        return {
+          ...card,
+          computedRating: stats.avg ?? card.rating ?? null,
+          computedReviewsCount: stats.count ?? card.totalReviews ?? 0,
+        };
+      });
+
+      setPublicCards(itemsWithStats);
     } catch (err) {
       console.error("[reviewty] failed to load reviews", err);
     } finally {
@@ -366,6 +451,16 @@ export default function ReviewtyPage() {
     });
   };
 
+  const openCreatePublicCardModal = () => {
+    setModalInitialMode("community");
+    setIsReviewModalOpen(true);
+  };
+
+  const openReviewModal = () => {
+    setModalInitialMode("listing");
+    setIsReviewModalOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-pink-50 to-white">
       <div className="max-w-6xl mx-auto p-6 space-y-6">
@@ -375,14 +470,27 @@ export default function ReviewtyPage() {
             People's Reviews
           </h1>
           <button
-            onClick={() =>
-              window.dispatchEvent(new CustomEvent("reviewty:openCreate"))
-            }
+            onClick={openReviewModal}
             className="px-4 py-2 rounded-lg bg-pink-600 text-white hover:bg-pink-700 font-medium transition-colors"
           >
             Add review
           </button>
         </header>
+
+        {/* Info banner */}
+        <div className="w-full flex justify-center mb-6 px-4">
+          <p className="text-center text-slate-700 text-base sm:text-lg md:text-xl font-medium leading-relaxed">
+            Couldn't find your beauty master online or they blocked you?{" "}
+            Make a{" "}
+            <button
+              onClick={openCreatePublicCardModal}
+              className="text-pink-500 font-semibold hover:text-pink-600 mx-1 underline-offset-2 hover:underline"
+            >
+              public card
+            </button>{" "}
+            and help others learn from your real experience
+          </p>
+        </div>
 
         {/* Filters */}
         <div className="bg-pink-50/60 rounded-lg p-4 border border-pink-200">
@@ -423,8 +531,8 @@ export default function ReviewtyPage() {
                     slugCandidate2={review.masterSlug}
                     slugCandidate3={review.id}
                     debugItem={review}
-                    rating={review.rating}
-                    totalReviews={review.totalReviews}
+                    rating={review.computedRating ?? review.rating}
+                    totalReviews={review.computedReviewsCount ?? review.totalReviews}
                     masterName={review.masterName}
                     masterDisplay={review.masterDisplay}
                     cityName={review.cityName}
@@ -447,7 +555,11 @@ export default function ReviewtyPage() {
         </div>
 
         {/* Modal */}
-        <ReviewtyCreateModal />
+        <ReviewtyCreateModal
+          open={isReviewModalOpen}
+          onClose={() => setIsReviewModalOpen(false)}
+          initialMode={modalInitialMode}
+        />
       </div>
     </div>
   );

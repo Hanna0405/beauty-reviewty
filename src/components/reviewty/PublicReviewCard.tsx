@@ -3,6 +3,7 @@ import Link from "next/link";
 import React from "react";
 import PhotoThumbs from "./PhotoThumbs";
 import { normalizePhotos } from "./getPhotoUrl";
+import Stars from "@/app/masters/components/Stars";
 
 type PublicReviewCardProps = {
   id: string;
@@ -49,13 +50,14 @@ export default function PublicReviewCard({
     <>
       {/* Rating and Location */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1">
-          <span className="text-yellow-500">
-            {"★".repeat(Math.round(rating || 0))}
-          </span>
-          <span className="text-sm text-gray-600 ml-1">
-            {typeof rating === "number" ? rating.toFixed(1) : "0.0"} · {totalReviews ?? 1} review{(totalReviews ?? 1) === 1 ? "" : "s"}
-          </span>
+        <div className="flex items-center gap-2">
+          {typeof rating === "number" && rating > 0 ? (
+            <Stars value={rating} count={totalReviews ?? 0} />
+          ) : (
+            <span className="text-sm text-gray-500">
+              {totalReviews && totalReviews > 0 ? `${totalReviews} review${totalReviews === 1 ? "" : "s"}` : "No reviews yet"}
+            </span>
+          )}
         </div>
         <div className="text-sm text-gray-500">
           {cityName || masterCity || "—"}

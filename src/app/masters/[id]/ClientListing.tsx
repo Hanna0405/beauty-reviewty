@@ -81,15 +81,30 @@ export default function ClientListing({ id }: { id: string }) {
         // merge reviews
         const allReviews = [...rootReviews, ...masterReviews];
         
+        // Deduplicate reviews by id
+        const uniqueReviews: any[] = [];
+        const seen = new Set<string>();
+        for (const r of allReviews) {
+          if (!r.id) {
+            // Reviews without id are allowed (shouldn't happen, but safe fallback)
+            uniqueReviews.push(r);
+            continue;
+          }
+          if (!seen.has(r.id)) {
+            seen.add(r.id);
+            uniqueReviews.push(r);
+          }
+        }
+        
         // calculate unified stats
-        const totalReviews = allReviews.length;
+        const totalReviews = uniqueReviews.length;
         const avgRating =
           totalReviews > 0
-            ? allReviews.reduce((s, r) => s + (Number(r.rating) || 0), 0) / totalReviews
+            ? uniqueReviews.reduce((s, r) => s + (Number(r.rating) || 0), 0) / totalReviews
             : 0;
         
         // sort by creation date (new first)
-        const sortedReviews = [...allReviews].sort((a, b) => {
+        const sortedReviews = [...uniqueReviews].sort((a, b) => {
           const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
           const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
           return tb - ta;
