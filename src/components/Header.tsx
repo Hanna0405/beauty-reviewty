@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 
 export default function Header() {
- const { user, logout } = useAuth();
+ const { user } = useAuth();
 
  return (
  <header className="w-full bg-white/90 border-b border-pink-100 backdrop-blur-sm">
@@ -39,7 +39,7 @@ export default function Header() {
  {user.displayName?.slice(0, 1) || "U"}
  </Link>
  <button
- onClick={logout}
+ // onClick={logout} // TODO: Add logout function to AuthContext
  className="text-xs text-pink-700 hover:text-pink-500 transition"
  >
  Log out

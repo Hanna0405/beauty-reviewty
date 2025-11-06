@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     }
     if (!id) return NextResponse.json({ ok: false, error: 'Missing id' }, { status: 400 });
 
-    const col = adminDb.collection('reviews');
+    const col = adminDb().collection('reviews');
     // New schema: equality-only (no orderBy)
     let snaps = await col
       .where('subjectType', '==', type)
@@ -28,14 +28,14 @@ export async function GET(req: Request) {
       snaps = await col.where(legacyField, '==', id).limit(200).get();
     }
 
-    const items = snaps.docs.map(d => ({ id: d.id, ...d.data() }));
+    const items = snaps.docs.map((d: any) => ({ id: d.id, ...d.data() }));
 
     // Build a uid -> author map using Auth (displayName, photoURL)
     const seen = new Map<string, { name: string | null; photoURL: string | null }>();
     async function getAuthor(uid: string) {
       if (seen.has(uid)) return seen.get(uid)!;
       try {
-        const u = await adminAuth.getUser(uid);
+        const u = await adminAuth().getUser(uid);
         const info = { name: u.displayName || null, photoURL: u.photoURL || null };
         seen.set(uid, info);
         return info;

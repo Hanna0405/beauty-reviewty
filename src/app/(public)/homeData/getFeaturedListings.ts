@@ -1,4 +1,4 @@
-import { db } from "@/lib/firebase/client";
+import { getFirebaseDb } from "@/lib/firebase/client";
 import {
   collection,
   getDocs,
@@ -20,6 +20,14 @@ export type ListingData = {
 export async function getFeaturedListings(
   limitCount: number
 ): Promise<ListingData[]> {
+  const db = getFirebaseDb();
+
+  // safety guard for build / SSR
+  if (!db) {
+    console.warn("[getFeaturedListings] Firestore not initialized (server-side build). Returning empty list.");
+    return [];
+  }
+
   try {
     const q = query(
       collection(db, "listings"),

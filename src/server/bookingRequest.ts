@@ -15,7 +15,11 @@ type Body = {
 
 export async function POST(req: Request) {
   try {
-    const { auth, db } = getFirebaseAdmin();
+    const admin = getFirebaseAdmin();
+    if (!admin) {
+      return NextResponse.json({ error: 'Firebase Admin not initialized' }, { status: 503 });
+    }
+    const { auth, db } = admin;
     const authHeader = req.headers.get('authorization') || '';
     const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
     if (!idToken) return NextResponse.json({ error: 'Auth required' }, { status: 401 });

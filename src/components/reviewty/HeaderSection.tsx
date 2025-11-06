@@ -1,4 +1,4 @@
-import type { PublicMasterData } from "@/lib/reviewty";
+type PublicMasterData = any;
 
 type Props = {
   master: PublicMasterData;
@@ -37,13 +37,8 @@ export default function HeaderSection({ master }: Props) {
         {/* Services */}
         {master.serviceNames && master.serviceNames.length > 0 && (
           <>
-            {master.serviceNames.map((service, i) => (
-              <span
-                key={i}
-                className="px-2 py-1 bg-pink-100 text-pink-800 rounded-full text-sm"
-              >
-                {service}
-              </span>
+            {master.serviceNames.map((service: any, i: number) => (
+              <div key={i}>{service}</div>
             ))}
           </>
         )}
@@ -51,13 +46,8 @@ export default function HeaderSection({ master }: Props) {
         {/* Languages */}
         {master.languageNames && master.languageNames.length > 0 && (
           <>
-            {master.languageNames.map((language, i) => (
-              <span
-                key={i}
-                className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm"
-              >
-                {language}
-              </span>
+            {master.languageNames.map((language: any, i: number) => (
+              <div key={i}>{language}</div>
             ))}
           </>
         )}

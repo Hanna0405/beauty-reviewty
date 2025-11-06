@@ -1,5 +1,10 @@
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject, UploadTask } from "firebase/storage";
-import { storage, getStorageSafe } from "./firebase";
+import * as firebase from "./firebase";
+
+const { storage } = firebase;
+
+// Helper function for safe storage access
+const getStorageSafe = () => storage;
 
 /**
  * Upload a single file to Firebase Storage with proper metadata

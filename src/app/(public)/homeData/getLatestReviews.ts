@@ -1,4 +1,4 @@
-import { db } from "@/lib/firebase/client";
+import { getFirebaseDb } from "@/lib/firebase/client";
 import { collection, getDocs, orderBy, limit, query } from "firebase/firestore";
 
 export type ReviewData = {
@@ -14,6 +14,13 @@ export type ReviewData = {
 export async function getLatestReviews(
   limitCount: number
 ): Promise<ReviewData[]> {
+  const db = getFirebaseDb();
+
+  if (!db) {
+    console.warn("[Firestore] getFirebaseDb() returned null (likely server-side build). Returning empty result.");
+    return [];
+  }
+
   try {
     const q = query(
       collection(db, "reviews"),

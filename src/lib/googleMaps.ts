@@ -1,11 +1,7 @@
 /* src/lib/googleMaps.ts */
 'use client';
 
-declare global {
-interface Window {
-google?: any;
-}
-}
+declare const google: any;
 
 // Single, idempotent loader for Google Maps JS API (with Places + Marker)
 export async function ensureMapsLib(): Promise<typeof google.maps> {

@@ -1,5 +1,4 @@
-import { collection, getDocs, limit, query, where } from 'firebase/firestore';
-import { db } from '@/lib/firebase/client';
+import { getAdminDb } from '@/lib/firebaseAdmins';
 
 /**
  * Returns Firestore docId for a public card.
@@ -12,8 +11,8 @@ export async function resolvePublicCardId(selectedCard: any): Promise<string | n
   const slug = selectedCard?.slug ?? selectedCard?.value ?? selectedCard?.key;
   if (!slug) return null;
 
-  const q = query(collection(db, 'publicCards'), where('slug', '==', slug), limit(1));
-  const snap = await getDocs(q);
+  const db = getAdminDb();
+  const snap = await db.collection('publicCards').where('slug', '==', slug).limit(1).get();
   if (snap.empty) return null;
   return snap.docs[0].id;
 }

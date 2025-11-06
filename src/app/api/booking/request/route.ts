@@ -1,6 +1,6 @@
 // src/app/api/booking/request/route.ts
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { getAdminDb } from '@/lib/firebaseAdmin';
 
 type Body = {
  // allow both new/old payload shapes
@@ -17,6 +17,13 @@ type Body = {
 
 export async function POST(req: Request) {
  try {
+ const db = getAdminDb();
+ if (!db) {
+  return new Response(JSON.stringify({ ok: false, error: 'Admin DB not available' }), {
+   status: 500,
+   headers: { 'Content-Type': 'application/json' },
+  });
+ }
  const body = (await req.json()) as Body;
 
  const listingId = body.listingId || body.masterId;
@@ -52,7 +59,7 @@ export async function POST(req: Request) {
  };
 
  // Write via Admin SDK (bypasses client-side security rules)
- const ref = await adminDb.collection('bookings').add(payload);
+ const ref = await db.collection('bookings').add(payload);
 
  return NextResponse.json({ ok: true, id: ref.id }, { status: 200 });
  } catch (e: any) {

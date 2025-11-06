@@ -40,12 +40,15 @@ export default function AutocompleteList({
 
  return options
  .filter((o) => {
- const title = (o.title || o.name || "").toLowerCase();
+ const title = (o.title || "").toLowerCase();
  const city =
- (o.city?.formatted ||
- o.city?.name ||
- o.city ||
- "").toLowerCase();
+ (typeof o.city === "string"
+ ? o.city
+ : (typeof o.city === "object" && o.city !== null
+ ? (o.city as any).formatted || (o.city as any).city || ""
+ : ""
+ )
+ ).toLowerCase();
  const servicesArr = Array.isArray(o.services) ? o.services : [];
  const serviceHit = servicesArr.some((sv: any) => {
  if (typeof sv === "string") return sv.toLowerCase().includes(ql);

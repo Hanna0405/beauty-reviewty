@@ -2,9 +2,15 @@ import { db } from '@/lib/firebase/client';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import type { ListingReviewPayload } from '@/features/reviews/types';
 
+const isServer = typeof window === "undefined";
+
 export type CreateListingReviewInput = Omit<ListingReviewPayload, 'target' | 'createdAt'>;
 
 export async function createListingReview(input: CreateListingReviewInput) {
+  if (isServer) {
+    console.warn("[createListingReview] called on server. Skipping.");
+    return null;
+  }
   const payload: ListingReviewPayload = {
     target: 'listing',
     listingId: input.listingId,

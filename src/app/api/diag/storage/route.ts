@@ -1,13 +1,19 @@
 import { NextResponse } from 'next/server';
-import { adminBucket } from '@/lib/firebaseAdmin';
+import { getAdminBucket } from '@/lib/firebaseAdmin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const envBucket = process.env.FIREBASE_STORAGE_BUCKET || '(unset)';
-    const bucket = await adminBucket();
+    const envBucket = process.env.FIREBASE_STORAGE_BUCKET || process.env.FIREBASE_STORAGE_BUCKET_DEV || '(unset)';
+    const bucket = getAdminBucket();
+    if (!bucket) {
+      return NextResponse.json({
+        ok: false,
+        error: 'Storage bucket not available',
+      });
+    }
     const [exists] = await bucket.exists();
     return NextResponse.json({
       ok: true,

@@ -4,6 +4,8 @@ import React, { useEffect, useState } from "react";
 import { storage } from "@/lib/firebase/client";
 import { getDownloadURL, ref } from "firebase/storage";
 
+const isServer = typeof window === "undefined";
+
 type PhotoInfo = {
   url?: string | null;
   path?: string | null;
@@ -34,6 +36,9 @@ export function SafeListingImage({
   });
 
   useEffect(() => {
+    if (isServer) return; // do not call storage on server
+    if (!storage) return;
+
     // If we don't already have a usable finalUrl AND we seem to have a storage path (not an https:// URL)
     if (!finalUrl && photo?.path && typeof photo.path === "string") {
       const p = photo.path.trim();
@@ -63,7 +68,7 @@ export function SafeListingImage({
         }
       }
     }
-  }, [photo?.path, finalUrl]);
+  }, [photo?.path, finalUrl, storage]);
 
   if (!finalUrl) {
     // graceful placeholder instead of broken <img>

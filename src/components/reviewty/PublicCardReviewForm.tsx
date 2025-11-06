@@ -7,11 +7,17 @@ import { getAuth } from "firebase/auth";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 // If you already have a photo uploader component/hook used in "Add review", import and reuse it instead of the simple placeholder below.
 
+const isServer = typeof window === "undefined";
+
 type Props = {
   publicCardSlug: string; // e.g. "pc_vancouver-bc-ca_dasha"
 };
 
 export default function PublicCardReviewForm({ publicCardSlug }: Props) {
+  if (isServer) {
+    // render nothing or a disabled form on server
+    return null;
+  }
   const [rating, setRating] = useState(5);
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);

@@ -7,6 +7,8 @@ import { useAuthReady } from "@/lib/hooks/useAuthReady";
 import { db } from "@/lib/firebase/client";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
+const isServer = typeof window === "undefined";
+
 export default function WriteReviewForm(props: {
   masterSlug: string;
   masterName: string;
@@ -25,6 +27,11 @@ export default function WriteReviewForm(props: {
     languageNames,
     onSubmitted,
   } = props;
+
+  if (isServer) {
+    // render nothing on server
+    return null;
+  }
 
   const { user: currentUser } = useAuthReady();
   const [rating, setRating] = useState<number>(5);
@@ -101,8 +108,8 @@ export default function WriteReviewForm(props: {
         cityName: cityName || null,
         serviceNames: serviceNames || [],
         languageNames: languageNames || [],
-        clientName: currentUser.displayName || null,
-        clientUid: currentUser.uid,
+        clientName: currentUser?.displayName || "",
+        clientUid: currentUser?.uid || "",
         createdAt: serverTimestamp(),
       };
 
@@ -129,7 +136,7 @@ export default function WriteReviewForm(props: {
         cityName: cityName || undefined,
         serviceNames: serviceNames || [],
         languageNames: languageNames || [],
-        clientName: currentUser.displayName || undefined,
+        clientName: currentUser?.displayName || undefined,
         createdAt: new Date().toISOString(), // optimistic, server will have serverTimestamp
       };
 

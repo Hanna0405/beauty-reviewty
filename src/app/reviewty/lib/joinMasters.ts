@@ -1,5 +1,4 @@
-import { db } from "@/lib/firebase.client";
-import { getDocs, query, collection, where } from "firebase/firestore";
+import { getAdminDb } from "@/lib/firebaseAdmins";
 
 export type MinimalMaster = {
   uid: string;
@@ -10,6 +9,7 @@ export type MinimalMaster = {
 };
 
 export async function fetchMastersByUids(uids: string[]): Promise<Record<string, MinimalMaster>> {
+  const db = getAdminDb();
   const unique = Array.from(new Set(uids.filter(Boolean)));
   if (!unique.length) return {};
   
@@ -22,9 +22,8 @@ export async function fetchMastersByUids(uids: string[]): Promise<Record<string,
   const result: Record<string, MinimalMaster> = {};
   
   for (const c of chunks) {
-    const qq = query(collection(db, "profiles"), where("uid", "in", c));
-    const snap = await getDocs(qq);
-    snap.forEach(d => {
+    const snap = await db.collection("profiles").where("uid", "in", c).get();
+    snap.forEach((d: any) => {
       const data = d.data() as any;
       result[data.uid] = {
         uid: data.uid,

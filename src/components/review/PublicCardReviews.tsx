@@ -105,66 +105,75 @@ export default function PublicCardReviews({ publicCardSlug }: Props) {
       )}
 
       {/* Image preview modal */}
-      {activeImageIndex !== null && items[activeImageIndex.reviewIndex]?.photos && (
-        <div
-          className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4"
-          onClick={() => setActiveImageIndex(null)}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="relative w-full max-w-3xl aspect-[4/3]">
-            <Image
-              src={items[activeImageIndex.reviewIndex].photos[activeImageIndex.photoIndex]}
-              alt={`review photo ${activeImageIndex.photoIndex + 1}`}
-              fill
-              sizes="100vw"
-              className="object-contain"
-              priority
-            />
-            {/* Controls */}
-            {items[activeImageIndex.reviewIndex].photos.length > 1 && (
-              <>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const photos = items[activeImageIndex.reviewIndex].photos;
-                    const newIndex = activeImageIndex.photoIndex > 0 
-                      ? activeImageIndex.photoIndex - 1 
-                      : photos.length - 1;
-                    setActiveImageIndex({ reviewIndex: activeImageIndex.reviewIndex, photoIndex: newIndex });
-                  }}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 rounded bg-white/70 px-3 py-2 text-sm hover:bg-white/90"
-                >
-                  ‹
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const photos = items[activeImageIndex.reviewIndex].photos;
-                    const newIndex = (activeImageIndex.photoIndex + 1) % photos.length;
-                    setActiveImageIndex({ reviewIndex: activeImageIndex.reviewIndex, photoIndex: newIndex });
-                  }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded bg-white/70 px-3 py-2 text-sm hover:bg-white/90"
-                >
-                  ›
-                </button>
-              </>
-            )}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveImageIndex(null);
-              }}
-              className="absolute right-2 top-2 rounded bg-white/80 px-3 py-1 text-sm hover:bg-white"
-            >
-              Close
-            </button>
+      {activeImageIndex !== null && (() => {
+        const reviewItem =
+          items?.[activeImageIndex?.reviewIndex || 0]?.photos?.[activeImageIndex?.photoIndex || 0];
+        return reviewItem ? (
+          <div
+            className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4"
+            onClick={() => setActiveImageIndex(null)}
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="relative w-full max-w-3xl aspect-[4/3]">
+              <Image
+                src={reviewItem}
+                alt={`review photo ${activeImageIndex?.photoIndex != null ? activeImageIndex.photoIndex + 1 : ""}`}
+                fill
+                sizes="100vw"
+                className="object-contain"
+                priority
+              />
+              {/* Controls */}
+              {(() => {
+                const photos = items?.[activeImageIndex?.reviewIndex || 0]?.photos;
+                return photos && photos.length > 1 ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!photos || activeImageIndex === null) return;
+                        const newIndex = activeImageIndex.photoIndex > 0 
+                          ? activeImageIndex.photoIndex - 1 
+                          : photos.length - 1;
+                        setActiveImageIndex({ reviewIndex: activeImageIndex.reviewIndex, photoIndex: newIndex });
+                      }}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 rounded bg-white/70 px-3 py-2 text-sm hover:bg-white/90"
+                    >
+                      ‹
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!photos || activeImageIndex === null) return;
+                        const newIndex = (activeImageIndex.photoIndex + 1) % photos.length;
+                        setActiveImageIndex({ reviewIndex: activeImageIndex.reviewIndex, photoIndex: newIndex });
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded bg-white/70 px-3 py-2 text-sm hover:bg-white/90"
+                    >
+                      ›
+                    </button>
+                  </>
+                ) : null;
+              })()}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveImageIndex(null);
+                }}
+                className="absolute right-2 top-2 rounded bg-white/80 px-3 py-1 text-sm hover:bg-white"
+              >
+                Close
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="w-full aspect-[4/3] bg-gray-200" />
+        );
+      })()}
     </div>
   );
 }

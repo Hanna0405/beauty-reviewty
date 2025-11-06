@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
-import { db } from "@/lib/firebase/client";
-import { doc, getDoc, getDocFromCache, collection, getDocs, query, where, orderBy } from "firebase/firestore";
+import { getAdminDb } from "@/lib/firebaseAdmins";
 import PublicCardReviewForm from "@/components/reviewty/PublicCardReviewForm";
 import PhotoGallery from "@/components/reviewty/PhotoGallery";
 import { normalizePhotos } from "@/components/reviewty/getPhotoUrl";
@@ -41,30 +40,19 @@ function Stars({ rating }: { rating: number }) {
   );
 }
 
-// Safe load function with offline/cache fallback
+// Safe load function for server-side
 async function loadPublicCard(id: string) {
-  const ref = doc(db, "publicCards", id);
+  const db = getAdminDb();
+  const ref = db.collection("publicCards").doc(id);
 
-  // 1) try normal getDoc (it will use cache + server)
   try {
-    const snap = await getDoc(ref);
-    if (snap.exists()) {
+    const snap = await ref.get();
+    if (snap.exists) {
       return { id: snap.id, ...snap.data() };
     }
   } catch (err: any) {
-    // if it's offline/unavailable – try cache
-    if (err?.message?.includes("offline") || err?.code === "unavailable") {
-      try {
-        const cached = await getDocFromCache(ref);
-        if (cached.exists()) {
-          return { id: cached.id, ...cached.data() };
-        }
-      } catch (_) {
-        // ignore – will return null below
-      }
-    } else {
-      throw err;
-    }
+    console.error("[loadPublicCard] Error loading card:", err);
+    throw err;
   }
 
   return null;
@@ -114,44 +102,48 @@ export default async function PublicCardPage({
   };
 
   async function loadAllReviews(slug: string, listingId?: string) {
+    const db = getAdminDb();
     const all: any[] = [];
 
     // 1) publicCards/{slug}/reviews
     try {
-      const q1 = query(
-        collection(db, "publicCards", slug, "reviews"),
-        orderBy("createdAt", "desc")
-      );
-      const s1 = await getDocs(q1);
+      const s1 = await db
+        .collection("publicCards")
+        .doc(slug)
+        .collection("reviews")
+        .orderBy("createdAt", "desc")
+        .get();
       s1.forEach((d) => all.push({ id: d.id, ...d.data() }));
     } catch (_) {}
 
     // 2) reviewty/{slug}/reviews
     try {
-      const q2 = query(
-        collection(db, "reviewty", slug, "reviews"),
-        orderBy("createdAt", "desc")
-      );
-      const s2 = await getDocs(q2);
+      const s2 = await db
+        .collection("reviewty")
+        .doc(slug)
+        .collection("reviews")
+        .orderBy("createdAt", "desc")
+        .get();
       s2.forEach((d) => all.push({ id: d.id, ...d.data() }));
     } catch (_) {}
 
     // 3) TOP collection publicReviews (from "existing master" flow)
     try {
-      const q3 = query(
-        collection(db, "publicReviews"),
-        where("publicCardSlug", "==", slug)
-        // ВАЖНО: без orderBy, потому что у части доков createdAt ещё null
-      );
-      const s3 = await getDocs(q3);
+      const s3 = await db
+        .collection("publicReviews")
+        .where("publicCardSlug", "==", slug)
+        .get();
       s3.forEach((d) => all.push({ id: d.id, ...d.data() }));
     } catch (_) {}
 
     // 4) listings/{listingId}/reviews (from "existing master" flow)
     if (listingId) {
       try {
-        const q4 = collection(db, "listings", listingId, "reviews");
-        const s4 = await getDocs(q4);
+        const s4 = await db
+          .collection("listings")
+          .doc(listingId)
+          .collection("reviews")
+          .get();
         s4.forEach((d) => all.push({ id: d.id, source: "listing", ...d.data() }));
       } catch (_) {}
     }

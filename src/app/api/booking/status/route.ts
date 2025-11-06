@@ -1,10 +1,17 @@
 import { NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { getAdminDb } from '@/lib/firebaseAdmin';
 
 export async function POST(req: Request) {
  try {
+ const db = getAdminDb();
+ if (!db) {
+  return NextResponse.json(
+   { ok: false, error: 'Admin DB not available' },
+   { status: 500 }
+  );
+ }
  const { bookingId, status } = await req.json();
- await adminDb.collection('bookings').doc(bookingId).update({ status });
+ await db.collection('bookings').doc(bookingId).update({ status });
  return NextResponse.json({ ok: true });
  } catch (e: any) {
  console.error('[booking/status]', e);

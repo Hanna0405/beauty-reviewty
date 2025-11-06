@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
-import { adminDb } from '@/lib/firebaseAdmin';
+import { getAdminDb } from '@/lib/firebaseAdmin';
 
 export async function PATCH(
  req: Request,
  { params }: { params: { id: string } }
 ) {
  try {
+ const db = getAdminDb();
+ if (!db) {
+  return NextResponse.json({ ok: false, error: 'Admin DB not available' }, { status: 500 });
+ }
  const bookingId = params.id;
  const body = await req.json();
  const { status } = body;
@@ -14,7 +18,7 @@ export async function PATCH(
  return NextResponse.json({ error: "Invalid status" }, { status: 400 });
  }
 
- await adminDb.collection('bookings').doc(bookingId).update({ 
+ await db.collection('bookings').doc(bookingId).update({ 
  status,
  updatedAt: Date.now()
  });

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getAdminDb } from "@/lib/firebaseAdmin";
 
 /**
  * Body: {
@@ -12,9 +12,16 @@ import { adminDb } from "@/lib/firebaseAdmin";
  */
 export async function POST(req: NextRequest) {
  try {
+ const db = getAdminDb();
+ if (!db) {
+  return new Response(JSON.stringify({ ok: false, error: 'Admin DB not available' }), {
+   status: 500,
+   headers: { 'Content-Type': 'application/json' },
+  });
+ }
  const { masterId, weekly, daysOff, blocks } = await req.json();
  if (!masterId) return new Response(JSON.stringify({ok:false,error:"masterId required"}), {status:400});
- const ref = adminDb.collection("masterSchedules").doc(masterId);
+ const ref = db.collection("masterSchedules").doc(masterId);
  const payload: any = {};
  if (weekly !== undefined) payload.weekly = weekly;
  if (daysOff !== undefined) payload.daysOff = daysOff;

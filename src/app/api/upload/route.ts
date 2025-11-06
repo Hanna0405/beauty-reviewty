@@ -11,7 +11,9 @@ function err(message: string, status = 400) {
 }
 
 async function getUidFromRequest(req: Request) {
-  const { auth } = getFirebaseAdmin();
+  const admin = getFirebaseAdmin();
+  if (!admin) return null;
+  const { auth } = admin;
   const authHeader = req.headers.get('authorization') || req.headers.get('Authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
   if (!token) return null;
@@ -21,6 +23,7 @@ async function getUidFromRequest(req: Request) {
 
 export async function POST(req: Request) {
   let objectPath = '';
+  let bucket: any = null;
   try {
     const uid = await getUidFromRequest(req);
     if (!uid) return err('Unauthorized: no or invalid ID token', 401);
@@ -34,7 +37,8 @@ export async function POST(req: Request) {
     if (!file) return err('No file');
 
     // Check for bucket configuration before proceeding
-    if (!adminBucket?.name) {
+    bucket = adminBucket();
+    if (!bucket?.name) {
       return NextResponse.json(
         {
           error: 'STORAGE_NOT_CONFIGURED',
@@ -44,7 +48,7 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log(`[upload] using bucket: ${adminBucket.name}`);
+    console.log(`[upload] using bucket: ${bucket.name}`);
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
@@ -63,25 +67,25 @@ export async function POST(req: Request) {
     }
     objectPath = `${base}/${cleanName}`;
 
-    const fileRef = adminBucket.file(objectPath);
+    const fileRef = bucket.file(objectPath);
     await fileRef.save(buffer, { contentType, resumable: false });
 
     // For profile avatars, use a consistent path and get public download URL
     if (scope === 'profile') {
       // Override path to use consistent avatar path
       const avatarPath = `profiles/${uid}/avatar.jpg`;
-      const avatarRef = adminBucket.file(avatarPath);
+      const avatarRef = bucket.file(avatarPath);
       await avatarRef.save(buffer, { contentType, resumable: false });
       
       // Make the file publicly accessible
       await avatarRef.makePublic();
       
       // Get the public download URL
-      const downloadURL = `https://storage.googleapis.com/${adminBucket.name}/${avatarPath}`;
+      const downloadURL = `https://storage.googleapis.com/${bucket.name}/${avatarPath}`;
       
       return NextResponse.json({
         ok: true,
-        bucket: adminBucket.name,
+        bucket: bucket.name,
         path: avatarPath,
         url: downloadURL,
         contentType,
@@ -94,11 +98,11 @@ export async function POST(req: Request) {
       await fileRef.makePublic();
       
       // Get the public download URL
-      const downloadURL = `https://storage.googleapis.com/${adminBucket.name}/${objectPath}`;
+      const downloadURL = `https://storage.googleapis.com/${bucket.name}/${objectPath}`;
       
       return NextResponse.json({
         ok: true,
-        bucket: adminBucket.name,
+        bucket: bucket.name,
         path: objectPath,
         url: downloadURL,
         contentType,
@@ -113,7 +117,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      bucket: adminBucket.name,
+      bucket: bucket.name,
       path: objectPath,
       url: signedUrl,
       contentType,
@@ -125,7 +129,7 @@ export async function POST(req: Request) {
         ok: false,
         message: err?.message || String(err),
         stack: err?.stack,
-        bucket: adminBucket?.name,
+        bucket: bucket?.name,
         path: objectPath || undefined,
       },
       { status: 500 }

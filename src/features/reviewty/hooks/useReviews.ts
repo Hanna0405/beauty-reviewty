@@ -6,6 +6,8 @@ import {
   collection, query, where, onSnapshot, orderBy, Timestamp, getFirestore,
 } from 'firebase/firestore';
 
+const isServer = typeof window === "undefined";
+
 export type Review = {
   id: string;
   masterId?: string | null;
@@ -30,6 +32,9 @@ export function useReviews(filters: Filters = {}) {
   const { cityKey } = filters;
 
   useEffect(() => {
+    if (isServer) return; // do not run firestore on server
+    if (!db) return;
+
     const col = collection(db, 'reviews');
 
     // 1) Reviews attached to a real master (masterId present)
@@ -53,7 +58,7 @@ export function useReviews(filters: Filters = {}) {
     });
 
     return () => { unsub1(); unsub2(); };
-  }, [cityKey]);
+  }, [cityKey, db]);
 
   const all = useMemo(() => {
     // Merge and sort by createdAt desc

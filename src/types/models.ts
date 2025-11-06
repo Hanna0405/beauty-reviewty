@@ -29,8 +29,11 @@ export type MasterProfile = {
   role?: string; // 'master' etc.
   displayName?: string;
   nickname?: string;
+  avatarUrl?: string;
   photoURL?: string;
-  avatarUrl?: string; // legacy field
+  imageUrl?: string;
+  imageURL?: string;
+  image?: string;
   services?: {key:string; name:string; emoji?:string}[];
   serviceKeys?: string[];
   serviceNames?: string[];

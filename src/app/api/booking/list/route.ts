@@ -1,15 +1,22 @@
 import { NextRequest } from "next/server";
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getAdminDb } from "@/lib/firebaseAdmin";
 
 export async function POST(req: NextRequest) {
  try {
+ const db = getAdminDb();
+ if (!db) {
+  return new Response(JSON.stringify({ ok: false, error: 'Admin DB not available' }), {
+   status: 500,
+   headers: { 'Content-Type': 'application/json' },
+  });
+ }
  const { scope, userId } = await req.json(); // scope: "master"|"client"
  if (!scope || !userId) return new Response(JSON.stringify({ok:false,error:"scope & userId required"}), {status:400});
  let q;
  if (scope === "master") {
-   q = adminDb.collection("bookings").where("masterId","==",userId);
+   q = db.collection("bookings").where("masterId","==",userId);
  } else {
-   q = adminDb.collection("bookings").where("clientId","==",userId);
+   q = db.collection("bookings").where("clientId","==",userId);
  }
  const snap = await q.orderBy("createdAt","desc").limit(200).get();
  const raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -19,7 +26,7 @@ export async function POST(req: NextRequest) {
  const listingMap: Record<string, any> = {};
  await Promise.all(listingIds.map(async (lid) => {
    try {
-     const ls = await adminDb.collection("listings").doc(lid).get();
+     const ls = await db.collection("listings").doc(lid).get();
      if (ls.exists) {
        const d = ls.data()!;
        listingMap[lid] = { title: d.title || "Listing", slug: d.slug || lid };

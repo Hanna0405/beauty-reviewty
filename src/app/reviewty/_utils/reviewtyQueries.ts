@@ -1,17 +1,8 @@
 // src/app/reviewty/_utils/reviewtyQueries.ts
 // Firestore helpers specific to Reviewty functionality
 
-import {
-  collection,
-  getDocs,
-  addDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  serverTimestamp,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
+import { FieldValue } from "firebase-admin/firestore";
+import { getAdminDb } from "@/lib/firebaseAdmins";
 
 export type ReviewDoc = {
   id: string;
@@ -69,28 +60,26 @@ export async function getReviews(
   limitCount = 20
 ): Promise<ReviewDoc[]> {
   try {
-    const constraints: any[] = [
-      orderBy("createdAt", "desc"),
-      limit(limitCount),
-    ];
+    const db = getAdminDb();
+    let q: any = db.collection("reviews");
 
-    // Add filters
+    // Add filters (must come before orderBy in admin Firestore)
     if (filters.city) {
-      constraints.unshift(where("masterCity", "==", filters.city));
+      q = q.where("masterCity", "==", filters.city);
     }
     if (filters.ratingGte) {
-      constraints.unshift(where("rating", ">=", filters.ratingGte));
+      q = q.where("rating", ">=", filters.ratingGte);
     }
     if (filters.services && filters.services.length > 0) {
-      constraints.unshift(
-        where("masterServices", "array-contains", filters.services[0])
-      );
+      q = q.where("masterServices", "array-contains", filters.services[0]);
     }
 
-    const q = query(collection(db, "reviews"), ...constraints);
-    const snap = await getDocs(q);
+    // orderBy and limit come after where clauses
+    q = q.orderBy("createdAt", "desc").limit(limitCount);
 
-    const items: ReviewDoc[] = snap.docs.map((d) => {
+    const snap = await q.get();
+
+    const items: ReviewDoc[] = snap.docs.map((d: any) => {
       const data = d.data() as any;
       return {
         id: d.id,
@@ -203,12 +192,12 @@ export async function createReviewForExistingMaster({
       masterRef: { type: "listing", id: masterId },
 
       // Housekeeping
-      createdAt: serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       source: "existing-master",
     };
 
-    const colRef = collection(db, "reviews");
-    const docRef = await addDoc(colRef, docData);
+    const db = getAdminDb();
+    const docRef = await db.collection("reviews").add(docData);
     return docRef.id;
   } catch (err) {
     console.error(
@@ -263,12 +252,12 @@ export async function createReviewForPublicMaster({
       masterPublic,
 
       // Housekeeping
-      createdAt: serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
       source: "public-card",
     };
 
-    const colRef = collection(db, "reviews");
-    const docRef = await addDoc(colRef, docData);
+    const db = getAdminDb();
+    const docRef = await db.collection("reviews").add(docData);
     return docRef.id;
   } catch (err) {
     console.error(

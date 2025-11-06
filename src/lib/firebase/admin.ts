@@ -19,7 +19,7 @@ function getEnv(name: string, fallback?: string): string | undefined {
   return val ? val.trim() : fallback;
 }
 
-export function getFirebaseAdmin(): AdminBundle {
+export function getFirebaseAdmin(): AdminBundle | null {
   if (cached) return cached;
 
   const isDev = process.env.NODE_ENV !== 'production';
@@ -35,11 +35,25 @@ export function getFirebaseAdmin(): AdminBundle {
     isDev ? 'FIREBASE_STORAGE_BUCKET_DEV' : 'FIREBASE_STORAGE_BUCKET'
   );
 
+  // During build time (Next.js static analysis), gracefully handle missing env vars
+  // This allows Next.js to statically analyze routes without failing
+  const isBuildTime = typeof window === 'undefined' && 
+    (process.env.NEXT_PHASE?.includes('build') || 
+     process.env.NODE_ENV === 'production' && !process.env.VERCEL && !process.env.RUNTIME);
+  
   if (!projectId || !clientEmail || !rawKey) {
+    if (isBuildTime) {
+      console.warn(`[Firebase Admin] Missing env vars during build (${isDev ? 'DEV' : 'PROD'}). Routes will need env vars at runtime.`);
+      return null as any; // Return null during build, but type as AdminBundle to avoid breaking types
+    }
     throw new Error(`Missing Firebase Admin env for ${isDev ? 'DEV' : 'PROD'} (projectId/clientEmail/privateKey)`);
   }
 
   if (!storageBucketName) {
+    if (isBuildTime) {
+      console.warn(`[Firebase Admin] Missing storage bucket env during build (${isDev ? 'DEV' : 'PROD'}). Routes will need env vars at runtime.`);
+      return null as any;
+    }
     throw new Error(`Missing Firebase Admin storage bucket env for ${isDev ? 'DEV' : 'PROD'} (NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET or FIREBASE_STORAGE_BUCKET)`);
   }
 
@@ -70,13 +84,27 @@ export function getFirebaseAdmin(): AdminBundle {
   return cached;
 }
 
-export const adminAuth = getFirebaseAdmin().auth;
-export const adminDb = getFirebaseAdmin().db;
-export const adminApp = (() => {
-  getFirebaseAdmin(); // ensure initialized
-  return adminAppInstance!;
-})();
-export const adminBucket = (() => {
-  getFirebaseAdmin(); // ensure initialized
-  return adminBucketInstance!;
-})();
+// Lazy initialization to avoid throwing during build time
+export const adminAuth = () => {
+  const admin = getFirebaseAdmin();
+  if (!admin) throw new Error('Firebase Admin not initialized. Check environment variables.');
+  return admin.auth;
+};
+export const adminDb = () => {
+  const admin = getFirebaseAdmin();
+  if (!admin) throw new Error('Firebase Admin not initialized. Check environment variables.');
+  return admin.db;
+};
+export const adminApp = () => {
+  const admin = getFirebaseAdmin();
+  if (!admin) throw new Error('Firebase Admin not initialized. Check environment variables.');
+  return admin.app;
+};
+export const adminBucket = () => {
+  const admin = getFirebaseAdmin();
+  if (!admin) throw new Error('Firebase Admin not initialized. Check environment variables.');
+  if (!adminBucketInstance) {
+    adminBucketInstance = getStorage(admin.app).bucket();
+  }
+  return adminBucketInstance;
+};

@@ -101,10 +101,14 @@ export default function ReviewtyCreateModal({
         setCity(null);
       }
       setSelectedServices(
-        (presetMaster.services || []).map((s) => ({
-          key: s,
-          label: SERVICE_OPTIONS.find((opt) => opt.value === s)?.label || s,
-        }))
+        (presetMaster.services || []).map((s) => {
+          const label = SERVICE_OPTIONS.find((opt) => opt.value === s)?.label || s;
+          return {
+            key: s,
+            label,
+            name: label,
+          };
+        })
       );
     }
   }, [presetMaster, open]);
@@ -247,12 +251,12 @@ export default function ReviewtyCreateModal({
       const selectedCity = city;
       const services = selectedServices.map((s) => ({
         key: s.key || "",
-        name: s.label || "",
+        name: s.name || "",
         emoji: SERVICE_OPTIONS.find((opt) => opt.value === s.key)?.emoji || "",
       }));
       const languages = selectedLanguages.map((l) => ({
         key: l.key || "",
-        name: l.label || "",
+        name: l.name || "",
         emoji: LANGUAGE_OPTIONS.find((opt) => opt.value === l.key)?.emoji || "",
       }));
       const ratingValue = Number(rating) || 0;
@@ -338,11 +342,11 @@ export default function ReviewtyCreateModal({
         city: selectedCity
           ? {
               city: selectedCity.city || "",
-              cityKey: selectedCity.cityKey || selectedCity.slug || "",
-              cityName: selectedCity.cityName || selectedCity.formatted || "",
+              cityKey: selectedCity.slug || "",
+              cityName: selectedCity.formatted || "",
               country: selectedCity.country || "",
               countryCode: selectedCity.countryCode || "",
-              formatted: selectedCity.formatted || selectedCity.cityName || "",
+              formatted: selectedCity.formatted || "",
               lat: selectedCity.lat ?? null,
               lng: selectedCity.lng ?? null,
               placeId: selectedCity.placeId || "",
@@ -352,7 +356,7 @@ export default function ReviewtyCreateModal({
           : null,
 
         // Add separate cityKey field for filtering
-        cityKey: selectedCity?.slug || selectedCity?.cityKey || "",
+        cityKey: selectedCity?.slug || "",
 
         // Keep full city object as location
         location: selectedCity || null,
@@ -579,7 +583,7 @@ export default function ReviewtyCreateModal({
             text: text || "",
             photos: (uploadedPhotos || []).map((p: any) => p?.url).filter(Boolean),
             // optional display fields taken from selectedMaster
-            masterName: selectedMaster?.title || selectedMaster?.name || "",
+            masterName: selectedMaster?.title || "",
             city: selectedMaster?.city || "",
             createdAt: serverTimestamp(),
           };
@@ -708,7 +712,7 @@ export default function ReviewtyCreateModal({
               value={listingQuery}
               onSelect={(opt) => {
                 setListingId(opt.id);
-                setListingQuery(`${opt.title} — ${cityToDisplay(opt.city)} (${opt.type || 'listing'})`);
+                setListingQuery(`${opt.title} — ${cityToDisplay(opt.city)}`);
               }}
               options={listingOpts}
               placeholder="e.g.: Anna Nails Toronto"

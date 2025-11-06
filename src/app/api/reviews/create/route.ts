@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
     if (!token) return bad('Missing Authorization token', 401);
 
-    const decoded = await adminAuth.verifyIdToken(token);
+    const decoded = await adminAuth().verifyIdToken(token);
     const authorUid = decoded.uid;
     const body = await req.json().catch(() => ({}));
 
@@ -44,11 +44,11 @@ export async function POST(req: Request) {
     const refPath = subject.type === 'master'
       ? `profiles/${subject.id}`
       : `listings/${subject.id}`;
-    const exists = await adminDb.doc(refPath).get();
+    const exists = await adminDb().doc(refPath).get();
     if (!exists.exists) return bad(`Referenced ${subject.type} not found`);
 
     // one-per-author+subject
-    const dup = await adminDb.collection('reviews')
+    const dup = await adminDb().collection('reviews')
       .where('authorUid', '==', authorUid)
       .where('subject.type', '==', subject.type)
       .where('subject.id', '==', subject.id)
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
 
     if (!dup.empty) {
       const id = dup.docs[0].id;
-      const docRef = adminDb.collection('reviews').doc(id);
+      const docRef = adminDb().collection('reviews').doc(id);
       const prev = await docRef.get();
       await docRef.update({
         ...base,
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, id, updated: true });
     }
 
-    const doc = await adminDb.collection('reviews').add({ ...base, createdAt: now });
+    const doc = await adminDb().collection('reviews').add({ ...base, createdAt: now });
     return NextResponse.json({ ok: true, id: doc.id });
   } catch (e: any) {
     console.error('[api/reviews/create] error:', e);

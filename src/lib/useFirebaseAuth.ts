@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { firebaseApp } from "@/lib/firebase.client";
+import { firebaseApp } from "@/lib/firebase/client";
 import { getAuth, type Auth, signInWithEmailAndPassword } from "firebase/auth";
 
 /**

@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { db } from '@/lib/firebase/client';
 import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore';
 
+const isServer = typeof window === "undefined";
+
 type R = { id: string; target?: 'listing'|'master'|'public'; masterId?: string|null; createdAt?: any; [k: string]: any };
 
 export function useMasterReviews(masterId: string) {
@@ -10,6 +12,9 @@ export function useMasterReviews(masterId: string) {
   const [b, setB] = useState<R[]>([]); // master-target
 
   useEffect(() => {
+    if (isServer) return; // do not run firestore on server
+    if (!db) return;
+
     const col = collection(db, 'reviews');
     const q1 = query(col,
       where('masterId','==', masterId),
@@ -24,7 +29,7 @@ export function useMasterReviews(masterId: string) {
     const u1 = onSnapshot(q1, s => setA(s.docs.map(d => ({ id: d.id, ...(d.data() as any) }))));
     const u2 = onSnapshot(q2, s => setB(s.docs.map(d => ({ id: d.id, ...(d.data() as any) }))));
     return () => { u1(); u2(); };
-  }, [masterId]);
+  }, [masterId, db]);
 
   const reviews = useMemo(() => {
     const m = [...a, ...b];

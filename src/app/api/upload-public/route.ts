@@ -13,6 +13,7 @@ function err(message: string, status = 400) {
 
 export async function POST(req: Request) {
   let objectPath = "";
+  let bucket: any = null;
   try {
     const form = await req.formData();
     const file = form.get("file") as File | null;
@@ -24,7 +25,8 @@ export async function POST(req: Request) {
     if (!file) return err("No file");
 
     // Check for bucket configuration before proceeding
-    if (!adminBucket?.name) {
+    bucket = adminBucket();
+    if (!bucket?.name) {
       return NextResponse.json(
         {
           error: "STORAGE_NOT_CONFIGURED",
@@ -35,7 +37,7 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log(`[upload-public] using bucket: ${adminBucket.name}`);
+    console.log(`[upload-public] using bucket: ${bucket.name}`);
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
@@ -57,7 +59,7 @@ export async function POST(req: Request) {
     }
     objectPath = `${base}/${cleanName}`;
 
-    const fileRef = adminBucket.file(objectPath);
+    const fileRef = bucket.file(objectPath);
     await fileRef.save(buffer, { contentType, resumable: false });
 
     // For review photos, make them publicly accessible and return permanent URLs
@@ -66,11 +68,11 @@ export async function POST(req: Request) {
       await fileRef.makePublic();
 
       // Get the public download URL
-      const downloadURL = `https://storage.googleapis.com/${adminBucket.name}/${objectPath}`;
+      const downloadURL = `https://storage.googleapis.com/${bucket.name}/${objectPath}`;
 
       return NextResponse.json({
         ok: true,
-        bucket: adminBucket.name,
+        bucket: bucket.name,
         path: objectPath,
         url: downloadURL,
         contentType,
@@ -86,7 +88,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      bucket: adminBucket.name,
+      bucket: bucket.name,
       path: objectPath,
       url: signedUrl,
       contentType,
@@ -99,7 +101,7 @@ export async function POST(req: Request) {
         ok: false,
         message: err?.message || String(err),
         stack: err?.stack,
-        bucket: adminBucket?.name,
+        bucket: bucket?.name,
         path: objectPath || undefined,
       },
       { status: 500 }

@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "prebuild": "node scripts/clear-cache.js",
+    "build": "node scripts/build-with-cache-cleanup.js",
     "start": "next start",
     "lint": "next lint",
     "check:firebase-dupes": "node scripts/check-firebase-dupes.cjs",

@@ -258,23 +258,14 @@ export default function ReviewtyPage() {
 
     // ---- CITY FILTER (dynamic) ----
     {
-      const sel =
-        filters?.city ||
-        filters?.cityObj ||
-        filters?.selectedCity ||
-        null;
+      const sel = filters?.city ?? null;
 
       if (sel) {
         const selectedNorms = [
           typeof sel === "string" ? sel : null,
           sel.slug,
-          sel.cityKey,
           sel.city,
           sel.formatted,
-          sel.label,
-          sel.value,
-          sel.name,
-          sel.displayName,
         ]
           .filter(Boolean)
           .map(normalize);
@@ -417,8 +408,8 @@ export default function ReviewtyPage() {
     }
 
     // Filter by rating minimum
-    if (filters.ratingGte) {
-      filtered = filtered.filter((card) => (card.rating || 0) >= filters.ratingGte);
+    if (filters?.ratingGte != null) {
+      filtered = filtered.filter((card) => (card.rating || 0) >= filters.ratingGte!);
     }
 
     // Filter by person query (search)
@@ -519,7 +510,6 @@ export default function ReviewtyPage() {
               // Debug logging
               console.log("[Reviewty List]", {
                 id: review.id,
-                slug: review.slug,
                 masterName: review.masterName,
               });
 
@@ -527,7 +517,7 @@ export default function ReviewtyPage() {
                 <li key={review.id}>
                   <PublicReviewCard
                     id={review.id}
-                    slugCandidate1={review.slug}
+                    slugCandidate1={review.masterSlug || review.id}
                     slugCandidate2={review.masterSlug}
                     slugCandidate3={review.id}
                     debugItem={review}

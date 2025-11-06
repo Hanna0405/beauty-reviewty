@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebaseAdmin';
+import { getAdminDb } from '@/lib/firebaseAdmin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -11,12 +11,20 @@ export async function POST(req: NextRequest) {
  return NextResponse.json({ ok:false, error:'uid required' }, { status: 400 });
  }
  
+ const db = getAdminDb();
+ if (!db) {
+  return new Response(JSON.stringify({ ok: false, error: 'Admin DB not available' }), {
+   status: 500,
+   headers: { 'Content-Type': 'application/json' },
+  });
+ }
+ 
  // Write to masters collection (preferred over profiles if both exist)
  const updateData: any = {};
  if (url !== undefined) updateData.photoUrl = url;
  if (path !== undefined) updateData.photoPath = path;
  
- await adminDb.collection('masters').doc(uid).set(updateData, { merge: true });
+ await db.collection('masters').doc(uid).set(updateData, { merge: true });
  
  return NextResponse.json({ ok:true });
  } catch (e:any) {

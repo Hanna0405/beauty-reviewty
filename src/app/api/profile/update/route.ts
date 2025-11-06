@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "not signed in" }, { status: 401 });
     }
     const idToken = authHeader.split(" ")[1];
-    const decoded = await adminAuth.verifyIdToken(idToken);
+    const decoded = await adminAuth().verifyIdToken(idToken);
     const uid = decoded.uid;
 
     const payload: UpdatePayload = await req.json();
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     // 1) Update Firebase Auth photoURL if avatar present
     if (avatarUrl) {
       try {
-        await adminAuth.updateUser(uid, { photoURL: avatarUrl });
+        await adminAuth().updateUser(uid, { photoURL: avatarUrl });
       } catch (authErr) {
         console.warn('[profile/update] Failed to update Auth photoURL:', authErr);
         // Continue with Firestore update even if Auth update fails
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     delete payload.collection; // Remove from payload before saving
 
     // 3) Write to {collection}/{uid} with unified avatar fields
-    await adminDb
+    await adminDb()
       .collection(collection)
       .doc(uid)
       .set(

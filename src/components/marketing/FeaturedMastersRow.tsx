@@ -6,17 +6,23 @@ import Image from 'next/image';
 
 type Item = {
   id: string;
+  image?: string;
+  name?: string;
   title?: string;
   displayName?: string;
-  name?: string;
   city?: string;
   cityName?: string;
-  services?: string[];
+  services?: { name?: string; key?: string }[];
   photos?: any[];
   coverUrl?: string;
   imageUrl?: string;
   ratingAvg?: number;
   rating?: number;
+};
+
+type ServiceOption = {
+  name?: string;
+  key?: string;
 };
 
 function Stars({ rating = 0 }: { rating?: number }) {
@@ -90,9 +96,14 @@ export default function FeaturedMastersRow() {
         {data.map((it)=> {
           const name = it.displayName || it.title || it.name || 'Beauty master';
           const city = it.city || '';
-          const service = Array.isArray(it.services) && it.services.length > 0 
-            ? (typeof it.services[0] === 'string' ? it.services[0] : it.services[0]?.name || it.services[0]?.key || '')
-            : '';
+          const firstService = (it.services && it.services[0]) as ServiceOption | string | undefined;
+
+          let service = "";
+          if (typeof firstService === "string") {
+            service = firstService;
+          } else if (firstService) {
+            service = firstService.name || firstService.key || "";
+          }
           return (
             <article key={it.id} className="w-[150px] md:w-[170px] rounded-xl border border-rose-100 bg-white shadow-sm hover:shadow-md transition overflow-hidden">
               <div className="relative w-full aspect-[3/4] bg-rose-50">

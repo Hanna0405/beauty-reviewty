@@ -1,12 +1,19 @@
 import { NextRequest } from "next/server";
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getAdminDb } from "@/lib/firebaseAdmin";
 
 /** Body: { chatId: string, limit?: number, before?: number } */
 export async function POST(req: NextRequest) {
   try {
+    const db = getAdminDb();
+    if (!db) {
+      return new Response(JSON.stringify({ ok: false, error: 'Admin DB not available' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
     const { chatId, limit = 50, before } = await req.json();
     if (!chatId) return new Response(JSON.stringify({ok:false,error:"chatId required"}), {status:400});
-    let q = adminDb.collection("chats").doc(chatId).collection("messages").orderBy("createdAt","desc").limit(limit);
+    let q = db.collection("chats").doc(chatId).collection("messages").orderBy("createdAt","desc").limit(limit);
     if (before) {
       q = q.startAfter(before);
     }

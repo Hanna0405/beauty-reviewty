@@ -1,9 +1,16 @@
-import { db } from "@/lib/firebase/client";
+import { getFirebaseDb } from "@/lib/firebase/client";
 import { doc, getDoc } from "firebase/firestore";
 
 export async function getListingPreviewPhoto(
   listingId: string
 ): Promise<string | null> {
+  const db = getFirebaseDb();
+
+  if (!db) {
+    console.warn("[Firestore] getFirebaseDb() returned null (likely server-side build). Returning empty result.");
+    return null;
+  }
+
   try {
     const listingDoc = await getDoc(doc(db, "listings", listingId));
 

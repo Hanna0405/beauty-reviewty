@@ -11,6 +11,8 @@ import type { User } from "firebase/auth";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { app } from "@/lib/firebase";
 
+const isServer = typeof window === "undefined";
+
 type AuthContextValue = {
  user: User | null;
  loading: boolean;
@@ -21,6 +23,14 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
  const [user, setUser] = useState<User | null>(null);
  const [loading, setLoading] = useState(true);
+
+ if (isServer) {
+   return (
+     <AuthContext.Provider value={{ user: null, loading: false }}>
+       {children}
+     </AuthContext.Provider>
+   );
+ }
 
  useEffect(() => {
  const auth = getAuth(app);

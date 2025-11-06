@@ -10,6 +10,8 @@ import { getAuth } from "firebase/auth";
 import { makeThreadKeyFromCard } from "@/lib/threading";
 import type { PublicReviewPayload } from "@/features/reviews/types";
 
+const isServer = typeof window === "undefined";
+
 // local slugify helper (mirrors our usage in AddPublicCardForm)
 function slugify(s: string): string {
   return s
@@ -67,6 +69,11 @@ function compactObject<T extends Record<string, any>>(obj: T): T {
 }
 
 export async function createPublicReview(input: CreatePublicReviewInput) {
+  if (isServer) {
+    console.warn("[createPublicReview] called on server. Skipping.");
+    return null;
+  }
+
   const {
     masterName,
     cityKey,

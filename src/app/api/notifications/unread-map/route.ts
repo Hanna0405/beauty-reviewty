@@ -1,23 +1,30 @@
 import { NextRequest } from "next/server";
-import { adminDb } from "@/lib/firebaseAdmin";
+import { getAdminDb } from "@/lib/firebaseAdmin";
 
 /** Body: { userId: string } -> { ok, byChat: Record<chatId, number>, byBooking: Record<bookingId, number> } */
 export async function POST(req: NextRequest) {
  try {
+ const db = getAdminDb();
+ if (!db) {
+  return new Response(JSON.stringify({ ok: false, error: 'Admin DB not available' }), {
+   status: 500,
+   headers: { 'Content-Type': 'application/json' },
+  });
+ }
  const { userId } = await req.json();
  if (!userId) return new Response(JSON.stringify({ok:false,error:"userId required"}), {status:400});
 
- const chatsSnap = await adminDb.collection("chats").where("participants","array-contains",userId).limit(200).get();
+ const chatsSnap = await db.collection("chats").where("participants","array-contains",userId).limit(200).get();
  const byChat: Record<string, number> = {};
  const byBooking: Record<string, number> = {};
 
  for (const chat of chatsSnap.docs) {
  const chatId = chat.id;
  const c:any = chat.data();
- const readDoc = await adminDb.collection("chats").doc(chatId).collection("reads").doc(userId).get();
+ const readDoc = await db.collection("chats").doc(chatId).collection("reads").doc(userId).get();
  const lastReadAt:any = readDoc.exists ? readDoc.data()?.lastReadAt : null;
 
- const msgsSnap = await adminDb.collection("chats").doc(chatId).collection("messages")
+ const msgsSnap = await db.collection("chats").doc(chatId).collection("messages")
  .orderBy("createdAt","desc").limit(100).get();
 
  let cnt = 0;
