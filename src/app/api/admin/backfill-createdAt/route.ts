@@ -4,7 +4,7 @@ export const revalidate = 0;
 
 import { NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebaseAdmin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, type QueryDocumentSnapshot, type DocumentData } from 'firebase-admin/firestore';
 
 function isAllowed() {
   // Disable by default in Preview/Production unless explicitly enabled
@@ -58,7 +58,7 @@ export async function POST() {
       // Create batch update
       const batch = db.batch();
       
-      docs.forEach((docSnapshot) => {
+      docs.forEach((docSnapshot: QueryDocumentSnapshot<DocumentData>) => {
         const docRef = db.collection('listings').doc(docSnapshot.id);
         batch.update(docRef, {
           createdAt: FieldValue.serverTimestamp(),
@@ -87,7 +87,7 @@ export async function POST() {
       .limit(1000); // Reasonable limit for this check
     
     const allListingsSnapshot = await allListingsQuery.get();
-    const undefinedCreatedAtDocs = allListingsSnapshot.docs.filter(doc => {
+    const undefinedCreatedAtDocs = allListingsSnapshot.docs.filter((doc: QueryDocumentSnapshot<DocumentData>) => {
       const data = doc.data();
       return data.createdAt === undefined;
     });
@@ -100,7 +100,7 @@ export async function POST() {
         const batch = db.batch();
         const batchDocs = undefinedCreatedAtDocs.slice(i, i + BATCH_SIZE);
         
-        batchDocs.forEach((docSnapshot) => {
+        batchDocs.forEach((docSnapshot: QueryDocumentSnapshot<DocumentData>) => {
           const docRef = db.collection('listings').doc(docSnapshot.id);
           batch.update(docRef, {
             createdAt: FieldValue.serverTimestamp(),
