@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { getAdminDb } from "@/lib/firebaseAdmins";
-import PublicCardReviewForm from "@/components/reviewty/PublicCardReviewForm";
+import PublicCardReviewFormClient from "@/components/reviewty/PublicCardReviewFormClient";
 import PhotoGallery from "@/components/reviewty/PhotoGallery";
 import { normalizePhotos } from "@/components/reviewty/getPhotoUrl";
 import dynamic from "next/dynamic";
@@ -243,7 +243,7 @@ export default async function PublicCardPage({
         </div>
 
         {/* review submission form */}
-        <PublicCardReviewForm publicCardSlug={card.id} />
+        <PublicCardReviewFormClient publicCardSlug={card.id} />
       </section>
 
       {/* CLIENT REVIEWS */}

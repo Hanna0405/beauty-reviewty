@@ -55,9 +55,141 @@ type ReviewDoc = {
   source?: string;
   computedRating?: number | null;
   computedReviewsCount?: number;
+  // Additional service fields for new public cards
+  serviceKeys?: string[];
+  serviceNames?: string[];
+  services?: string[] | Array<{ key?: string; name?: string; [key: string]: any }>;
+  // Nested publicCard structure (if present)
+  publicCard?: {
+    serviceKeys?: string[];
+    serviceNames?: string[];
+    services?: string[] | Array<{ key?: string; name?: string; [key: string]: any }>;
+  };
 };
 
 const PAGE_SIZE = 20;
+
+// Strict service matching helpers (pure functions, NO React hooks)
+type ServiceOption = {
+  key?: string;
+  name?: string;
+  value?: string;
+  label?: string;
+  slug?: string;
+} | string | null;
+
+function extractServiceKey(option: ServiceOption): string | null {
+  if (!option) return null;
+  if (typeof option === 'string') return option.toLowerCase().trim();
+  const anyOpt = option as any;
+  const keyLike = anyOpt.key ?? anyOpt.value ?? anyOpt.slug ?? null;
+  if (keyLike) return keyLike.toString().toLowerCase().trim();
+  const nameLike = anyOpt.name ?? anyOpt.label ?? null;
+  return nameLike ? nameLike.toString().toLowerCase().trim() : null;
+}
+
+function collectServiceKeysFromReview(review: any): string[] {
+  const result: string[] = [];
+  const pushStr = (v: any) => {
+    if (typeof v === 'string') result.push(v.toLowerCase().trim());
+  };
+  const r: any = review;
+  const arrays = [
+    r.serviceKeys,
+    r.serviceNames,
+    r.services,
+    r.masterServices,
+    r.publicCard?.serviceKeys,
+    r.publicCard?.serviceNames,
+    r.publicCard?.services,
+  ];
+  arrays.forEach((arr) => {
+    if (Array.isArray(arr)) {
+      arr.forEach((item: any) => {
+        if (typeof item === 'string') {
+          pushStr(item);
+        } else if (item && typeof item === 'object') {
+          if (item.key) pushStr(item.key);
+          if (item.name) pushStr(item.name);
+          if (item.value) pushStr(item.value);
+          if (item.label) pushStr(item.label);
+        }
+      });
+    }
+  });
+  return result;
+}
+
+function reviewMatchesService(review: any, selectedService: ServiceOption): boolean {
+  const filterKey = extractServiceKey(selectedService);
+  if (!filterKey) return true; // no filter selected
+  const serviceKeys = collectServiceKeysFromReview(review);
+  return serviceKeys.includes(filterKey);
+}
+
+// Rating filter helpers (pure functions, NO React hooks)
+type RatingOption = number | string | { value?: number | string; label?: string; name?: string } | null;
+
+function extractRatingThreshold(option: RatingOption): number | null {
+  if (option === null || option === undefined) return null;
+
+  if (typeof option === "number") {
+    return option;
+  }
+
+  if (typeof option === "string") {
+    // examples: "5", "5★", "5 star", "5 stars"
+    const match = option.match(/\d+(\.\d+)?/);
+    return match ? parseFloat(match[0]) : null;
+  }
+
+  const anyOpt = option as any;
+  const raw =
+    anyOpt.value ??
+    anyOpt.label ??
+    anyOpt.name ??
+    null;
+
+  if (raw == null) return null;
+
+  if (typeof raw === "number") return raw;
+
+  if (typeof raw === "string") {
+    const match = raw.match(/\d+(\.\d+)?/);
+    return match ? parseFloat(match[0]) : null;
+  }
+
+  return null;
+}
+
+// Extract numeric rating from the review / publicCard
+function getReviewRating(review: any): number | null {
+  const r: any = review;
+
+  // try several possible fields, keeping existing schema in mind
+  // prefer computedRating (calculated from reviews), then rating
+  if (typeof r.computedRating === "number") return r.computedRating;
+  if (typeof r.rating === "number") return r.rating;
+  if (typeof r.averageRating === "number") return r.averageRating;
+  if (r.publicCard && typeof r.publicCard.rating === "number") return r.publicCard.rating;
+  if (typeof r.stars === "number") return r.stars;
+
+  return null;
+}
+
+function reviewMatchesRating(review: any, selectedRating: RatingOption): boolean {
+  const threshold = extractRatingThreshold(selectedRating);
+  if (threshold == null) {
+    // no rating filter selected => always match
+    return true;
+  }
+
+  const rating = getReviewRating(review);
+  if (rating == null) return false;
+
+  // Usually UX expectation for "5★" / "4★" filters is "rating >= threshold"
+  return rating >= threshold;
+}
 
 export default function ReviewtyPage() {
   const [publicCards, setPublicCards] = useState<ReviewDoc[]>([]);
@@ -112,6 +244,10 @@ export default function ReviewtyPage() {
           masterSlug: data.slug || "",
           masterKey: data.masterKey,
           source: data.source || "publicCard",
+          // Preserve service fields from new public cards
+          serviceKeys: Array.isArray(data.serviceKeys) ? data.serviceKeys : undefined,
+          serviceNames: Array.isArray(data.serviceNames) ? data.serviceNames : undefined,
+          services: Array.isArray(data.services) ? data.services : undefined,
         };
       });
 
@@ -307,55 +443,11 @@ export default function ReviewtyPage() {
 
     // ---- SERVICE FILTER ----
     if (filters.services && filters.services.length > 0) {
-      // user can select 1 or many services, they can be objects or strings
-      const selectedServiceKeys = filters.services
-        .map((svc: any) => {
-          if (!svc) return null;
-          // try to take key/value/name/label in this order
-          const raw =
-            svc.key ||
-            svc.value ||
-            svc.serviceKey ||
-            svc.name ||
-            svc.label ||
-            (typeof svc === 'string' ? svc : '');
-
-          return raw ? raw.toString().trim().toLowerCase() : null;
-        })
-        .filter(Boolean);
-
-      filtered = filtered.filter((card: any) => {
-        // card can store services in different fields
-        const cardServicesRaw =
-          card.masterServices ||
-          card.serviceKeys ||
-          card.services ||
-          card.serviceNames ||
-          [];
-
-        // normalize to array
-        const cardServicesArr = Array.isArray(cardServicesRaw)
-          ? cardServicesRaw
-          : [cardServicesRaw];
-
-        if (cardServicesArr.length === 0) return false;
-
-        // bring card services to lowercase keys
-        const cardServiceKeys = cardServicesArr
-          .map((cs: any) => {
-            if (!cs) return null;
-            const raw =
-              (typeof cs === 'string'
-                ? cs
-                : cs.key || cs.value || cs.name || cs.label || '') || '';
-            return raw.toString().trim().toLowerCase();
-          })
-          .filter(Boolean);
-
-        // check intersection: card must have at least ONE of selected services
-        return cardServiceKeys.some((cs: string) =>
-          selectedServiceKeys.includes(cs)
-        );
+      // Filter: card must match at least ONE of the selected services
+      filtered = filtered.filter((card: ReviewDoc) => {
+        return filters.services!.some((selectedService) => {
+          return reviewMatchesService(card, selectedService);
+        });
       });
     }
 
@@ -407,10 +499,11 @@ export default function ReviewtyPage() {
       });
     }
 
-    // Filter by rating minimum
-    if (filters?.ratingGte != null) {
-      filtered = filtered.filter((card) => (card.rating || 0) >= filters.ratingGte!);
-    }
+    // ---- RATING FILTER ----
+    filtered = filtered.filter((card: ReviewDoc) => {
+      return reviewMatchesRating(card, filters.ratingGte);
+    });
+    // ---- END RATING FILTER ----
 
     // Filter by person query (search)
     if (filters.personQuery) {

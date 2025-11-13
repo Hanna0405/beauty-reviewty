@@ -1,7 +1,9 @@
 "use client";
-import React from "react";
-import { useNotificationsBadge } from "./useNotificationsBadge";
+
+import React, { useEffect, useState } from "react";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { Avatar } from "@/components/ui/Avatar";
+import { db } from "@/lib/firebase";
 
 type AvatarWithBadgeProps = {
   user: {
@@ -15,7 +17,62 @@ type AvatarWithBadgeProps = {
 };
 
 export function AvatarWithBadge({ user }: AvatarWithBadgeProps) {
-  const { count } = useNotificationsBadge(user?.uid, user?.role);
+  const [clientUnread, setClientUnread] = useState(0);
+  const [masterUnread, setMasterUnread] = useState(0);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setClientUnread(0);
+      setMasterUnread(0);
+      return;
+    }
+
+    const bookingsCol = collection(db, "bookings");
+    const clientQ = query(bookingsCol, where("clientId", "==", user.uid));
+    const masterQ = query(bookingsCol, where("masterUid", "==", user.uid));
+
+    const unsubClient = onSnapshot(
+      clientQ,
+      (snap) => {
+        let sum = 0;
+        snap.forEach((docSnap) => {
+          const data = docSnap.data() as any;
+          if (typeof data?.unreadForClient === "number") {
+            sum += data.unreadForClient;
+          }
+        });
+        setClientUnread(sum);
+      },
+      () => {
+        setClientUnread(0);
+      }
+    );
+
+    const unsubMaster = onSnapshot(
+      masterQ,
+      (snap) => {
+        let sum = 0;
+        snap.forEach((docSnap) => {
+          const data = docSnap.data() as any;
+          if (typeof data?.unreadForMaster === "number") {
+            sum += data.unreadForMaster;
+          }
+        });
+        setMasterUnread(sum);
+      },
+      () => {
+        setMasterUnread(0);
+      }
+    );
+
+    return () => {
+      unsubClient();
+      unsubMaster();
+    };
+  }, [user?.uid]);
+
+  const count = clientUnread + masterUnread;
+
   return (
     <div className="relative inline-block">
       <Avatar

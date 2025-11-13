@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminDb, adminAuth } from '@/lib/firebase/admin';
+import { adminDb, adminAuth } from '@/lib/firebaseAdmin';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     }
     if (!id) return NextResponse.json({ ok: false, error: 'Missing id' }, { status: 400 });
 
-    const col = adminDb().collection('reviews');
+    const col = adminDb.collection('reviews');
     // New schema: equality-only (no orderBy)
     let snaps = await col
       .where('subjectType', '==', type)
@@ -35,7 +35,7 @@ export async function GET(req: Request) {
     async function getAuthor(uid: string) {
       if (seen.has(uid)) return seen.get(uid)!;
       try {
-        const u = await adminAuth().getUser(uid);
+        const u = await adminAuth.getUser(uid);
         const info = { name: u.displayName || null, photoURL: u.photoURL || null };
         seen.set(uid, info);
         return info;

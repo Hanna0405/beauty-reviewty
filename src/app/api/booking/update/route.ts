@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { getAdminDb } from "@/lib/firebaseAdmin";
-import { Timestamp } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { sendMail, tplBookingStatus } from "@/lib/mailer";
 import { formatWhenFromBooking, listingPublicUrl } from "@/lib/emailFormat";
 
@@ -20,14 +20,34 @@ export async function POST(req: NextRequest) {
  if (!snap.exists) return new Response(JSON.stringify({ok:false,error:"Not found"}), {status:404});
  const data = snap.data()!;
  if (data.masterId !== userId) return new Response(JSON.stringify({ok:false,error:"Forbidden"}), {status:403});
+ let newStatus: "confirmed" | "declined" | null = null;
  if (action === "confirm") {
  await ref.update({ status: "confirmed", updatedAt: Timestamp.now() });
+ newStatus = "confirmed";
  } else if (action === "decline") {
  await ref.update({ status: "declined", updatedAt: Timestamp.now() });
+ newStatus = "declined";
  } else if (action === "delete") {
  await ref.delete();
  } else {
  return new Response(JSON.stringify({ok:false,error:"Unknown action"}), {status:400});
+ }
+
+ if (newStatus) {
+ try {
+ await db.collection("notifications").add({
+ type: "booking_status",
+ bookingId,
+ masterUid: data.masterUid || data.masterId || userId,
+ clientUid: data.clientUid || data.clientId || null,
+ status: newStatus,
+ message: newStatus === "confirmed" ? "Your booking was confirmed" : "Your booking was declined",
+ createdAt: FieldValue.serverTimestamp(),
+ read: false,
+ });
+ } catch (err) {
+ console.error("Failed to create booking status notification", err);
+ }
  }
 
  try {

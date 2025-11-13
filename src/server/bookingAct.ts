@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { FieldValue } from 'firebase-admin/firestore';
 import { getFirebaseAdmin } from '@/lib/firebase/admin';
 
 type Body = { bookingId: string; action: 'confirm'|'decline'|'cancel'|'complete' };
@@ -42,13 +43,55 @@ export async function POST(req: Request) {
         if (overlapping) throw new Error('Time slot not available');
         tx.update(ref, { status: 'confirmed', updatedAt: now });
       });
+      if (b.masterUid && b.clientUid) {
+        const chatId = `${b.masterUid}_${b.clientUid}`;
+        const chatRef = db.collection('chats').doc(chatId);
+        await chatRef.set(
+          {
+            participants: [b.masterUid, b.clientUid],
+            lastMessage: '',
+            lastUpdated: FieldValue.serverTimestamp(),
+            bookingId: ref.id,
+          },
+          { merge: true }
+        );
+      }
+      try {
+        await db.collection('notifications').add({
+          type: 'booking_status',
+          bookingId: ref.id,
+          masterUid: b.masterUid || null,
+          clientUid: b.clientUid || null,
+          status: 'confirmed',
+          message: 'Your booking was confirmed',
+          createdAt: FieldValue.serverTimestamp(),
+          read: false,
+        });
+      } catch (err) {
+        console.error('Failed to create booking status notification', err);
+      }
       return NextResponse.json({ ok: true });
     }
 
     if (action === 'decline') {
       if (!isMaster) return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
       if (b.status !== 'pending') return NextResponse.json({ error: 'Invalid state' }, { status: 400 });
-      await ref.update({ status: 'declined', updatedAt: now }); return NextResponse.json({ ok: true });
+      await ref.update({ status: 'declined', updatedAt: now });
+      try {
+        await db.collection('notifications').add({
+          type: 'booking_status',
+          bookingId: ref.id,
+          masterUid: b.masterUid || null,
+          clientUid: b.clientUid || null,
+          status: 'declined',
+          message: 'Your booking was declined',
+          createdAt: FieldValue.serverTimestamp(),
+          read: false,
+        });
+      } catch (err) {
+        console.error('Failed to create booking status notification', err);
+      }
+      return NextResponse.json({ ok: true });
     }
 
     if (action === 'cancel') {
