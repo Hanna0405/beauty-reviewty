@@ -14,6 +14,7 @@ import {
   updateDoc,
   deleteDoc,
 } from "firebase/firestore";
+import { clearMasterBookingUnread } from "@/lib/notifications";
 
 type Booking = {
   id: string;
@@ -86,6 +87,17 @@ export default function MasterBookingsPage() {
     };
   }, [loading, userId]);
 
+  // Clear master booking unread flags when page opens
+  useEffect(() => {
+    if (!userId) return;
+    clearMasterBookingUnread(userId).catch((err) => {
+      console.error(
+        "[notifications/cleaner] error clearing master booking unread flags",
+        err
+      );
+    });
+  }, [userId]);
+
   const allBookings = [...clientBookings, ...incomingBookings].sort((a, b) => {
     const aDate = extractDate(a);
     const bDate = extractDate(b);
@@ -125,28 +137,48 @@ export default function MasterBookingsPage() {
   }
 
   function getClientName(booking: Booking) {
-  return (
-    booking.clientName ||
-    booking.customerName ||
-    booking.name ||
-    ""
-  );
-}
+    return booking.clientName || booking.customerName || booking.name || "";
+  }
 
   function getClientPhone(booking: Booking) {
-  return (
-    booking.clientPhone ||
-    booking.customerPhone ||
-    booking.phone ||
-    ""
-  );
-}
+    return booking.clientPhone || booking.customerPhone || booking.phone || "";
+  }
 
   async function handleUpdateBookingStatus(id: string, status: string) {
-    await updateDoc(doc(db, "bookings", id), {
-      status,
-      updatedAt: new Date().toISOString(),
-    });
+    // Use API route to ensure booking_status notifications are created for the client
+    try {
+      const action =
+        status === "confirmed"
+          ? "confirm"
+          : status === "declined"
+          ? "decline"
+          : null;
+      if (!action || !user?.uid) return;
+
+      const res = await fetch("/api/booking/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId: id, action, userId: user.uid }),
+      });
+      const data = await res.json();
+      if (!data?.ok) {
+        console.error("[booking] Failed to update status:", data?.error);
+      } else {
+        if (process.env.NODE_ENV === "development") {
+          console.log(
+            "[booking] Status notification for client created",
+            id,
+            status
+          );
+        }
+        // Trigger badge refresh
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("notify:refresh"));
+        }
+      }
+    } catch (err) {
+      console.error("[booking] Error updating booking status:", err);
+    }
   }
 
   async function handleDeleteBooking(id: string) {
@@ -204,11 +236,6 @@ export default function MasterBookingsPage() {
                   <span className="font-medium">Date &amp; time:</span>{" "}
                   {formatDateTime(booking)}
                 </div>
-                <div className="text-sm">
-                  <span className="font-medium">Duration:</span>{" "}
-                  {booking.duration ? `${booking.duration} min` : "—"}
-                </div>
-
                 {clientName ? (
                   <div className="text-sm">
                     <span className="font-medium">Client:</span> {clientName}
@@ -246,9 +273,13 @@ export default function MasterBookingsPage() {
                     className="px-3 py-1 rounded-full text-xs bg-pink-100 text-pink-700 flex items-center gap-1"
                   >
                     Chat
-                    {((isMaster ? booking.unreadForMaster : booking.unreadForClient) || 0) > 0 ? (
+                    {((isMaster
+                      ? booking.unreadForMaster
+                      : booking.unreadForClient) || 0) > 0 ? (
                       <span className="min-w-4 h-4 px-1 rounded-full bg-pink-500 text-white text-[9px] flex items-center justify-center">
-                        {isMaster ? booking.unreadForMaster : booking.unreadForClient}
+                        {isMaster
+                          ? booking.unreadForMaster
+                          : booking.unreadForClient}
                       </span>
                     ) : null}
                   </button>
