@@ -55,9 +55,159 @@ type ReviewDoc = {
   source?: string;
   computedRating?: number | null;
   computedReviewsCount?: number;
+  // Additional service fields for new public cards
+  serviceKeys?: string[];
+  serviceNames?: string[];
+  services?:
+    | string[]
+    | Array<{ key?: string; name?: string; [key: string]: any }>;
+  // Nested publicCard structure (if present)
+  publicCard?: {
+    serviceKeys?: string[];
+    serviceNames?: string[];
+    services?:
+      | string[]
+      | Array<{ key?: string; name?: string; [key: string]: any }>;
+  };
 };
 
 const PAGE_SIZE = 20;
+
+// Strict service matching helpers (pure functions, NO React hooks)
+type ServiceOption =
+  | {
+      key?: string;
+      name?: string;
+      value?: string;
+      label?: string;
+      slug?: string;
+    }
+  | string
+  | null;
+
+function extractServiceKey(option: ServiceOption): string | null {
+  if (!option) return null;
+  if (typeof option === "string") return option.toLowerCase().trim();
+  const anyOpt = option as any;
+  const keyLike = anyOpt.key ?? anyOpt.value ?? anyOpt.slug ?? null;
+  if (keyLike) return keyLike.toString().toLowerCase().trim();
+  const nameLike = anyOpt.name ?? anyOpt.label ?? null;
+  return nameLike ? nameLike.toString().toLowerCase().trim() : null;
+}
+
+function collectServiceKeysFromReview(review: any): string[] {
+  const result: string[] = [];
+  const pushStr = (v: any) => {
+    if (typeof v === "string") result.push(v.toLowerCase().trim());
+  };
+  const r: any = review;
+  const arrays = [
+    r.serviceKeys,
+    r.serviceNames,
+    r.services,
+    r.masterServices,
+    r.publicCard?.serviceKeys,
+    r.publicCard?.serviceNames,
+    r.publicCard?.services,
+  ];
+  arrays.forEach((arr) => {
+    if (Array.isArray(arr)) {
+      arr.forEach((item: any) => {
+        if (typeof item === "string") {
+          pushStr(item);
+        } else if (item && typeof item === "object") {
+          if (item.key) pushStr(item.key);
+          if (item.name) pushStr(item.name);
+          if (item.value) pushStr(item.value);
+          if (item.label) pushStr(item.label);
+        }
+      });
+    }
+  });
+  return result;
+}
+
+function reviewMatchesService(
+  review: any,
+  selectedService: ServiceOption
+): boolean {
+  const filterKey = extractServiceKey(selectedService);
+  if (!filterKey) return true; // no filter selected
+  const serviceKeys = collectServiceKeysFromReview(review);
+  return serviceKeys.includes(filterKey);
+}
+
+// Rating filter helpers (pure functions, NO React hooks)
+type RatingOption =
+  | number
+  | string
+  | { value?: number | string; label?: string; name?: string }
+  | null;
+
+function extractRatingThreshold(option: RatingOption): number | null {
+  if (option === null || option === undefined) return null;
+
+  if (typeof option === "number") {
+    return option;
+  }
+
+  if (typeof option === "string") {
+    // examples: "5", "5★", "5 star", "5 stars"
+    const match = option.match(/\d+(\.\d+)?/);
+    return match ? parseFloat(match[0]) : null;
+  }
+
+  const anyOpt = option as any;
+  const raw = anyOpt.value ?? anyOpt.label ?? anyOpt.name ?? null;
+
+  if (raw == null) return null;
+
+  if (typeof raw === "number") return raw;
+
+  if (typeof raw === "string") {
+    const match = raw.match(/\d+(\.\d+)?/);
+    return match ? parseFloat(match[0]) : null;
+  }
+
+  return null;
+}
+
+// Extract numeric rating from the review / publicCard
+function getReviewRating(review: any): number | null {
+  const r: any = review;
+
+  // try several possible fields, keeping existing schema in mind
+  // prefer computedRating (calculated from reviews), then rating
+  if (typeof r.computedRating === "number") return r.computedRating;
+  if (typeof r.rating === "number") return r.rating;
+  if (typeof r.averageRating === "number") return r.averageRating;
+  if (r.publicCard && typeof r.publicCard.rating === "number")
+    return r.publicCard.rating;
+  if (typeof r.stars === "number") return r.stars;
+
+  return null;
+}
+
+// ratingGte can be missing (undefined/null), in which case all cards pass the filter
+function reviewMatchesRating(
+  review: any,
+  ratingGte?: RatingOption | null
+): boolean {
+  // If no rating filter is selected, all cards pass
+  if (ratingGte == null) return true;
+
+  const threshold = extractRatingThreshold(ratingGte);
+  if (threshold == null) {
+    // no rating filter selected => always match
+    return true;
+  }
+
+  const rating = getReviewRating(review);
+  if (rating == null) return false;
+
+  // Usually UX expectation for "5★" / "4★" filters is "rating >= threshold"
+  return rating >= threshold;
+}
 
 export default function ReviewtyPage() {
   const [publicCards, setPublicCards] = useState<ReviewDoc[]>([]);
@@ -71,23 +221,28 @@ export default function ReviewtyPage() {
     personQuery: "",
   });
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
-  const [modalInitialMode, setModalInitialMode] = useState<"listing" | "community">("listing");
+  const [modalInitialMode, setModalInitialMode] = useState<
+    "listing" | "community"
+  >("listing");
 
   async function loadReviews() {
     try {
       setLoading(true);
 
       // Load ALL public cards from Firestore without any filters
-      const q = query(collection(db, "publicCards"), orderBy("createdAt", "desc"));
+      const q = query(
+        collection(db, "publicCards"),
+        orderBy("createdAt", "desc")
+      );
       const snap = await getDocs(q);
 
       const items: ReviewDoc[] = snap.docs.map((d) => {
         const data = d.data() as any;
-        
+
         // Read computed rating fields with fallback
-        const displayedRating = data.avgRating ?? (data.rating ?? 0);
+        const displayedRating = data.avgRating ?? data.rating ?? 0;
         const displayedCount = data.totalReviews ?? 1;
-        
+
         return {
           id: d.id,
           slug: data.slug || "",
@@ -112,6 +267,14 @@ export default function ReviewtyPage() {
           masterSlug: data.slug || "",
           masterKey: data.masterKey,
           source: data.source || "publicCard",
+          // Preserve service fields from new public cards
+          serviceKeys: Array.isArray(data.serviceKeys)
+            ? data.serviceKeys
+            : undefined,
+          serviceNames: Array.isArray(data.serviceNames)
+            ? data.serviceNames
+            : undefined,
+          services: Array.isArray(data.services) ? data.services : undefined,
         };
       });
 
@@ -120,13 +283,13 @@ export default function ReviewtyPage() {
 
       // Query reviews collection in batches (Firestore 'in' query limit is 10)
       const reviewsByCardId = new Map<string, any[]>();
-      
+
       if (cardIds.length > 0) {
         // Split into batches of 10
         const batchSize = 10;
         for (let i = 0; i < cardIds.length; i += batchSize) {
           const batch = cardIds.slice(i, i + batchSize);
-          
+
           try {
             // Query publicReviews collection where publicCardSlug is in the batch
             const publicReviewsQuery = query(
@@ -134,7 +297,7 @@ export default function ReviewtyPage() {
               where("publicCardSlug", "in", batch)
             );
             const publicReviewsSnap = await getDocs(publicReviewsQuery);
-            
+
             publicReviewsSnap.docs.forEach((doc) => {
               const reviewData = doc.data();
               const cardId = reviewData.publicCardSlug;
@@ -146,9 +309,12 @@ export default function ReviewtyPage() {
               }
             });
           } catch (err) {
-            console.error("[reviewty] failed to query publicReviews batch", err);
+            console.error(
+              "[reviewty] failed to query publicReviews batch",
+              err
+            );
           }
-          
+
           try {
             // Also query reviews collection where publicCardId is in the batch
             const reviewsQuery = query(
@@ -156,7 +322,7 @@ export default function ReviewtyPage() {
               where("publicCardId", "in", batch)
             );
             const reviewsSnap = await getDocs(reviewsQuery);
-            
+
             reviewsSnap.docs.forEach((doc) => {
               const reviewData = doc.data();
               const cardId = reviewData.publicCardId;
@@ -177,7 +343,7 @@ export default function ReviewtyPage() {
       const itemsWithStats = items.map((card) => {
         const cardReviews = reviewsByCardId.get(card.id) || [];
         const stats = calcStats(cardReviews);
-        
+
         return {
           ...card,
           computedRating: stats.avg ?? card.rating ?? null,
@@ -235,7 +401,11 @@ export default function ReviewtyPage() {
         // flat level
         Object.keys(it).forEach((k) => {
           const lk = k.toLowerCase();
-          if (lk.includes("city") || lk.includes("location") || lk.includes("address")) {
+          if (
+            lk.includes("city") ||
+            lk.includes("location") ||
+            lk.includes("address")
+          ) {
             result.add(k);
           }
         });
@@ -243,7 +413,12 @@ export default function ReviewtyPage() {
         if (it.location && typeof it.location === "object") {
           Object.keys(it.location).forEach((k) => {
             const lk = k.toLowerCase();
-            if (lk.includes("city") || lk.includes("slug") || lk.includes("formatted") || lk.includes("address")) {
+            if (
+              lk.includes("city") ||
+              lk.includes("slug") ||
+              lk.includes("formatted") ||
+              lk.includes("address")
+            ) {
               result.add("location." + k);
             }
           });
@@ -307,55 +482,11 @@ export default function ReviewtyPage() {
 
     // ---- SERVICE FILTER ----
     if (filters.services && filters.services.length > 0) {
-      // user can select 1 or many services, they can be objects or strings
-      const selectedServiceKeys = filters.services
-        .map((svc: any) => {
-          if (!svc) return null;
-          // try to take key/value/name/label in this order
-          const raw =
-            svc.key ||
-            svc.value ||
-            svc.serviceKey ||
-            svc.name ||
-            svc.label ||
-            (typeof svc === 'string' ? svc : '');
-
-          return raw ? raw.toString().trim().toLowerCase() : null;
-        })
-        .filter(Boolean);
-
-      filtered = filtered.filter((card: any) => {
-        // card can store services in different fields
-        const cardServicesRaw =
-          card.masterServices ||
-          card.serviceKeys ||
-          card.services ||
-          card.serviceNames ||
-          [];
-
-        // normalize to array
-        const cardServicesArr = Array.isArray(cardServicesRaw)
-          ? cardServicesRaw
-          : [cardServicesRaw];
-
-        if (cardServicesArr.length === 0) return false;
-
-        // bring card services to lowercase keys
-        const cardServiceKeys = cardServicesArr
-          .map((cs: any) => {
-            if (!cs) return null;
-            const raw =
-              (typeof cs === 'string'
-                ? cs
-                : cs.key || cs.value || cs.name || cs.label || '') || '';
-            return raw.toString().trim().toLowerCase();
-          })
-          .filter(Boolean);
-
-        // check intersection: card must have at least ONE of selected services
-        return cardServiceKeys.some((cs: string) =>
-          selectedServiceKeys.includes(cs)
-        );
+      // Filter: card must match at least ONE of the selected services
+      filtered = filtered.filter((card: ReviewDoc) => {
+        return filters.services!.some((selectedService) => {
+          return reviewMatchesService(card, selectedService);
+        });
       });
     }
 
@@ -371,7 +502,7 @@ export default function ReviewtyPage() {
             lng.code ||
             lng.name ||
             lng.label ||
-            (typeof lng === 'string' ? lng : '');
+            (typeof lng === "string" ? lng : "");
 
           return raw ? raw.toString().trim().toLowerCase() : null;
         })
@@ -395,9 +526,10 @@ export default function ReviewtyPage() {
           .map((cl: any) => {
             if (!cl) return null;
             const raw =
-              (typeof cl === 'string'
+              (typeof cl === "string"
                 ? cl
-                : cl.key || cl.value || cl.code || cl.name || cl.label || '') || '';
+                : cl.key || cl.value || cl.code || cl.name || cl.label || "") ||
+              "";
             return raw.toString().trim().toLowerCase();
           })
           .filter(Boolean);
@@ -407,10 +539,11 @@ export default function ReviewtyPage() {
       });
     }
 
-    // Filter by rating minimum
-    if (filters?.ratingGte != null) {
-      filtered = filtered.filter((card) => (card.rating || 0) >= filters.ratingGte!);
-    }
+    // ---- RATING FILTER ----
+    filtered = filtered.filter((card: ReviewDoc) => {
+      return reviewMatchesRating(card, filters.ratingGte);
+    });
+    // ---- END RATING FILTER ----
 
     // Filter by person query (search)
     if (filters.personQuery) {
@@ -471,8 +604,7 @@ export default function ReviewtyPage() {
         {/* Info banner */}
         <div className="w-full flex justify-center mb-6 px-4">
           <p className="text-center text-slate-700 text-base sm:text-lg md:text-xl font-medium leading-relaxed">
-            Couldn't find your beauty master online or they blocked you?{" "}
-            Make a{" "}
+            Couldn't find your beauty master online or they blocked you? Make a{" "}
             <button
               onClick={openCreatePublicCardModal}
               className="text-pink-500 font-semibold hover:text-pink-600 mx-1 underline-offset-2 hover:underline"
@@ -522,7 +654,9 @@ export default function ReviewtyPage() {
                     slugCandidate3={review.id}
                     debugItem={review}
                     rating={review.computedRating ?? review.rating}
-                    totalReviews={review.computedReviewsCount ?? review.totalReviews}
+                    totalReviews={
+                      review.computedReviewsCount ?? review.totalReviews
+                    }
                     masterName={review.masterName}
                     masterDisplay={review.masterDisplay}
                     cityName={review.cityName}

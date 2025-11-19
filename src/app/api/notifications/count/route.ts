@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { userId, role } = await req.json();
+    const { userId } = await req.json();
     if (!userId) {
       return new Response(
         JSON.stringify({ ok: false, error: "userId required" }),
@@ -44,8 +44,9 @@ export async function POST(req: NextRequest) {
     ]);
     const pendingBookings = (asMaster.size || 0) + (asClient.size || 0);
 
-    // 2) Unread messages across chats
+    // 2) Unread messages across chats (chat unread badge – source, works for both client and master)
     // reads path: chats/{chatId}/reads/{userId} = { lastReadAt: Timestamp }
+    // This query works for both client and master since it filters by participants array containing userId
     const chatsSnap = await adminDb
       .collection("chats")
       .where("participants", "array-contains", userId)
@@ -86,12 +87,52 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 3) Booking notifications: query all unread notifications for this user, filter by type
+    // Use userId field to match notification schema
+    const allNotificationsSnap = await adminDb
+      .collection("notifications")
+      .where("userId", "==", userId)
+      .where("read", "==", false)
+      .get();
+
+    const allDocs = allNotificationsSnap.docs;
+    const bookingRequestCount = allDocs.filter(
+      (d) => d.data().type === "booking_request"
+    ).length;
+    const bookingStatusCount = allDocs.filter(
+      (d) => d.data().type === "booking_status"
+    ).length;
+    const bookingNotifications = bookingRequestCount + bookingStatusCount;
+
+    // Debug: log what we found
+    if (process.env.NODE_ENV === "development") {
+      console.log("[unread] booking notifications for user", userId, {
+        bookingRequestCount,
+        bookingStatusCount,
+        bookingNotifications,
+        totalDocs: allDocs.length,
+      });
+    }
+
+    const total = unreadMessages + pendingBookings + bookingNotifications;
+
+    // Debug log in development
+    if (process.env.NODE_ENV === "development" && total > 0) {
+      console.log("[unread] total for user", userId, {
+        unreadMessages,
+        pendingBookings,
+        bookingNotifications,
+        total,
+      });
+    }
+
     return new Response(
       JSON.stringify({
         ok: true,
         pendingBookings,
         unreadMessages,
-        total: unreadMessages + pendingBookings,
+        bookingNotifications,
+        total,
       }),
       { status: 200 }
     );

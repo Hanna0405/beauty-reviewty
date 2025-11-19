@@ -59,7 +59,8 @@ export default function BookingForm({ listingId, masterUid, onSuccess }: Props) 
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-3">
+    <div className="bg-white shadow-lg rounded-2xl p-6 w-full max-w-md border border-pink-100">
+      <form onSubmit={onSubmit} className="space-y-4">
       {/* DATE */}
       <input type="date" className="input w-full"
         value={date} onChange={e=>setDate(e.target.value)} required />
@@ -84,9 +85,10 @@ export default function BookingForm({ listingId, masterUid, onSuccess }: Props) 
       {sent && <p className="text-sm text-green-600">Request sent ✔️</p>}
 
       <button type="submit" disabled={loading || !!missing}
-        className={`btn btn-primary w-full ${loading || missing ? 'opacity-50 cursor-not-allowed':''}`}>
+        className={`bg-pink-500 hover:bg-pink-600 text-white font-semibold py-2 px-4 rounded-lg w-full transition ${loading || missing ? 'opacity-60 cursor-not-allowed' : ''}`}>
         {loading ? 'Sending…' : 'Send request'}
       </button>
-    </form>
+      </form>
+    </div>
   );
 }

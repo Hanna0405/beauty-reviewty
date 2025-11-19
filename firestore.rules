@@ -2,9 +2,36 @@ rules_version = '2';
 service cloud.firestore {
  match /databases/{database}/documents {
 
- // ===== Common helpers (без request/resource внутри) =====
- function isSignedIn() { return request.auth != null; }
- function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+// ===== Common helpers (без request/resource внутри) =====
+function isSignedIn() { return request.auth != null; }
+function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+
+/* ---  helpers --- */
+function Doc(Id) {
+  return get(/databases/$(database)/documents/bookings/$(bookingId));
+}
+
+function isBookingParticipant(bookingId) {
+  return isSignedIn() &&
+    (
+      request.auth.uid == bookingDoc(bookingId).data.clientId ||
+      request.auth.uid == bookingDoc(bookingId).data.masterUid ||
+      request.auth.uid == bookingDoc(bookingId).data.masterId
+    );
+}
+
+function isBookingMaster(bookingId) {
+  return isSignedIn() &&
+    (
+      request.auth.uid == bookingDoc(bookingId).data.masterUid ||
+      request.auth.uid == bookingDoc(bookingId).data.masterId
+    );
+}
+
+function isBookingClient(bookingId) {
+  return isSignedIn() &&
+    request.auth.uid == bookingDoc(bookingId).data.clientId;
+}
 
  // --- Public Cards helpers (упрощённые проверки массивов/объектов) ---
  function pc_isString(v) { return v is string && v.size() <= 2000; }
@@ -120,17 +147,46 @@ service cloud.firestore {
  match /bookings/{bookingId} {
  allow create: if request.auth != null
  && request.resource.data.clientId == request.auth.uid
- && request.resource.data.masterId is string
+ && (request.resource.data.masterId is string || request.resource.data.masterUid is string)
  && request.resource.data.startISO is string
  && request.resource.data.endISO is string
  && request.resource.data.durationMin is number;
  allow read: if request.auth != null
- && (resource.data.clientId == request.auth.uid || resource.data.masterId == request.auth.uid);
- allow update: if request.auth != null
- && ((resource.data.clientId == request.auth.uid && resource.data.status == 'pending')
- || resource.data.masterId == request.auth.uid);
+ && (resource.data.clientId == request.auth.uid 
+     || resource.data.masterId == request.auth.uid 
+     || resource.data.masterUid == request.auth.uid);
+ allow update: if request.auth != null && (
+   // Client can update pending bookings
+   (resource.data.clientId == request.auth.uid && resource.data.status == 'pending')
+   // Master can update any booking field (including unread counters) - this should cover all master updates
+   || resource.data.masterId == request.auth.uid
+   || resource.data.masterUid == request.auth.uid
+   // Allow client to update unread counters on their bookings (even if not pending)
+   || (resource.data.clientId == request.auth.uid
+       && (('unreadForMaster' in request.resource.data && request.resource.data.unreadForMaster is int)
+           || ('unreadForClient' in request.resource.data && request.resource.data.unreadForClient is int))
+       && request.resource.data.clientId == resource.data.clientId
+       && (request.resource.data.masterId == resource.data.masterId || !('masterId' in resource.data) || !('masterId' in request.resource.data))
+       && (request.resource.data.masterUid == resource.data.masterUid || !('masterUid' in resource.data) || !('masterUid' in request.resource.data)))
+ );
  allow delete: if false;
  }
+
+match /bookings/{bookingId}/messages/{messageId} {
+ allow get, list, read: if isBookingParticipant(bookingId);
+ allow create, update, delete: if isBookingParticipant(bookingId);
+}
+
+      match /chats/{chatId} {
+        allow read, update, delete: if request.auth != null
+          && request.auth.uid in resource.data.participants;
+        allow create: if request.auth != null;
+
+        match /messages/{messageId} {
+          allow read, write: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        }
+      }
 
  // ===== Generic reviews collection =====
  // allow users to delete only their own reviews
