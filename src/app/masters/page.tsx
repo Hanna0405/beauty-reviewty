@@ -36,7 +36,9 @@ function PageContent() {
   
   const [loading, setLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true); // Track initial data load
-  const [showMap, setShowMap] = useState(true); // for mobile toggle
+  const [showMap, setShowMap] = useState(true); // for desktop toggle
+  const [showFiltersMobile, setShowFiltersMobile] = useState(false); // mobile-only: filters panel
+  const [showMapModal, setShowMapModal] = useState(false); // mobile-only: map modal
 
   // Map center and marker state
   const [mapCenter, setMapCenter] = useState<{lat: number; lng: number}>({ lat: 43.6532, lng: -79.3832 }); // default Toronto
@@ -442,10 +444,20 @@ function PageContent() {
         <Link href="/listings" className="rounded-md border px-3 py-2 text-sm font-medium bg-white text-gray-900 hover:bg-pink-50">Listings</Link>
       </div>
 
+      {/* Mobile-only: Filters button */}
+      <div className="mb-4 md:hidden">
+        <button
+          type="button"
+          onClick={() => setShowFiltersMobile(true)}
+          className="w-full rounded-md border border-pink-500 bg-pink-500 px-4 py-2 text-sm font-medium text-white hover:bg-pink-600">
+          Filters
+        </button>
+      </div>
+
       {/* Layout: sidebar + content */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-[300px_1fr]">
-        {/* Sidebar filters (vertical) */}
-        <aside className="rounded-lg border p-4">
+        {/* Sidebar filters (vertical) - hidden on mobile, shown on desktop */}
+        <aside className="hidden rounded-lg border p-4 md:block">
           <MasterFilters
             value={{
               city: selectedCity?.formatted,
@@ -460,7 +472,7 @@ function PageContent() {
             onChange={handleFiltersChange}
             showName
           />
-          {/* Mobile map toggle */}
+          {/* Desktop map toggle */}
           <button
             type="button"
             onClick={() => setShowMap(s => !s)}
@@ -471,8 +483,8 @@ function PageContent() {
 
         {/* Content: map + list */}
         <section>
-          {/* Map */}
-          <div className={`mb-4 ${showMap ? 'block' : 'hidden md:block'}`}>
+          {/* Desktop Map */}
+          <div className={`mb-4 hidden md:block ${showMap ? 'block' : 'hidden'}`}>
             <div className="relative z-0">
               <MastersMapNoSSR 
                 center={mapCenter} 
@@ -480,6 +492,16 @@ function PageContent() {
                 markers={mapMarkersWithCity}
               />
             </div>
+          </div>
+
+          {/* Mobile-only: Map button */}
+          <div className="mb-4 md:hidden">
+            <button
+              type="button"
+              onClick={() => setShowMapModal(true)}
+              className="w-full rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50">
+              Show Map
+            </button>
           </div>
 
           {/* Results */}
@@ -516,6 +538,81 @@ function PageContent() {
           )}
         </section>
       </div>
+
+      {/* Mobile Filters Modal */}
+      {showFiltersMobile && (
+        <div className="fixed inset-0 z-50 md:hidden" onClick={() => setShowFiltersMobile(false)}>
+          <div className="absolute inset-0 bg-black/40" />
+          <div 
+            className="absolute inset-y-0 left-0 right-0 flex flex-col overflow-y-auto bg-pink-50 shadow-xl"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-pink-50 px-4 py-3">
+              <h2 className="text-lg font-semibold">Filters</h2>
+              <button
+                type="button"
+                onClick={() => setShowFiltersMobile(false)}
+                className="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700">
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 p-4">
+              <MasterFilters
+                value={{
+                  city: selectedCity?.formatted,
+                  cityPlaceId: selectedCity?.cityKey,
+                  lat: selectedCity?.lat,
+                  lng: selectedCity?.lng,
+                  services: selectedServices,
+                  languages: selectedLanguages,
+                  minRating: minRating,
+                  name: name,
+                }}
+                onChange={handleFiltersChange}
+                showName
+              />
+            </div>
+            <div className="sticky bottom-0 border-t bg-pink-50 p-4">
+              <button
+                type="button"
+                onClick={() => setShowFiltersMobile(false)}
+                className="w-full rounded-md bg-pink-500 px-4 py-2 text-sm font-medium text-white hover:bg-pink-600">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Map Modal */}
+      {showMapModal && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="absolute inset-0 flex flex-col bg-white">
+            {/* Header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-4 py-3">
+              <h2 className="text-lg font-semibold">Map</h2>
+              <button
+                type="button"
+                onClick={() => setShowMapModal(false)}
+                className="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700">
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {/* Map Container */}
+            <div className="relative flex-1 min-h-0">
+              <MastersMapNoSSR 
+                center={mapCenter} 
+                zoom={10}
+                markers={mapMarkersWithCity}
+                className="h-full w-full rounded-none border-0"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

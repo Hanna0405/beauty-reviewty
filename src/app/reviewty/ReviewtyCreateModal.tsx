@@ -245,6 +245,12 @@ export default function ReviewtyCreateModal({
   }
 
   async function handleSubmitPublicCard() {
+    // Auth guard: do not allow unauthenticated users to submit
+    if (!user) {
+      alert("Please sign up or log in to leave a review.");
+      return;
+    }
+
     try {
       // A. Collect form data into explicit local variables
       const masterName = cm.displayName?.trim() || "";
@@ -393,6 +399,12 @@ export default function ReviewtyCreateModal({
   }
 
   async function handleSubmit() {
+    // Auth guard: do not allow unauthenticated users to submit
+    if (!user) {
+      alert("Please sign up or log in to leave a review.");
+      return;
+    }
+
     try {
       // Upload photos (max 3) - use the legacy upload method that works without auth
       const uploadedPhotos: { url: string; path: string }[] = [];
@@ -673,7 +685,7 @@ export default function ReviewtyCreateModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-      <div className="w-full max-w-xl rounded-xl bg-white p-6 space-y-4">
+      <div className="w-full max-w-xl rounded-xl bg-white p-6 space-y-4 md:w-[600px] max-md:w-[calc(100vw-2rem)] max-md:max-w-[calc(100vw-2rem)] max-md:overflow-y-auto max-md:box-border">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold">Add review</h3>
           <button
@@ -687,7 +699,7 @@ export default function ReviewtyCreateModal({
         <div className="flex gap-3 text-sm">
           <button
             onClick={() => setMode("listing")}
-            className={`px-3 py-1.5 rounded ${
+            className={`rounded whitespace-nowrap px-3 py-2 text-sm md:px-6 md:py-3 md:text-base ${
               mode === "listing" ? "bg-pink-100 text-pink-700" : "bg-gray-100"
             }`}
           >
@@ -695,7 +707,7 @@ export default function ReviewtyCreateModal({
           </button>
           <button
             onClick={() => setMode("community")}
-            className={`px-3 py-1.5 rounded ${
+            className={`rounded whitespace-nowrap px-3 py-2 text-sm md:px-6 md:py-3 md:text-base ${
               mode === "community" ? "bg-pink-100 text-pink-700" : "bg-gray-100"
             }`}
           >
@@ -716,6 +728,7 @@ export default function ReviewtyCreateModal({
               }}
               options={listingOpts}
               placeholder="e.g.: Anna Nails Toronto"
+              maxVisible={3}
             />
             {!!listingId && (
               <div className="text-xs text-green-700">
@@ -797,7 +810,7 @@ export default function ReviewtyCreateModal({
             onChange={(e) => setText(e.target.value)}
             rows={3}
             placeholder="Describe your experience..."
-            className="rounded border p-2"
+            className="rounded border p-2 w-full resize-none max-md:w-full max-md:max-w-full box-border"
           />
           <input
             type="file"
