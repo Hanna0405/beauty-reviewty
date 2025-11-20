@@ -19,8 +19,15 @@ export default function MastersMap({
   const { isLoaded, loadError } = useGoogleMapsLoaded();
 
   useEffect(() => {
-    if (!isLoaded || !window.google?.maps || !ref.current) return;
-    const map = new window.google.maps.Map(ref.current, {
+    if (!isLoaded || !window.google?.maps) return;
+    
+    // Defensively check container ref before passing to Google Maps
+    // On mobile Safari, ref.current may exist but not be a valid HTMLElement,
+    // causing IntersectionObserver errors when Google Maps tries to observe it
+    const container = ref.current;
+    if (!container || !(container instanceof HTMLElement)) return;
+    
+    const map = new window.google.maps.Map(container, {
       center,
       zoom,
       mapId: undefined, // keep default; don't require custom mapId
