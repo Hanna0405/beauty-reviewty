@@ -1,6 +1,7 @@
 'use client';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase.client';
+import { shouldMasterBeVisibleInPublicSearch } from '@/lib/settings/masterVisibility';
 
 export type MastersFilters = {
   city?: string;
@@ -57,5 +58,20 @@ export async function fetchMastersSafe(filters: MastersFilters) {
     return tb - ta;
   });
 
-  return list;
+  // Filter by master visibility: exclude masters with isPublicProfile === false
+  const visibilityFiltered: any[] = [];
+  for (const item of list) {
+    const masterUid = item.uid || item.userId || item.ownerId || item.userUID || item.id;
+    if (masterUid) {
+      const isVisible = await shouldMasterBeVisibleInPublicSearch(masterUid);
+      if (isVisible) {
+        visibilityFiltered.push(item);
+      }
+    } else {
+      // If no UID found, include it (backward compatible)
+      visibilityFiltered.push(item);
+    }
+  }
+
+  return visibilityFiltered;
 }

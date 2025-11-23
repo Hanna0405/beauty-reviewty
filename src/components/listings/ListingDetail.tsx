@@ -6,6 +6,9 @@ import Modal from '@/components/ui/Modal';
 import BookingForm from '@/components/booking/BookingForm';
 import { ReviewsSection } from '@/components/ReviewsSection';
 import { fetchProfileByUid } from '@/lib/data/profiles';
+import { doesMasterAllowBookingRequests } from '@/lib/settings/masterVisibility';
+import { requireDb } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 type Photo = { url: string; path?: string; width?: number; height?: number };
 type Listing = {
@@ -39,8 +42,10 @@ type Profile = {
 
 export default function ListingDetail({ listing }: { listing: Listing }) {
   const [master, setMaster] = useState<Profile | null>(null);
+  const [allowBooking, setAllowBooking] = useState<boolean | null>(null);
   const [idx, setIdx] = useState(0);
   const [open, setOpen] = useState(false);
+  const [masterProfileData, setMasterProfileData] = useState<any>(null);
 
   if (!listing) return null;
 
@@ -52,12 +57,37 @@ export default function ListingDetail({ listing }: { listing: Listing }) {
           if (listing.masterUid) {
             const masterProfile = await fetchProfileByUid(listing.masterUid);
             setMaster(masterProfile);
+            
+            // Check if master allows booking requests
+            const allowsBooking = await doesMasterAllowBookingRequests(listing.masterUid);
+            setAllowBooking(allowsBooking);
           }
         } catch (error) {
           console.error('Error loading master profile:', error);
         }
       })();
     }
+  }, [listing.masterUid]);
+
+  // Load full profile data to get workingHours
+  useEffect(() => {
+    const masterUid = listing.masterUid;
+    if (!masterUid) return;
+    
+    (async () => {
+      try {
+        const db = requireDb();
+        if (!db) return;
+        
+        const profileRef = doc(db, "profiles", masterUid);
+        const profileSnap = await getDoc(profileRef);
+        if (profileSnap.exists()) {
+          setMasterProfileData(profileSnap.data());
+        }
+      } catch (error) {
+        console.error('Error loading master profile data:', error);
+      }
+    })();
   }, [listing.masterUid]);
 
   // Keyboard navigation
@@ -155,7 +185,19 @@ export default function ListingDetail({ listing }: { listing: Listing }) {
             </div>
           ) : null}
 
-          <button className="btn btn-primary" onClick={()=>setOpen(true)}>Book now</button>
+          {allowBooking === false ? (
+            <div className="text-sm text-gray-500 italic">
+              Booking is currently disabled by this master.
+            </div>
+          ) : (
+            <button 
+              className="btn btn-primary" 
+              onClick={()=>setOpen(true)}
+              disabled={allowBooking === null}
+            >
+              Book now
+            </button>
+          )}
         </aside>
 
         {/* About the Master Card */}
@@ -185,6 +227,7 @@ export default function ListingDetail({ listing }: { listing: Listing }) {
           listingId={String(listing.id || '')}
           masterUid={String(listing.masterUid || listing.ownerUid || '')}
           onSuccess={()=>{ setOpen(false); }}
+          workingHours={masterProfileData?.workingHours}
         />
       </Modal>
     </div>

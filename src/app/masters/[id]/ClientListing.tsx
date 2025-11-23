@@ -34,6 +34,7 @@ export default function ClientListing({ id }: { id: string }) {
   const [allReviews, setAllReviews] = useState<any[]>([]);
   const [avgRating, setAvgRating] = useState(0);
   const [totalReviews, setTotalReviews] = useState(0);
+  const [masterProfileData, setMasterProfileData] = useState<any>(null);
 
   useEffect(() => {
     let alive = true;
@@ -114,6 +115,19 @@ export default function ClientListing({ id }: { id: string }) {
         setAllReviews(sortedReviews);
         setAvgRating(avgRating);
         setTotalReviews(totalReviews);
+        
+        // Load master profile data to get workingHours
+        const mId = masterId(listingData);
+        if (mId) {
+          try {
+            const profileSnap = await getDoc(doc(db, 'profiles', mId));
+            if (profileSnap.exists() && alive) {
+              setMasterProfileData(profileSnap.data());
+            }
+          } catch (profileError) {
+            console.error('Failed to load master profile data:', profileError);
+          }
+        }
       } catch (e) {
         console.error('Failed to load listing', e);
       }
@@ -208,8 +222,9 @@ export default function ClientListing({ id }: { id: string }) {
       <Modal open={open} onClose={()=>setOpen(false)} title="Request booking">
         <BookingForm
           listingId={String(listing.id || '')}
-          masterUid={String(listing.masterUid || listing.ownerId || listing.ownerUid || '')}
+          masterUid={String(mId || listing.masterUid || listing.ownerId || listing.ownerUid || '')}
           onSuccess={()=>{ setOpen(false); }}
+          workingHours={masterProfileData?.workingHours}
         />
       </Modal>
     </div>

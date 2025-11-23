@@ -1,11 +1,110 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { getFirebaseAdmin } from "@/lib/firebase/admin";
+import { sendBookingStatusEmailToClient } from "@/lib/email/bookingEmails";
+import { formatWhenFromBooking } from "@/lib/emailFormat";
+import { getEffectiveNotificationPrefsForUser } from "@/lib/settings/notifications";
 
 type Body = {
   bookingId: string;
   action: "confirm" | "decline" | "cancel" | "complete";
 };
+
+/**
+ * Helper to send booking status email to client after status change.
+ * Logs errors without throwing to avoid breaking booking update flow.
+ */
+async function sendBookingStatusEmailToClientHelper(
+  db: FirebaseFirestore.Firestore,
+  bookingData: any,
+  status: "confirmed" | "declined" | "cancelled",
+  bookingId: string
+): Promise<void> {
+  try {
+    const clientUid = bookingData.clientUid || bookingData.clientId || null;
+    if (!clientUid) {
+      return;
+    }
+
+    // Get effective notification preferences for client
+    const prefs = await getEffectiveNotificationPrefsForUser(clientUid);
+
+    // Check if notifications are enabled for booking status changes
+    if (!prefs.bookingStatusChangeEnabled) {
+      console.log("[email-booking] skip: client disabled booking status emails", {
+        clientUserId: clientUid,
+        bookingId,
+        status,
+      });
+      return;
+    }
+
+    if (!prefs.emailForNotifications) {
+      console.log("[email-booking] skip: no email for notifications", {
+        clientUserId: clientUid,
+        bookingId,
+        status,
+      });
+      return;
+    }
+
+    // Load client profile for display name
+    const clientProfileSnap = await db.collection("profiles").doc(clientUid).get();
+    const clientProfile =
+      clientProfileSnap && clientProfileSnap.exists
+        ? (clientProfileSnap.data() as any)
+        : null;
+
+    // Format date/time
+    const bookingDateTimeText = formatWhenFromBooking(bookingData);
+
+    // Get master profile for master name
+    const masterUid = bookingData.masterUid || bookingData.masterId || null;
+    let masterName: string | null = null;
+    if (masterUid) {
+      try {
+        const masterProfileSnap = await db.collection("profiles").doc(masterUid).get();
+        if (masterProfileSnap.exists) {
+          const masterProfileData = masterProfileSnap.data() as any;
+          masterName = masterProfileData?.displayName || null;
+        }
+      } catch {
+        // ignore master profile lookup errors
+      }
+    }
+
+    // Get service name from listing
+    let serviceName: string | null = null;
+    if (bookingData.listingId) {
+      try {
+        const ls = await db.collection("listings").doc(bookingData.listingId).get();
+        if (ls.exists) {
+          const listingData = ls.data() as any;
+          serviceName = listingData?.title || listingData?.serviceName || null;
+        }
+      } catch {
+        // ignore listing load errors
+      }
+    }
+
+    // Construct dashboard URL
+    const host = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    const dashboardBookingUrl = `${host}/dashboard/bookings`;
+
+    await sendBookingStatusEmailToClient({
+      clientEmail: prefs.emailForNotifications,
+      clientName: clientProfile?.displayName || null,
+      masterName,
+      serviceName,
+      bookingDateTimeText,
+      bookingId,
+      status,
+      dashboardBookingUrl,
+    });
+  } catch (error) {
+    console.error("[bookingAct] sendBookingStatusEmailToClientHelper error:", error);
+  }
+}
 
 export async function POST(req: Request) {
   try {
@@ -102,6 +201,23 @@ export async function POST(req: Request) {
       } catch (err) {
         console.error("Failed to create booking status notification", err);
       }
+
+      // Email notification to client (best-effort, after status update + notification)
+      try {
+        const updatedBooking = await ref.get();
+        const bookingData = updatedBooking.exists ? (updatedBooking.data() as any) : null;
+        if (bookingData && bookingData.clientUid) {
+          await sendBookingStatusEmailToClientHelper(
+            db,
+            bookingData,
+            "confirmed",
+            bookingId
+          );
+        }
+      } catch (emailErr) {
+        console.error("[bookingAct] confirm email error", emailErr);
+      }
+
       return NextResponse.json({ ok: true });
     }
 
@@ -141,6 +257,23 @@ export async function POST(req: Request) {
       } catch (err) {
         console.error("Failed to create booking status notification", err);
       }
+
+      // Email notification to client (best-effort, after status update + notification)
+      try {
+        const updatedBooking = await ref.get();
+        const bookingData = updatedBooking.exists ? (updatedBooking.data() as any) : null;
+        if (bookingData && bookingData.clientUid) {
+          await sendBookingStatusEmailToClientHelper(
+            db,
+            bookingData,
+            "declined",
+            bookingId
+          );
+        }
+      } catch (emailErr) {
+        console.error("[bookingAct] decline email error", emailErr);
+      }
+
       return NextResponse.json({ ok: true });
     }
 
@@ -149,7 +282,29 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Not allowed" }, { status: 403 });
       if (!["pending", "confirmed"].includes(b.status))
         return NextResponse.json({ error: "Invalid state" }, { status: 400 });
+      
+      const previousStatus = b.status;
       await ref.update({ status: "cancelled", updatedAt: now });
+
+      // Email notification to client (best-effort, after status update)
+      // Only send if status actually changed
+      if (previousStatus !== "cancelled" && b.clientUid) {
+        try {
+          const updatedBooking = await ref.get();
+          const bookingData = updatedBooking.exists ? (updatedBooking.data() as any) : null;
+          if (bookingData) {
+            await sendBookingStatusEmailToClientHelper(
+              db,
+              bookingData,
+              "cancelled",
+              bookingId
+            );
+          }
+        } catch (emailErr) {
+          console.error("[bookingAct] cancel email error", emailErr);
+        }
+      }
+
       return NextResponse.json({ ok: true });
     }
 

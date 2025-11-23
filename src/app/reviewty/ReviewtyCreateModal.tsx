@@ -143,6 +143,7 @@ export default function ReviewtyCreateModal({
   const [rating, setRating] = useState<1 | 2 | 3 | 4 | 5>(5);
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [photoWarning, setPhotoWarning] = useState(false);
 
   useEffect(() => {
     let off = false;
@@ -217,6 +218,25 @@ export default function ReviewtyCreateModal({
     };
   }
 
+  // Helper to upload multiple photos with tolerance for individual failures
+  async function uploadReviewPhotos(files: File[]): Promise<Array<{ url: string; path: string }>> {
+    const uploadedPhotos: Array<{ url: string; path: string }> = [];
+
+    for (const file of files) {
+      try {
+        const result = await upload(file);
+        uploadedPhotos.push(result);
+        console.log("[upload success]", result.url);
+      } catch (err: any) {
+        console.error("[upload failed]", err);
+        // Continue to next file - don't throw
+        // Individual upload errors are logged but don't abort the review submission
+      }
+    }
+
+    return uploadedPhotos;
+  }
+
   // Helper function to remove undefined values recursively
   function sanitize<T extends Record<string, any>>(obj: T): T {
     // remove keys that are strictly undefined (but keep null, keep [])
@@ -279,11 +299,14 @@ export default function ReviewtyCreateModal({
         return;
       }
 
-      // B. Upload images using the legacy upload method that works without auth
-      const uploadedPhotoURLs: string[] = [];
-      for (const file of filesToUpload) {
-        const result = await upload(file);
-        uploadedPhotoURLs.push(result.url);
+      // B. Upload images with tolerance for individual failures
+      setPhotoWarning(false); // Reset warning state
+      const uploadedPhotos = await uploadReviewPhotos(filesToUpload);
+      const uploadedPhotoURLs = uploadedPhotos.map((p) => p.url);
+      
+      // Show warning if some uploads failed
+      if (uploadedPhotos.length < filesToUpload.length) {
+        setPhotoWarning(true);
       }
 
       // C. Build the Firestore document in the exact "old / working" shape
@@ -389,11 +412,13 @@ export default function ReviewtyCreateModal({
       setRating(5);
       setText("");
       setFiles([]);
+      setPhotoWarning(false);
 
       alert("Thank you! Your review card has been submitted.");
       setOpen(false);
     } catch (err) {
       console.error("[Submit review] failed", err);
+      // Only show this alert for real Firestore/submit errors, not individual upload errors
       alert("Sorry, something went wrong while saving your review.");
     }
   }
@@ -406,11 +431,14 @@ export default function ReviewtyCreateModal({
     }
 
     try {
-      // Upload photos (max 3) - use the legacy upload method that works without auth
-      const uploadedPhotos: { url: string; path: string }[] = [];
-      for (const f of files.slice(0, 3)) {
-        const result = await upload(f);
-        uploadedPhotos.push({ url: result.url, path: result.path });
+      // Upload photos (max 3) with tolerance for individual failures
+      setPhotoWarning(false); // Reset warning state
+      const filesToUpload = files.slice(0, 3);
+      const uploadedPhotos = await uploadReviewPhotos(filesToUpload);
+      
+      // Show warning if some uploads failed
+      if (uploadedPhotos.length < filesToUpload.length) {
+        setPhotoWarning(true);
       }
 
       if (mode === "listing" && listingId) {
@@ -675,8 +703,10 @@ export default function ReviewtyCreateModal({
       setCity(null);
       setSelectedServices([]);
       setSelectedLanguages([]);
+      setPhotoWarning(false);
     } catch (err) {
       console.error("[Submit review] failed", err);
+      // Only show this alert for real Firestore/submit errors, not individual upload errors
       alert("Sorry, something went wrong while saving your review.");
     }
   }
@@ -819,8 +849,14 @@ export default function ReviewtyCreateModal({
             onChange={(e) => {
               const arr = Array.from(e.target.files || []).slice(0, 3);
               setFiles(arr);
+              setPhotoWarning(false); // Clear warning when files change
             }}
           />
+          {photoWarning && (
+            <p className="text-xs text-red-500">
+              One of the photos failed to upload. Your review will be saved without that photo.
+            </p>
+          )}
         </div>
 
         <div className="flex justify-end">

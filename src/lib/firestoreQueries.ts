@@ -1,7 +1,8 @@
 'use client';
-import { collection, getDocs, query, where, orderBy, limit, startAfter, DocumentData, QueryConstraint } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, limit, startAfter, DocumentData, QueryConstraint, getDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { matchesAllFilters } from '@/lib/filtering';
+import { shouldMasterBeVisibleInPublicSearch } from '@/lib/settings/masterVisibility';
 
 import type { TagOption } from '@/types/tags';
 
@@ -142,8 +143,30 @@ export async function fetchMastersOnce(filters: MasterFilters, pageSize = 60, cu
     }, /*isMaster*/ true);
   });
 
+  // Filter by master visibility: exclude masters with isPublicProfile === false
+  // Note: This requires async checks, so we do it in a loop
+  const visibilityFiltered: any[] = [];
+  for (const item of items) {
+    const masterUid = item.uid || item.userId || item.ownerId || item.userUID || item.id;
+    if (masterUid) {
+      try {
+        const isVisible = await shouldMasterBeVisibleInPublicSearch(masterUid);
+        if (isVisible) {
+          visibilityFiltered.push(item);
+        }
+      } catch (error) {
+        // On error, include the item (backward compatible)
+        console.warn('[fetchMastersOnce] Error checking visibility for master:', masterUid, error);
+        visibilityFiltered.push(item);
+      }
+    } else {
+      // If no UID found, include it (backward compatible)
+      visibilityFiltered.push(item);
+    }
+  }
+
   return {
-    items,
+    items: visibilityFiltered,
     nextCursor: allDocs.length ? allDocs[allDocs.length - 1] : undefined,
   };
 }
