@@ -469,12 +469,12 @@ function PageContent() {
               </div>
             </div>
             <div className="sticky bottom-0 border-t bg-pink-50 p-4">
-              <button
+            <button
                 type="button"
                 onClick={() => setShowFiltersMobile(false)}
                 className="w-full rounded-md bg-pink-500 px-4 py-2 text-sm font-medium text-white hover:bg-pink-600">
-                Close
-              </button>
+                Apply
+            </button>
             </div>
           </div>
         </div>

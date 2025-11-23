@@ -3,35 +3,39 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { requireAuth, requireDb } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import {
-  EmailAuthProvider,
-  reauthenticateWithCredential,
-  updatePassword,
-} from "firebase/auth";
 
 type SettingsData = {
   // Notifications
-  notifyOnBooking?: boolean;
-  notifyOnBookingStatus?: boolean;
-  notifyOnChat?: boolean;
+  notifyOnBookingRequest: boolean;
+  notifyOnBookingStatus: boolean;
+  notifyOnChatMessages: boolean;
   // Email preferences
-  notifyEmail?: string | null;
-  useNotifyEmail?: boolean;
-  allowMarketingEmails?: boolean;
+  notifyEmail: string;
+  useNotifyEmail: boolean;
+  marketingOptIn: boolean;
   // Profile & privacy
-  isVisibleAsMaster?: boolean;
-  allowBookings?: boolean;
+  isPublicProfile: boolean;
+  allowBookingRequests: boolean;
+  // Availability
+  offDays: string[]; // array of ISO dates 'YYYY-MM-DD'
+  // Working hours
+  workingHours?: {
+    start: string; // "09:00"
+    end: string; // "18:00"
+  };
 };
 
 const defaultSettings: SettingsData = {
-  notifyOnBooking: true,
+  notifyOnBookingRequest: true,
   notifyOnBookingStatus: true,
-  notifyOnChat: true,
-  notifyEmail: null,
+  notifyOnChatMessages: true,
+  notifyEmail: "",
   useNotifyEmail: true,
-  allowMarketingEmails: false,
-  isVisibleAsMaster: true,
-  allowBookings: true,
+  marketingOptIn: false,
+  isPublicProfile: true,
+  allowBookingRequests: true,
+  offDays: [],
+  workingHours: undefined,
 };
 
 export default function SettingsPage() {
@@ -45,13 +49,12 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  // Password change state
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [changingPassword, setChangingPassword] = useState(false);
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  // Off days management
+  const [newOffDay, setNewOffDay] = useState("");
+  
+  // Working hours state (managed separately but synced to settings)
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("18:00");
 
   useEffect(() => {
     let cancelled = false;
@@ -65,31 +68,73 @@ export default function SettingsPage() {
       try {
         const db = requireDb();
         const snap = await getDoc(doc(db, "profiles", uid));
+
+        // Per-field defaults, including user email fallback
+        const defaults: SettingsData = {
+          notifyOnBookingRequest: true,
+          notifyOnBookingStatus: true,
+          notifyOnChatMessages: true,
+          notifyEmail: user?.email ?? "",
+          useNotifyEmail: true,
+          marketingOptIn: false,
+          isPublicProfile: true,
+          allowBookingRequests: true,
+          offDays: [],
+          workingHours: undefined,
+        };
+
         if (snap.exists()) {
           const data = snap.data() as any;
           if (cancelled) return;
 
           const loaded: SettingsData = {
-            notifyOnBooking:
-              data.notifyOnBooking ?? defaultSettings.notifyOnBooking,
+            notifyOnBookingRequest:
+              data.notifyOnBookingRequest ??
+              data.notifyOnBooking ??
+              defaults.notifyOnBookingRequest,
             notifyOnBookingStatus:
-              data.notifyOnBookingStatus ??
-              defaultSettings.notifyOnBookingStatus,
-            notifyOnChat: data.notifyOnChat ?? defaultSettings.notifyOnChat,
-            notifyEmail: data.notifyEmail ?? defaultSettings.notifyEmail,
-            useNotifyEmail:
-              data.useNotifyEmail ?? defaultSettings.useNotifyEmail,
-            allowMarketingEmails:
-              data.allowMarketingEmails ?? defaultSettings.allowMarketingEmails,
-            isVisibleAsMaster:
-              data.isVisibleAsMaster ?? defaultSettings.isVisibleAsMaster,
-            allowBookings: data.allowBookings ?? defaultSettings.allowBookings,
+              data.notifyOnBookingStatus ?? defaults.notifyOnBookingStatus,
+            notifyOnChatMessages:
+              data.notifyOnChatMessages ??
+              data.notifyOnChat ??
+              defaults.notifyOnChatMessages,
+            notifyEmail: data.notifyEmail ?? defaults.notifyEmail,
+            useNotifyEmail: data.useNotifyEmail ?? defaults.useNotifyEmail,
+            marketingOptIn:
+              data.marketingOptIn ??
+              data.allowMarketingEmails ??
+              defaults.marketingOptIn,
+            isPublicProfile:
+              data.isPublicProfile ??
+              data.isVisibleAsMaster ??
+              defaults.isPublicProfile,
+            allowBookingRequests:
+              data.allowBookingRequests ??
+              data.allowBookings ??
+              defaults.allowBookingRequests,
+            offDays: Array.isArray(data.offDays)
+              ? data.offDays.filter((d: any) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d))
+              : defaults.offDays,
+            workingHours: data?.workingHours && typeof data.workingHours === 'object' && 
+              typeof data.workingHours.start === 'string' && 
+              typeof data.workingHours.end === 'string'
+              ? {
+                  start: data.workingHours.start,
+                  end: data.workingHours.end,
+                }
+              : defaults.workingHours,
           };
 
           setSettings(loaded);
+          
+          // Sync working hours to local state for form inputs
+          if (loaded.workingHours) {
+            setStartTime(loaded.workingHours.start || "09:00");
+            setEndTime(loaded.workingHours.end || "18:00");
+          }
         } else {
           if (cancelled) return;
-          setSettings(defaultSettings);
+          setSettings(defaults);
         }
       } catch (e: any) {
         if (!cancelled) setError(e?.message || "Failed to load settings");
@@ -124,18 +169,36 @@ export default function SettingsPage() {
 
     try {
       const db = requireDb();
-      const payload: SettingsData = {
-        notifyOnBooking: settings.notifyOnBooking,
+      const payload: any = {
+        // New canonical settings fields
+        notifyOnBookingRequest: settings.notifyOnBookingRequest,
         notifyOnBookingStatus: settings.notifyOnBookingStatus,
-        notifyOnChat: settings.notifyOnChat,
-        notifyEmail: settings.notifyEmail?.trim() || null,
+        notifyOnChatMessages: settings.notifyOnChatMessages,
+        notifyEmail: settings.notifyEmail.trim(),
+        marketingOptIn: settings.marketingOptIn,
+        isPublicProfile: settings.isPublicProfile,
+        allowBookingRequests: settings.allowBookingRequests,
+        // Legacy fields kept in sync for backwards compatibility
+        notifyOnBooking: settings.notifyOnBookingRequest,
+        notifyOnChat: settings.notifyOnChatMessages,
+        allowMarketingEmails: settings.marketingOptIn,
+        isVisibleAsMaster: settings.isPublicProfile,
+        allowBookings: settings.allowBookingRequests,
         useNotifyEmail: settings.useNotifyEmail,
-        allowMarketingEmails: settings.allowMarketingEmails,
-        isVisibleAsMaster: settings.isVisibleAsMaster,
-        allowBookings: settings.allowBookings,
+        offDays: settings.offDays,
+        workingHours: startTime && endTime ? {
+          start: startTime.trim(),
+          end: endTime.trim(),
+        } : undefined,
       };
 
       await setDoc(doc(db, "profiles", uid), payload, { merge: true });
+      
+      // Update settings state with working hours
+      setSettings(prev => ({ 
+        ...prev, 
+        workingHours: startTime && endTime ? { start: startTime.trim(), end: endTime.trim() } : undefined 
+      }));
 
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
@@ -147,60 +210,6 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleChangePassword(e: React.FormEvent) {
-    e.preventDefault();
-    if (!user || !user.email) {
-      setPasswordError("No authenticated user.");
-      return;
-    }
-
-    // Validate passwords match
-    if (newPassword !== confirmPassword) {
-      setPasswordError("New passwords do not match.");
-      return;
-    }
-
-    if (!currentPassword || !newPassword) {
-      setPasswordError("All fields are required.");
-      return;
-    }
-
-    setChangingPassword(true);
-    setPasswordError(null);
-    setPasswordSuccess(false);
-
-    try {
-      // Reauthenticate with current password
-      const credential = EmailAuthProvider.credential(
-        user.email,
-        currentPassword
-      );
-      await reauthenticateWithCredential(user, credential);
-
-      // Update password
-      await updatePassword(user, newPassword);
-
-      setPasswordSuccess(true);
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-      setTimeout(() => setPasswordSuccess(false), 3000);
-    } catch (err: any) {
-      console.error(err);
-      if (
-        err.code === "auth/wrong-password" ||
-        err.code === "auth/invalid-credential"
-      ) {
-        setPasswordError("Current password is incorrect.");
-      } else if (err.code === "auth/weak-password") {
-        setPasswordError(err.message || "Password is too weak.");
-      } else {
-        setPasswordError(err?.message || "Failed to change password.");
-      }
-    } finally {
-      setChangingPassword(false);
-    }
-  }
 
   if (!uid) {
     return (
@@ -244,7 +253,112 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* 1) Booking & chat notifications */}
+            {/* 0) Working hours */}
+            <div className="bg-white rounded-xl shadow-sm border border-pink-100 p-5 space-y-4">
+              <h2 className="text-lg font-semibold">Working hours</h2>
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">Start time</label>
+                  <input
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    className="w-full max-w-xs rounded-md border border-gray-200 bg-pink-50/40 px-3 py-2 focus:border-pink-400 focus:outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">End time</label>
+                  <input
+                    type="time"
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
+                    className="w-full max-w-xs rounded-md border border-gray-200 bg-pink-50/40 px-3 py-2 focus:border-pink-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 1) Availability */}
+            <div className="bg-white rounded-xl shadow-sm border border-pink-100 p-5 space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold">Availability (for masters)</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Mark days when you are not available for bookings.
+                </p>
+              </div>
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    value={newOffDay}
+                    onChange={(e) => setNewOffDay(e.target.value)}
+                    className="flex-1 rounded-md border border-gray-200 bg-pink-50/40 px-3 py-2 focus:border-pink-400 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!newOffDay) return;
+                      const normalizedDate = newOffDay.trim();
+                      if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedDate)) {
+                        setError("Invalid date format. Please use YYYY-MM-DD.");
+                        return;
+                      }
+                      if (settings.offDays.includes(normalizedDate)) {
+                        setError("This date is already marked as unavailable.");
+                        return;
+                      }
+                      setField("offDays", [...settings.offDays, normalizedDate].sort());
+                      setNewOffDay("");
+                      setError(null);
+                    }}
+                    className="px-4 py-2 rounded-md bg-pink-500 text-white text-sm hover:bg-pink-600 whitespace-nowrap"
+                  >
+                    Add day
+                  </button>
+                </div>
+                {settings.offDays.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium text-gray-700">
+                      Non-working days:
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {settings.offDays.map((dateStr) => (
+                        <div
+                          key={dateStr}
+                          className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm"
+                        >
+                          <span>
+                            {new Date(dateStr + "T12:00:00").toLocaleDateString(
+                              "en-US",
+                              {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              }
+                            )}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setField(
+                                "offDays",
+                                settings.offDays.filter((d) => d !== dateStr)
+                              );
+                            }}
+                            className="text-red-600 hover:text-red-700 font-medium"
+                            aria-label={`Remove ${dateStr}`}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 2) Booking & chat notifications */}
             <div className="bg-white rounded-xl shadow-sm border border-pink-100 p-5 space-y-4">
               <h2 className="text-lg font-semibold">
                 Booking & chat notifications
@@ -253,9 +367,9 @@ export default function SettingsPage() {
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={settings.notifyOnBooking ?? true}
+                    checked={settings.notifyOnBookingRequest}
                     onChange={(e) =>
-                      setField("notifyOnBooking", e.target.checked)
+                      setField("notifyOnBookingRequest", e.target.checked)
                     }
                     className="w-4 h-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
                   />
@@ -266,7 +380,7 @@ export default function SettingsPage() {
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={settings.notifyOnBookingStatus ?? true}
+                    checked={settings.notifyOnBookingStatus}
                     onChange={(e) =>
                       setField("notifyOnBookingStatus", e.target.checked)
                     }
@@ -279,8 +393,10 @@ export default function SettingsPage() {
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={settings.notifyOnChat ?? true}
-                    onChange={(e) => setField("notifyOnChat", e.target.checked)}
+                    checked={settings.notifyOnChatMessages}
+                    onChange={(e) =>
+                      setField("notifyOnChatMessages", e.target.checked)
+                    }
                     className="w-4 h-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
                   />
                   <span className="text-sm">
@@ -290,7 +406,7 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* 2) Email preferences */}
+            {/* 3) Email preferences */}
             <div className="bg-white rounded-xl shadow-sm border border-pink-100 p-5 space-y-4">
               <h2 className="text-lg font-semibold">Email preferences</h2>
               <div className="space-y-3">
@@ -300,9 +416,9 @@ export default function SettingsPage() {
                   </label>
                   <input
                     type="email"
-                    value={settings.notifyEmail ?? ""}
+                    value={settings.notifyEmail}
                     onChange={(e) =>
-                      setField("notifyEmail", e.target.value || null)
+                      setField("notifyEmail", e.target.value || "")
                     }
                     placeholder="your@email.com"
                     className="w-full rounded-md border border-gray-200 bg-pink-50/40 px-3 py-2 focus:border-pink-400 focus:outline-none"
@@ -311,7 +427,7 @@ export default function SettingsPage() {
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={settings.useNotifyEmail ?? true}
+                    checked={settings.useNotifyEmail}
                     onChange={(e) =>
                       setField("useNotifyEmail", e.target.checked)
                     }
@@ -324,9 +440,9 @@ export default function SettingsPage() {
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={settings.allowMarketingEmails ?? false}
+                    checked={settings.marketingOptIn}
                     onChange={(e) =>
-                      setField("allowMarketingEmails", e.target.checked)
+                      setField("marketingOptIn", e.target.checked)
                     }
                     className="w-4 h-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
                   />
@@ -337,16 +453,16 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* 3) Profile & privacy */}
+            {/* 4) Profile & privacy */}
             <div className="bg-white rounded-xl shadow-sm border border-pink-100 p-5 space-y-4">
               <h2 className="text-lg font-semibold">Profile & privacy</h2>
               <div className="space-y-3">
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={settings.isVisibleAsMaster ?? true}
+                    checked={settings.isPublicProfile}
                     onChange={(e) =>
-                      setField("isVisibleAsMaster", e.target.checked)
+                      setField("isPublicProfile", e.target.checked)
                     }
                     className="w-4 h-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
                   />
@@ -357,9 +473,9 @@ export default function SettingsPage() {
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={settings.allowBookings ?? true}
+                    checked={settings.allowBookingRequests}
                     onChange={(e) =>
-                      setField("allowBookings", e.target.checked)
+                      setField("allowBookingRequests", e.target.checked)
                     }
                     className="w-4 h-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
                   />
@@ -368,71 +484,6 @@ export default function SettingsPage() {
                   </span>
                 </label>
               </div>
-            </div>
-
-            {/* 4) Change password */}
-            <div className="bg-white rounded-xl shadow-sm border border-pink-100 p-5 space-y-4">
-              <h2 className="text-lg font-semibold">Change password</h2>
-              <form onSubmit={handleChangePassword} className="space-y-4">
-                {passwordError && (
-                  <div className="rounded-md bg-red-50 border border-red-200 text-sm text-red-700 p-3">
-                    {passwordError}
-                  </div>
-                )}
-
-                {passwordSuccess && (
-                  <div className="rounded-md bg-green-50 border border-green-200 text-sm text-green-700 p-3">
-                    Password updated
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium">
-                      Current password
-                    </label>
-                    <input
-                      type="password"
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="w-full rounded-md border border-gray-200 bg-pink-50/40 px-3 py-2 focus:border-pink-400 focus:outline-none"
-                      placeholder="Enter current password"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium">New password</label>
-                    <input
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full rounded-md border border-gray-200 bg-pink-50/40 px-3 py-2 focus:border-pink-400 focus:outline-none"
-                      placeholder="Enter new password"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium">
-                      Confirm new password
-                    </label>
-                    <input
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full rounded-md border border-gray-200 bg-pink-50/40 px-3 py-2 focus:border-pink-400 focus:outline-none"
-                      placeholder="Confirm new password"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end pt-2">
-                  <button
-                    type="submit"
-                    disabled={changingPassword}
-                    className="px-4 py-2 rounded-md bg-pink-500 text-white text-sm hover:bg-pink-600 disabled:opacity-60"
-                  >
-                    {changingPassword ? "Changing…" : "Change password"}
-                  </button>
-                </div>
-              </form>
             </div>
 
             {/* Save button */}

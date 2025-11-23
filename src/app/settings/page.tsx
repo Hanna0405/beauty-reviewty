@@ -3,8 +3,14 @@
 import { useAuth } from '@/contexts/AuthContext';
 import PhoneAuthBlock from '@/components/PhoneAuthBlock';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { updateProfile, sendPasswordResetEmail, updateEmail } from 'firebase/auth';
+import { FormEvent, useEffect, useState } from 'react';
+import {
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updateEmail,
+  updatePassword,
+  updateProfile,
+} from 'firebase/auth';
 import { auth, db } from '@/lib/firebase.client';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import toast from 'react-hot-toast';
@@ -18,6 +24,16 @@ export default function SettingsPage() {
   const [notifyOnBooking, setNotifyOnBooking] = useState(true);
   const [role, setRole] = useState<'client' | 'master'>('client');
   const [saving, setSaving] = useState(false);
+
+  // Change password form state (kept separate from other settings state)
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  const isPasswordProvider = !!user?.providerData?.some(
+    (p) => p.providerId === 'password',
+  );
 
   useEffect(() => {
     if (!user) {
@@ -54,15 +70,56 @@ export default function SettingsPage() {
     }
   };
 
-  const handleChangePassword = async () => {
-    if (!user?.email) return;
-    
+  const handleChangePassword = async (e: FormEvent) => {
+    e.preventDefault();
+
+    if (!user || !user.email) {
+      toast.error('You must be logged in with email/password to change password.');
+      return;
+    }
+
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      toast.error('Please fill in all password fields.');
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      toast.error('New password and confirmation do not match.');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast.error('New password should be at least 6 characters long.');
+      return;
+    }
+
+    setIsChangingPassword(true);
     try {
-      await sendPasswordResetEmail(auth, user.email);
-      toast.success('Password reset email sent');
-    } catch (error) {
-      console.error('Error sending password reset:', error);
-      toast.error('Failed to send password reset email');
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      await reauthenticateWithCredential(user, credential);
+
+      await updatePassword(user, newPassword);
+
+      toast.success('Password updated successfully.');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+    } catch (error: any) {
+      const code = error?.code as string | undefined;
+      if (code === 'auth/wrong-password') {
+        toast.error('Current password is incorrect.');
+      } else if (code === 'auth/weak-password') {
+        toast.error('New password is too weak.');
+      } else if (code === 'auth/too-many-requests') {
+        toast.error('Too many attempts. Please try again later.');
+      } else if (code === 'auth/requires-recent-login') {
+        toast.error('Please log in again and then change your password.');
+      } else {
+        console.error('Failed to change password:', error);
+        toast.error('Something went wrong while changing your password.');
+      }
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -235,15 +292,61 @@ export default function SettingsPage() {
                   
                   <div>
                     <h3 className="text-md font-medium text-gray-900 mb-2">Change Password</h3>
-                    <p className="text-sm text-gray-600 mb-3">
-                      Send a password reset email to your current email address
-                    </p>
-                    <button
-                      onClick={handleChangePassword}
-                      className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700"
-                    >
-                      Change Password
-                    </button>
+                    {!isPasswordProvider && (
+                      <p className="text-sm text-gray-600 mb-3">
+                        You are signed in with a third-party provider. Password cannot be changed here.
+                      </p>
+                    )}
+                    {isPasswordProvider && (
+                      <p className="text-sm text-gray-600 mb-3">
+                        Change your account password. You&apos;ll need your current password to continue.
+                      </p>
+                    )}
+                    <form onSubmit={handleChangePassword} className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Current password
+                        </label>
+                        <input
+                          type="password"
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          disabled={isChangingPassword || !isPasswordProvider}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          New password
+                        </label>
+                        <input
+                          type="password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          disabled={isChangingPassword || !isPasswordProvider}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Confirm new password
+                        </label>
+                        <input
+                          type="password"
+                          value={confirmNewPassword}
+                          onChange={(e) => setConfirmNewPassword(e.target.value)}
+                          disabled={isChangingPassword || !isPasswordProvider}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-pink-500 focus:border-pink-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={isChangingPassword || !isPasswordProvider}
+                        className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isChangingPassword ? 'Changing password...' : 'Change Password'}
+                      </button>
+                    </form>
                   </div>
                 </div>
               </div>

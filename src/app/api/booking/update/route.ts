@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
 import { getAdminDb } from "@/lib/firebaseAdmin";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
-import { sendMail, tplBookingStatus } from "@/lib/mailer";
-import { formatWhenFromBooking, listingPublicUrl } from "@/lib/emailFormat";
+import { sendBookingStatusEmailToClient } from "@/lib/email/bookingEmails";
+import { formatWhenFromBooking } from "@/lib/emailFormat";
+import { getEffectiveNotificationPrefsForUser } from "@/lib/settings/notifications";
 
 export async function POST(req: NextRequest) {
   try {
@@ -87,33 +88,91 @@ export async function POST(req: NextRequest) {
       } catch (err) {
         console.error("Failed to create booking status notification", err);
       }
-    }
 
-    try {
-      const after = await ref.get();
-      const b = { id: after.id, ...after.data() } as any;
-      const when = formatWhenFromBooking(b);
-      const url = listingPublicUrl(b);
-      let listingTitle = "Listing";
+      // Booking status email notification to client (best-effort, after Firestore writes)
       try {
-        const ls = await db.collection("listings").doc(b.listingId).get();
-        if (ls.exists) listingTitle = ls.data()?.title || "Listing";
-      } catch {}
-      const clientEmail = process.env.CLIENT_FALLBACK_EMAIL || ""; // здесь можно подставить реальный email клиента из профиля
-      if (clientEmail) {
-        await sendMail({
-          to: clientEmail,
-          subject: `Booking ${action === "confirm" ? "confirmed" : "declined"}`,
-          html: tplBookingStatus({
-            status: action as any,
-            when,
-            durationMin: b.durationMin,
-            listingTitle,
-            listingUrl: url,
-          }),
-        });
+        const after = await ref.get();
+        const b = { id: after.id, ...after.data() } as any;
+        const bookingDateTimeText = formatWhenFromBooking(b);
+
+        const clientUidFinal = b.clientUid || b.clientId || null;
+        if (!clientUidFinal) {
+          // No client UID, skip email
+          return;
+        }
+
+        // Get effective notification preferences for client
+        const prefs = await getEffectiveNotificationPrefsForUser(clientUidFinal);
+
+        // Check if notifications are enabled for booking status changes
+        if (!prefs.bookingStatusChangeEnabled) {
+          console.log("[email-booking] skip: client disabled booking status emails", {
+            clientUserId: clientUidFinal,
+            bookingId,
+            status: newStatus,
+          });
+        } else if (!prefs.emailForNotifications) {
+          console.log("[email-booking] skip: no email for notifications", {
+            clientUserId: clientUidFinal,
+            bookingId,
+            status: newStatus,
+          });
+        } else {
+          // Load client profile for display name
+          const clientProfileSnap = await db.collection("profiles").doc(clientUidFinal).get();
+          const clientProfile =
+            clientProfileSnap && clientProfileSnap.exists
+              ? (clientProfileSnap.data() as any)
+              : null;
+
+        // Get master profile for master name
+        const masterUid = b.masterUid || b.masterId || userId;
+        let masterName: string | null = null;
+        if (masterUid) {
+          try {
+            const masterProfileSnap = await db.collection("profiles").doc(masterUid).get();
+            if (masterProfileSnap.exists) {
+              const masterProfileData = masterProfileSnap.data() as any;
+              masterName = masterProfileData?.displayName || null;
+            }
+          } catch {
+            // ignore master profile lookup errors
+          }
+        }
+
+        // Get service name from listing
+        let serviceName: string | null = null;
+        if (b.listingId) {
+          try {
+            const ls = await db.collection("listings").doc(b.listingId).get();
+            if (ls.exists) {
+              const listingData = ls.data() as any;
+              serviceName = listingData?.title || listingData?.serviceName || null;
+            }
+          } catch {
+            // ignore listing load errors
+          }
+        }
+
+        // Construct dashboard URL
+        const host = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+        const dashboardBookingUrl = `${host}/dashboard/bookings`;
+
+          await sendBookingStatusEmailToClient({
+            clientEmail: prefs.emailForNotifications,
+            clientName: clientProfile?.displayName || null,
+            masterName,
+            serviceName,
+            bookingDateTimeText,
+            bookingId,
+            status: newStatus,
+            dashboardBookingUrl,
+          });
+        }
+      } catch (emailErr) {
+        console.error("[booking/update] email error", emailErr);
       }
-    } catch {}
+    }
 
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
   } catch (e: any) {

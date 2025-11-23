@@ -254,10 +254,28 @@ export async function fetchPublicMasters(filters: {
     const q = fsQuery(collection(requireDb(), 'masters'), ...constraints);
     const querySnapshot = await getDocs(q);
     
-    return querySnapshot.docs.map(doc => ({
+    let masters = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as Master[];
+    
+    // Filter by master visibility: exclude masters with isPublicProfile === false
+    const visibilityFiltered: Master[] = [];
+    for (const master of masters) {
+      const masterUid = (master as any).uid || (master as any).userId || (master as any).ownerId || (master as any).userUID || master.id;
+      if (masterUid) {
+        const { shouldMasterBeVisibleInPublicSearch } = await import('@/lib/settings/masterVisibility');
+        const isVisible = await shouldMasterBeVisibleInPublicSearch(masterUid);
+        if (isVisible) {
+          visibilityFiltered.push(master);
+        }
+      } else {
+        // If no UID found, include it (backward compatible)
+        visibilityFiltered.push(master);
+      }
+    }
+    
+    return visibilityFiltered;
   } catch (error) {
     console.error('Error fetching public masters:', error);
     return [];

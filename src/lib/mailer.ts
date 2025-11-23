@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 
 const apiKey = process.env.RESEND_API_KEY;
-const from = process.env.EMAIL_FROM || "BeautyReviewty <no-reply@beautyreviewty.app>";
+const from = process.env.EMAIL_FROM || "BeautyReviewty <onboarding@resend.dev>";
 const fallback = process.env.EMAIL_FALLBACK;
 
 let resend: Resend | null = null;

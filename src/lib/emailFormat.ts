@@ -1,8 +1,57 @@
-export function formatWhenFromBooking(b:any) {
- const d = b.startAt?.toDate ? b.startAt.toDate() : (b.startAt?._seconds ? new Date(b.startAt._seconds*1000) : null);
- if (!d) return "";
- // локально ISO → "YYYY-MM-DD HH:mm"
- return d.toISOString().slice(0,16).replace("T"," ");
+export function formatWhenFromBooking(b: any) {
+  // Handle Firestore Timestamp
+  if (b.startAt?.toDate) {
+    const d = b.startAt.toDate();
+    return d.toLocaleString("en-US", {
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  }
+  // Handle Timestamp with _seconds
+  if (b.startAt?._seconds) {
+    const d = new Date(b.startAt._seconds * 1000);
+    return d.toLocaleString("en-US", {
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  }
+  // Handle ISO string
+  if (typeof b.startAt === "string") {
+    const d = new Date(b.startAt);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleString("en-US", {
+        weekday: "short",
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    }
+  }
+  // Handle startMs (milliseconds timestamp)
+  if (typeof b.startMs === "number") {
+    const d = new Date(b.startMs);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleString("en-US", {
+        weekday: "short",
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    }
+  }
+  return "";
 }
 export function listingPublicUrl(b:any) {
  const slug = b._listing?.slug || b.listingId;

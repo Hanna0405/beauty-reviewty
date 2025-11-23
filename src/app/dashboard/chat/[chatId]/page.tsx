@@ -102,6 +102,19 @@ export default function BookingChatPage() {
       }).catch(() => {});
     }
 
+    // Send email notification (best-effort, non-blocking)
+    fetch("/api/booking/message/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        bookingId,
+        senderId: userId,
+        messageText: input.trim(),
+      }),
+    }).catch((err) => {
+      console.error("[chat] failed to notify email", err);
+    });
+
     setInput("");
   }
 
