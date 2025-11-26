@@ -338,12 +338,11 @@ function PageContent() {
     .filter(l => includesAll(docServiceKeysDeep(l), selectedServiceKeys))
     .filter(l => includesAll(docLanguageKeysDeep(l), selectedLanguageKeys))
     .filter(l => {
-      // Apply minRating filter using finalRating
-      if (minRating) {
-        const r = l.finalRating;
-        if (typeof r !== "number" || r < minRating) return false;
-      }
-      return true;
+      // Apply minRating filter using finalRating - match /reviewty behavior: if minRating is null/undefined, show all
+      if (minRating == null) return true;
+      const r = l.finalRating;
+      if (typeof r !== "number") return false;
+      return r >= minRating;
     });
 
   // Compute master ratings from their listings (using enhanced listings with computed ratings)
@@ -394,15 +393,14 @@ function PageContent() {
     return ratings;
   }, [filteredListingsWithRatings]);
   
-  // Filter masters by minRating if set (using aggregated ratings)
+  // Filter masters by minRating if set (using aggregated ratings) - match /reviewty behavior: if minRating is null/undefined, show all
   const filteredMastersFinal = filteredMastersFiltered.filter(m => {
-    if (minRating) {
-      const masterId = m.id || m.uid;
-      const ratingData = masterId ? masterRatings.get(masterId) : null;
-      const r = ratingData?.rating;
-      if (typeof r !== "number" || r < minRating) return false;
-    }
-    return true;
+    if (minRating == null) return true;
+    const masterId = m.id || m.uid;
+    const ratingData = masterId ? masterRatings.get(masterId) : null;
+    const r = ratingData?.rating;
+    if (typeof r !== "number") return false;
+    return r >= minRating;
   });
   
   const hasResults = filteredMastersFinal.length > 0 || filteredListingsWithRatings.length > 0;
