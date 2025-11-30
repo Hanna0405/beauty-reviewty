@@ -9,6 +9,7 @@ import Providers from "./providers";
 import AppHeader from "@/components/layout/AppHeader";
 
 import ToasterClient from "@/components/system/ToasterClient";
+import { SwRegister } from "@/components/pwa/SwRegister";
 
 export const metadata: Metadata = { title: "BeautyReviewty" };
 
@@ -20,6 +21,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
+        <SwRegister />
         <AuthProvider>
           <Providers>
             <header className="relative z-50 border-b">
