@@ -140,7 +140,7 @@ export default function PublicCardReviewForm({ publicCardSlug }: Props) {
                 type="button"
                 aria-label={`Rate ${v}`}
                 onClick={() => setRating(v)}
-                className="text-2xl leading-none"
+                className={`text-2xl leading-none ${v <= rating ? "text-yellow-400" : "text-gray-300"}`}
               >
                 {v <= rating ? "★" : "☆"}
               </button>

@@ -63,11 +63,15 @@ export default function PublicCardReviews({ publicCardSlug }: Props) {
           {items.map((r, i) => (
             <li key={i} className="border rounded-md p-3">
               {/* stars */}
-              <div className="text-rose-500 text-lg">
-                {"★".repeat(
-                  Math.max(0, Math.min(5, Math.round(Number(r.rating) || 0)))
-                )}{" "}
-                {"☆".repeat(Math.max(0, 5 - Math.round(Number(r.rating) || 0)))}
+              <div className="text-lg">
+                <span className="text-yellow-400">
+                  {"★".repeat(
+                    Math.max(0, Math.min(5, Math.round(Number(r.rating) || 0)))
+                  )}
+                </span>
+                <span className="text-gray-300">
+                  {"☆".repeat(Math.max(0, 5 - Math.round(Number(r.rating) || 0)))}
+                </span>
               </div>
               {/* name + date */}
               <div className="text-sm text-gray-500 mt-1">

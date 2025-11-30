@@ -19,7 +19,7 @@ type PublicCard = {
   languageKeys: string[];
   cityDisplay: string;
   photos: string[];
-  // later we could expose text/description, etc.
+  text?: string;
 };
 
 // Stars component (inline since we need it for server component)
@@ -99,6 +99,7 @@ export default async function PublicCardPage({
     languageKeys: Array.isArray(data.languageKeys) ? data.languageKeys : [],
     cityDisplay,
     photos,
+    text: data.text || "",
   };
 
   async function loadAllReviews(slug: string, listingId?: string) {
@@ -215,6 +216,18 @@ export default async function PublicCardPage({
           </div>
         </div>
       </section>
+
+      {/* REVIEW TEXT */}
+      {card.text && (
+        <section className="bg-pink-50 border border-pink-100 rounded-lg p-4 shadow-sm">
+          <h2 className="text-base font-semibold text-gray-900 mb-3">
+            Review
+          </h2>
+          <p className="whitespace-pre-line text-sm md:text-base text-slate-800">
+            {card.text}
+          </p>
+        </section>
+      )}
 
       {/* WORK PHOTOS */}
       <section className="bg-pink-50 border border-pink-100 rounded-lg p-4 shadow-sm">
