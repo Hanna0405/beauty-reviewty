@@ -22,11 +22,11 @@ function PageContent() {
   const searchParams = useSearchParams();
   const urlCity = searchParams?.get("city")?.toLowerCase() || undefined;
 
-  // Controlled state for filters
+  // Controlled state for filters - use null for "Any" to match /reviewty pattern
   const [selectedServices, setSelectedServices] = useState<any[]>([]);
   const [selectedLanguages, setSelectedLanguages] = useState<any[]>([]);
   const [selectedCity, setSelectedCity] = useState<any | null>(null);
-  const [minRating, setMinRating] = useState<number | undefined>(undefined);
+  const [minRating, setMinRating] = useState<number | null>(null); // null = "Any", matching /reviewty
   const [name, setName] = useState<string>('');
   
   // Full dataset loaded once (never changes after initial load)
@@ -73,17 +73,22 @@ function PageContent() {
   const handleFiltersChange = useCallback((newFilters: FM) => {
     if (newFilters.services !== undefined) handleServicesChange(newFilters.services);
     if (newFilters.languages !== undefined) handleLanguagesChange(newFilters.languages);
-    if ((newFilters as any).cityPlaceId || newFilters.city) {
-      // Preserve any lat/lng that might be in the filter object
-      handleCityChange({
-        formatted: newFilters.city,
-        placeId: (newFilters as any).cityPlaceId,
-        cityKey: (newFilters as any).cityKey,
-        lat: (newFilters as any).lat,
-        lng: (newFilters as any).lng,
-      });
+    if (newFilters.city !== undefined) {
+      if ((newFilters as any).cityPlaceId || newFilters.city) {
+        // Preserve any lat/lng that might be in the filter object
+        handleCityChange({
+          formatted: newFilters.city,
+          placeId: (newFilters as any).cityPlaceId,
+          cityKey: (newFilters as any).cityKey,
+          lat: (newFilters as any).lat,
+          lng: (newFilters as any).lng,
+        });
+      } else {
+        // City was cleared
+        handleCityChange(null);
+      }
     }
-    if (newFilters.minRating !== undefined) setMinRating(newFilters.minRating);
+    if (newFilters.minRating !== undefined) setMinRating(newFilters.minRating ?? null);
     if (newFilters.name !== undefined) setName(newFilters.name);
   }, [handleServicesChange, handleLanguagesChange, handleCityChange]);
 
@@ -170,67 +175,12 @@ function PageContent() {
     return () => { cancelled = true; };
   }, [allListings, initialLoad]);
 
-  // 1) Normalize UI selections to KEYS
+  // Normalize UI selections to KEYS (shared for masters & listings) - defined early before any useMemo
   const selectedServiceKeys = selectedToKeys(selectedServices as any);
   const selectedLanguageKeys = selectedToKeys(selectedLanguages as any);
-  
-  // Use UI selection first, fallback to ?city=<key> from URL
-  const cityKey = extractCityKey(selectedCity) ?? urlCity;
-
-  // Helper functions for city matching
-  const normalize = (val: any) => {
-    if (!val) return "";
-    return val
-      .toString()
-      .trim()
-      .toLowerCase()
-      .replace(/[.,]/g, "")
-      .replace(/\s+/g, " ");
-  };
-
-  // detect city-like fields from current data
-  const detectCityFields = (items: any[]) => {
-    const result = new Set<string>();
-    const base = [
-      "city",
-      "cityKey",
-      "citySlug",
-      "cityName",
-      "location",
-      "formattedAddress",
-      "addressFormatted",
-    ];
-
-    items.slice(0, 5).forEach((it) => {
-      if (!it) return;
-      Object.keys(it).forEach((k) => {
-        const lk = k.toLowerCase();
-        if (lk.includes("city") || lk.includes("location") || lk.includes("address")) {
-          result.add(k);
-        }
-      });
-
-      if (it.location && typeof it.location === "object") {
-        Object.keys(it.location).forEach((k) => {
-          const lk = k.toLowerCase();
-          if (lk.includes("city") || lk.includes("slug") || lk.includes("formatted") || lk.includes("address")) {
-            result.add("location." + k);
-          }
-        });
-      }
-    });
-
-    base.forEach((b) => result.add(b));
-
-    return Array.from(result);
-  };
 
   // Helper to normalize strings for city comparison
   const normalizeCityVal = (v?: string) => v ? v.toLowerCase().trim() : "";
-
-  // ---- CITY FILTER ----
-  let filteredMasters = allMasters;
-  let filteredListings = allListings;
 
   // Get city slug from URL query param
   const queryCitySlug = urlCity || undefined;
@@ -241,48 +191,6 @@ function PageContent() {
     selectedCity?.cityKey ||
     queryCitySlug ||
     null;
-
-  if (effectiveCitySlug) {
-    const normalizedSlug = normalizeCityVal(effectiveCitySlug);
-
-    // Filter listings
-    filteredListings = filteredListings.filter((l: any) => {
-      const itemSlug =
-        l.cityKey ||
-        l.citySlug ||
-        l.city?.slug ||
-        "";
-      const itemName =
-        l.cityName ||
-        l.city?.formatted ||
-        l.city ||
-        "";
-
-      return (
-        normalizeCityVal(itemSlug) === normalizedSlug ||
-        normalizeCityVal(itemName).startsWith(normalizedSlug.split("-")[0])
-      );
-    });
-
-    // Filter masters
-    filteredMasters = filteredMasters.filter((m: any) => {
-      const itemSlug =
-        m.cityKey ||
-        m.citySlug ||
-        m.city?.slug ||
-        "";
-      const itemName =
-        m.cityName ||
-        m.city?.formatted ||
-        m.city ||
-        "";
-
-      return (
-        normalizeCityVal(itemSlug) === normalizedSlug ||
-        normalizeCityVal(itemName).startsWith(normalizedSlug.split("-")[0])
-      );
-    });
-  }
 
   // Compute listing ratings from reviews
   const enhancedListings = useMemo(() => {
@@ -299,8 +207,8 @@ function PageContent() {
       reviewsByListing.get(listingId)!.push(review);
     });
 
-    // Enhance listings with computed ratings
-    return filteredListings.map((listing) => {
+    // Enhance ALL listings with computed ratings - always start from full dataset
+    return allListings.map((listing) => {
       const listingId = listing.id || listing._id;
       const reviews = listingId ? reviewsByListing.get(listingId) || [] : [];
       
@@ -322,36 +230,15 @@ function PageContent() {
         finalCount,
       };
     });
-  }, [filteredListings, allReviews]);
+  }, [allListings, allReviews]);
 
-  // Apply filters and compute ratings
-  const filteredMastersFiltered = filteredMasters
-    .filter(m => includesAll(docServiceKeysDeep(m), selectedServiceKeys))
-    .filter(m => includesAll(docLanguageKeysDeep(m), selectedLanguageKeys))
-    .filter(m => {
-      // Apply name search filter
-      if (name && m.displayName && !m.displayName.toLowerCase().includes(name.toLowerCase())) return false;
-      return true;
-    });
-
-  const filteredListingsWithRatings = enhancedListings
-    .filter(l => includesAll(docServiceKeysDeep(l), selectedServiceKeys))
-    .filter(l => includesAll(docLanguageKeysDeep(l), selectedLanguageKeys))
-    .filter(l => {
-      // Apply minRating filter using finalRating - match /reviewty behavior: if minRating is null/undefined, show all
-      if (minRating == null) return true;
-      const r = l.finalRating;
-      if (typeof r !== "number") return false;
-      return r >= minRating;
-    });
-
-  // Compute master ratings from their listings (using enhanced listings with computed ratings)
+  // Compute master ratings from ALL enhanced listings (not filtered) - ensures ratings always computed from full dataset
   const masterRatings = useMemo(() => {
     const ratings = new Map<string, { rating: number | null; count: number }>();
     
-    // Group listings by master
+    // Group listings by master - use ALL enhanced listings
     const listingsByMaster = new Map<string, any[]>();
-    filteredListingsWithRatings.forEach((listing) => {
+    enhancedListings.forEach((listing) => {
       // Try multiple field names to link listing to master
       const masterId = listing.masterId || listing.ownerId || listing.userId || listing.uid || listing.userUID || listing.ownerUid || listing.profileUid || listing.masterUid || listing.userUid || listing.authorUid;
       if (!masterId) return;
@@ -391,17 +278,95 @@ function PageContent() {
     });
     
     return ratings;
-  }, [filteredListingsWithRatings]);
-  
-  // Filter masters by minRating if set (using aggregated ratings) - match /reviewty behavior: if minRating is null/undefined, show all
-  const filteredMastersFinal = filteredMastersFiltered.filter(m => {
-    if (minRating == null) return true;
-    const masterId = m.id || m.uid;
-    const ratingData = masterId ? masterRatings.get(masterId) : null;
-    const r = ratingData?.rating;
-    if (typeof r !== "number") return false;
-    return r >= minRating;
-  });
+  }, [enhancedListings]);
+
+  // Filter masters - ALWAYS start from allMasters (full dataset), matching /reviewty pattern
+  const filteredMastersFinal = useMemo(() => {
+    let filtered = [...allMasters];
+
+    // CITY FILTER
+    if (effectiveCitySlug) {
+      const normalizedSlug = normalizeCityVal(effectiveCitySlug);
+      filtered = filtered.filter((m: any) => {
+        const itemSlug = m.cityKey || m.citySlug || m.city?.slug || "";
+        const itemName = m.cityName || m.city?.formatted || m.city || "";
+        return (
+          normalizeCityVal(itemSlug) === normalizedSlug ||
+          normalizeCityVal(itemName).startsWith(normalizedSlug.split("-")[0])
+        );
+      });
+    }
+
+    // SERVICES FILTER
+    if (selectedServiceKeys.length > 0) {
+      filtered = filtered.filter(m => includesAll(docServiceKeysDeep(m), selectedServiceKeys));
+    }
+
+    // LANGUAGES FILTER
+    if (selectedLanguageKeys.length > 0) {
+      filtered = filtered.filter(m => includesAll(docLanguageKeysDeep(m), selectedLanguageKeys));
+    }
+
+    // NAME FILTER
+    if (name) {
+      const nameLower = name.toLowerCase();
+      filtered = filtered.filter(m => {
+        return m.displayName && m.displayName.toLowerCase().includes(nameLower);
+      });
+    }
+
+    // RATING FILTER - match /reviewty behavior: if minRating is null, show all
+    if (minRating != null && minRating > 0) {
+      filtered = filtered.filter(m => {
+        const masterId = m.id || m.uid;
+        const ratingData = masterId ? masterRatings.get(masterId) : null;
+        const r = ratingData?.rating;
+        if (typeof r !== "number") return false;
+        return r >= minRating;
+      });
+    }
+
+    return filtered;
+  }, [allMasters, effectiveCitySlug, selectedServiceKeys, selectedLanguageKeys, name, minRating, masterRatings]);
+
+  // Filter listings - ALWAYS start from enhancedListings (full dataset with ratings), matching /reviewty pattern
+  const filteredListingsWithRatings = useMemo(() => {
+    let filtered = [...enhancedListings];
+
+    // CITY FILTER
+    if (effectiveCitySlug) {
+      const normalizedSlug = normalizeCityVal(effectiveCitySlug);
+      filtered = filtered.filter((l: any) => {
+        const itemSlug = l.cityKey || l.citySlug || l.city?.slug || "";
+        const itemName = l.cityName || l.city?.formatted || l.city || "";
+        return (
+          normalizeCityVal(itemSlug) === normalizedSlug ||
+          normalizeCityVal(itemName).startsWith(normalizedSlug.split("-")[0])
+        );
+      });
+    }
+
+    // SERVICES FILTER
+    if (selectedServiceKeys.length > 0) {
+      filtered = filtered.filter(l => includesAll(docServiceKeysDeep(l), selectedServiceKeys));
+    }
+
+    // LANGUAGES FILTER
+    if (selectedLanguageKeys.length > 0) {
+      filtered = filtered.filter(l => includesAll(docLanguageKeysDeep(l), selectedLanguageKeys));
+    }
+
+    // RATING FILTER - match /reviewty behavior: if minRating is null, show all
+    if (minRating != null && minRating > 0) {
+      filtered = filtered.filter(l => {
+        const r = l.finalRating;
+        if (typeof r !== "number") return false;
+        return r >= minRating;
+      });
+    }
+
+    return filtered;
+  }, [enhancedListings, effectiveCitySlug, selectedServiceKeys, selectedLanguageKeys, minRating]);
   
   const hasResults = filteredMastersFinal.length > 0 || filteredListingsWithRatings.length > 0;
   

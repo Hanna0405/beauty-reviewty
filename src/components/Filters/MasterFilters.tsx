@@ -29,7 +29,7 @@ export default function MasterFilters({ value, onChange, showName }: Props) {
   const [city, setCity] = useState<CityNorm | null>(null);
   const [services, setServices] = useState<TagOption[]>(value.services ?? []);
   const [languages, setLanguages] = useState<TagOption[]>(value.languages ?? []);
-  const [minRating, setMinRating] = useState<number | undefined>(value.minRating);
+  const [minRating, setMinRating] = useState<number | null>(value.minRating ?? null);
   const [name, setName] = useState<string>(value.name ?? '');
 
   // Handle city selection with URL updates
@@ -54,12 +54,12 @@ export default function MasterFilters({ value, onChange, showName }: Props) {
   }, [city, services, languages, minRating, name, onChange]);
 
   const clearAll = () => {
-    onChange({ city: undefined, cityPlaceId: undefined, lat: undefined, lng: undefined, services: [], languages: [], minRating: undefined, name: '' });
+    onChange({ city: undefined, cityPlaceId: undefined, lat: undefined, lng: undefined, services: [], languages: [], minRating: null, name: '' });
     // sync local states so inputs reflect immediately
     setCity(null);
     setServices([]);
     setLanguages([]);
-    setMinRating(undefined);
+    setMinRating(null);
     setName('');
   };
 
@@ -102,7 +102,7 @@ export default function MasterFilters({ value, onChange, showName }: Props) {
         <label className="mb-1 block text-sm">Rating (min)</label>
         <select
           value={minRating ?? ''}
-          onChange={(e) => setMinRating(e.target.value ? Number(e.target.value) : undefined)}
+          onChange={(e) => setMinRating(e.target.value ? Number(e.target.value) : null)}
           className="w-full rounded-md border px-3 py-2">
           <option value="">Any</option>
           {[5,4,3,2,1].map(v => <option key={v} value={v}>{v}★ & up</option>)}

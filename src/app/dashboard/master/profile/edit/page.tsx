@@ -309,19 +309,19 @@ export default function EditProfilePage() {
  Loading…
  </div>
  ) : (
- <div className="bg-white rounded-xl shadow-sm border border-pink-50 p-6 space-y-6">
- {/* Title row */}
- <div className="flex items-center justify-between">
- <h1 className="text-2xl font-semibold">Edit Profile</h1>
- <a
- href="/dashboard/master/profile"
- className="text-sm text-pink-500 hover:text-pink-600"
- >
- ← Back to Profile
- </a>
- </div>
+    <div className="bg-white rounded-xl shadow-sm border border-pink-50 p-6 space-y-6 overflow-x-hidden max-w-full">
+      {/* Title row */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Edit Profile</h1>
+        <a
+          href="/dashboard/master/profile"
+          className="text-sm text-pink-500 hover:text-pink-600"
+        >
+          ← Back to Profile
+        </a>
+      </div>
 
- <form onSubmit={handleSave} className="space-y-6">
+      <form onSubmit={handleSave} className="space-y-6 max-w-full overflow-x-hidden">
  {error ? (
  <div className="rounded-md bg-red-50 border border-red-200 text-sm text-red-700 p-3">
  {error}

@@ -48,8 +48,8 @@ export default function MasterAvatarInput({ uid, onUploaded, currentUrl }: Props
   return (
     <div className="grid gap-3">
       <label className="text-sm font-medium">Avatar</label>
-      <div className="flex items-center gap-4">
-        <div className="h-20 w-20 overflow-hidden rounded-full border bg-gray-100">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center">
+        <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full border bg-gray-100">
           {preview ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={preview} alt="Preview" className="h-full w-full object-cover" />
@@ -60,21 +60,24 @@ export default function MasterAvatarInput({ uid, onUploaded, currentUrl }: Props
             <div className="flex h-full w-full items-center justify-center text-xs text-gray-500">No photo</div>
           )}
         </div>
-        <div className="flex flex-col gap-2">
-          <input
-            type="file"
-            accept="image/*,.heic,.heif,.tiff,.bmp"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) handleFile(f);
-            }}
-            disabled={isUploading}
-          />
-          {isUploading && <p className="text-sm text-gray-600">Uploading…</p>}
+        <div className="flex flex-col gap-2 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="file"
+              accept="image/*,.heic,.heif,.tiff,.bmp"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleFile(f);
+              }}
+              disabled={isUploading}
+              className="max-w-full"
+            />
+          </div>
+          {isUploading && <p className="text-sm text-gray-600 break-words whitespace-normal">Uploading…</p>}
           {preview && (
             <button 
               type="button" 
-              className="text-sm text-gray-600 underline" 
+              className="text-sm text-gray-600 underline break-words whitespace-normal" 
               onClick={() => {
                 setPreview(null);
                 URL.revokeObjectURL(preview);
@@ -85,7 +88,7 @@ export default function MasterAvatarInput({ uid, onUploaded, currentUrl }: Props
           )}
         </div>
       </div>
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-gray-500 leading-snug break-words whitespace-normal max-w-full">
         You can upload any common photo format. We will convert it to WebP/JPEG automatically. Max 8MB.
       </p>
     </div>

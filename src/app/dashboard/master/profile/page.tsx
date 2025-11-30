@@ -130,8 +130,10 @@ export default function MasterProfilePage() {
 
   <div className="rounded-xl bg-white border border-pink-100 shadow-sm overflow-hidden">
   {/* Header */}
-  <div className="bg-gradient-to-r from-pink-100 via-pink-50 to-white px-6 py-5 flex items-center gap-4">
-   <div className="h-16 w-16 rounded-full bg-pink-200 flex items-center justify-center overflow-hidden ring-2 ring-white">
+  <div className="bg-gradient-to-r from-pink-100 via-pink-50 to-white px-6 py-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+   {/* Left part: avatar + name + location */}
+   <div className="flex flex-row items-start gap-3 md:items-center md:flex-1 min-w-0">
+   <div className="h-16 w-16 shrink-0 rounded-full bg-pink-200 flex items-center justify-center overflow-hidden ring-2 ring-white">
    {profile?.avatarUrl ? (
    <img
    src={profile.avatarUrl}
@@ -144,28 +146,30 @@ export default function MasterProfilePage() {
    </span>
    )}
    </div>
-   <div className="flex-1">
+   <div className="min-w-0">
    <h2 className="text-lg font-semibold text-gray-900">{displayName}</h2>
    <p className="flex items-center gap-1 text-sm text-gray-500">
    <span className="text-pink-500">●</span> {city}
    </p>
    </div>
-   <div className="flex gap-2">
+   </div>
+   {/* Right part: buttons */}
+   <div className="flex w-full flex-wrap gap-2 md:w-auto md:justify-end">
    <Link
    href="/dashboard/master/profile/edit"
-   className="px-4 py-2 text-sm bg-pink-600 text-white rounded-md hover:bg-pink-700"
+   className="text-sm py-2 px-3 flex-1 md:flex-none md:px-4 bg-pink-600 text-white rounded-md hover:bg-pink-700"
    >
    Edit profile
    </Link>
    <Link
    href={viewHref}
-   className="px-4 py-2 text-sm bg-white text-pink-700 border border-pink-200 rounded-md hover:bg-pink-50"
+   className="text-sm py-2 px-3 flex-1 md:flex-none md:px-4 bg-white text-pink-700 border border-pink-200 rounded-md hover:bg-pink-50"
    >
    View
    </Link>
    <button
    onClick={handleDelete}
-   className="px-4 py-2 text-sm bg-red-50 text-red-600 border border-red-100 rounded-md hover:bg-red-100"
+   className="text-sm py-2 px-3 flex-1 md:flex-none md:px-4 bg-red-50 text-red-600 border border-red-100 rounded-md hover:bg-red-100"
    >
    Delete
    </button>
