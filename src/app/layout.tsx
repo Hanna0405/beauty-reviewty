@@ -11,7 +11,17 @@ import AppHeader from "@/components/layout/AppHeader";
 import ToasterClient from "@/components/system/ToasterClient";
 import { SwRegister } from "@/components/pwa/SwRegister";
 
-export const metadata: Metadata = { title: "BeautyReviewty" };
+export const metadata: Metadata = {
+  title: "BeautyReviewty",
+  icons: {
+    icon: [
+      { url: '/icons/br-icon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+  },
+};
 
 export default function RootLayout({
   children,

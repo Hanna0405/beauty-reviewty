@@ -13,16 +13,14 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: '#f472b6', // rose / pink tone
     icons: [
       {
-        src: '/icons/br-icon-192.svg',
+        src: '/icons/br-icon-192.png',
         sizes: '192x192',
-        type: 'image/svg+xml',
-        purpose: 'any',
+        type: 'image/png',
       },
       {
-        src: '/icons/br-icon-512.svg',
+        src: '/icons/br-icon-512.png',
         sizes: '512x512',
-        type: 'image/svg+xml',
-        purpose: 'any',
+        type: 'image/png',
       },
     ],
   };
