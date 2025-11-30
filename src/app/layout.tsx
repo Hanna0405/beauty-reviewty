@@ -10,6 +10,7 @@ import AppHeader from "@/components/layout/AppHeader";
 
 import ToasterClient from "@/components/system/ToasterClient";
 import { SwRegister } from "@/components/pwa/SwRegister";
+import { InstallAppBanner } from "@/components/pwa/InstallAppBanner";
 
 export const metadata: Metadata = {
   title: "BeautyReviewty",
@@ -32,6 +33,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <SwRegister />
+        <InstallAppBanner />
         <AuthProvider>
           <Providers>
             <header className="relative z-50 border-b">
