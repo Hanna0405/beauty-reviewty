@@ -70,7 +70,18 @@ function PageContent() {
   }, []);
 
   // Consolidated filter change handler for MasterFilters component
-  const handleFiltersChange = useCallback((newFilters: FM) => {
+  // Accepts MasterFilters Props value type which allows minRating?: number | null
+  type MasterFiltersValue = {
+    city?: string;
+    cityPlaceId?: string;
+    lat?: number;
+    lng?: number;
+    services: any[];
+    languages: any[];
+    minRating?: number | null;
+    name?: string;
+  };
+  const handleFiltersChange = useCallback((newFilters: MasterFiltersValue) => {
     if (newFilters.services !== undefined) handleServicesChange(newFilters.services);
     if (newFilters.languages !== undefined) handleLanguagesChange(newFilters.languages);
     if (newFilters.city !== undefined) {

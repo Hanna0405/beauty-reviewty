@@ -16,7 +16,7 @@ type Props = {
     lng?: number;
     services: TagOption[]; 
     languages: TagOption[]; 
-    minRating?: number; 
+    minRating?: number | null; 
     name?: string 
   };
   onChange: (v: Props['value']) => void;
