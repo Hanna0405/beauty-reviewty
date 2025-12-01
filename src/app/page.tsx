@@ -18,29 +18,29 @@ export default async function HomePage() {
       {/* Unified Hero Block */}
       <section className="container mx-auto px-4 mt-6 md:mt-10">
         <div
-          className="rounded-3xl shadow-sm border border-rose-100 overflow-hidden
-          bg-gradient-to-r from-rose-50 via-rose-50/70 to-white"
+          className="rounded-3xl shadow-sm border border-pink-100 overflow-hidden
+          bg-gradient-to-r from-pink-50 via-pink-50/70 to-white"
         >
           <div className="flex flex-col md:flex-row items-stretch gap-6 md:gap-8 p-5 md:p-8">
             {/* Left: text & buttons */}
             <div className="md:basis-1/2 flex flex-col justify-center">
-              <h1 className="text-2xl md:text-3xl font-bold text-rose-900">
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
                 Find your perfect beauty master
               </h1>
-              <p className="mt-2 text-rose-700/80">
+              <p className="mt-2 text-gray-700">
                 Search by city, services, and language. Read real reviews with
                 photos.
               </p>
               <div className="mt-4 flex gap-3">
                 <a
                   href="/masters"
-                  className="px-4 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition"
+                  className="px-4 py-2 rounded-md border border-pink-500 bg-pink-500 text-white hover:bg-pink-600 transition text-sm font-medium"
                 >
                   Browse Masters
                 </a>
                 <a
                   href="/reviewty"
-                  className="px-4 py-2 rounded-lg bg-rose-200 text-rose-800 hover:bg-rose-300 transition"
+                  className="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-900 hover:bg-pink-50 transition text-sm font-medium"
                 >
                   Reviewty
                 </a>
@@ -76,7 +76,7 @@ export default async function HomePage() {
 
       {/* Real reviews carousel */}
       <section className="container mx-auto px-4 mt-8 md:mt-12">
-        <div className="rounded-3xl bg-rose-50/40 border border-rose-100 shadow-sm p-4 md:p-6">
+        <div className="rounded-3xl bg-pink-50/40 border border-pink-100 shadow-sm p-4 md:p-6">
           <LatestReviewsCarousel items={latestReviews} />
         </div>
       </section>
