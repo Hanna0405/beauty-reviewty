@@ -31,6 +31,8 @@ export type Master = {
   ratingCount?: number;
   createdAt: any;
   updatedAt: any;
+  deleted?: boolean; // Soft delete flag
+  deletedAt?: any; // Timestamp when deleted
 };
 
 // New Listing type for better organization
@@ -52,6 +54,8 @@ export type Listing = {
   ratingCount?: number;
   createdAt?: any;
   updatedAt?: any;
+  deleted?: boolean; // Soft delete flag
+  deletedAt?: any; // Timestamp when deleted
 };
 
 export type MasterWithExtras = Master & {
@@ -99,26 +103,31 @@ export type MasterProfile = {
 };
 
 // бронирование услуги
-export type BookingStatus = 'pending' | 'confirmed' | 'declined' | 'canceled' | 'completed';
+export type BookingStatus =
+  | "pending"
+  | "confirmed"
+  | "declined"
+  | "canceled"
+  | "completed";
 
 export type Booking = {
- id: string;
- profileId: string; // анкета мастера
- masterUid: string; // owner of listing
- masterEmail: string; // where to notify
- clientUid: string;
- clientEmail?: string; // fallback for notifications
- serviceId: string;
- serviceName: string;
- price: number;
- durationMin: number;
- date: string; // YYYY-MM-DD
- start: string; // HH:mm
- end: string; // HH:mm
- status: BookingStatus;
- note?: string;
- createdAt: any;
- updatedAt: any;
+  id: string;
+  profileId: string; // анкета мастера
+  masterUid: string; // owner of listing
+  masterEmail: string; // where to notify
+  clientUid: string;
+  clientEmail?: string; // fallback for notifications
+  serviceId: string;
+  serviceName: string;
+  price: number;
+  durationMin: number;
+  date: string; // YYYY-MM-DD
+  start: string; // HH:mm
+  end: string; // HH:mm
+  status: BookingStatus;
+  note?: string;
+  createdAt: any;
+  updatedAt: any;
 };
 
 // Master profile form data type
@@ -139,12 +148,12 @@ export type MasterProfileFormData = {
 
 // отзыв
 export type Review = {
- id: string;
- profileId: string;
- authorUid: string;
- rating?: number;
- text: string;
- photos?: string[];
- createdAt: any;
- visible: boolean;
+  id: string;
+  profileId: string;
+  authorUid: string;
+  rating?: number;
+  text: string;
+  photos?: string[];
+  createdAt: any;
+  visible: boolean;
 };

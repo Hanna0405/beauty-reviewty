@@ -17,7 +17,10 @@ export type Listing = {
   // ...other fields
 };
 
-export async function fetchListingsByMasterUid(masterUid: string, opts?: { includeDrafts?: boolean }) {
+export async function fetchListingsByMasterUid(
+  masterUid: string,
+  opts?: { includeDrafts?: boolean }
+) {
   // Prefer masterUid; support legacy fields as fallback
   const uids = Array.from(new Set([masterUid].filter(Boolean))) as string[];
 
@@ -31,20 +34,39 @@ export async function fetchListingsByMasterUid(masterUid: string, opts?: { inclu
 
   const res: Listing[] = [];
   const snap1 = await getDocs(q1);
-  snap1.forEach(d => res.push({ id: d.id, ...(d.data() as any) }));
+  snap1.forEach((d) => {
+    const data = d.data() as any;
+    if (!data.deleted) {
+      res.push({ id: d.id, ...data });
+    }
+  });
 
   if (opts?.includeDrafts) {
     // drafts for this owner (masterUid matches OR legacy owner fields)
-    const q2 = query(collection(db, "listings"), where("masterUid", "==", masterUid), where("isActive", "==", false));
+    const q2 = query(
+      collection(db, "listings"),
+      where("masterUid", "==", masterUid),
+      where("isActive", "==", false)
+    );
     const snap2 = await getDocs(q2);
-    snap2.forEach(d => res.push({ id: d.id, ...(d.data() as any) }));
+    snap2.forEach((d) => {
+      const data = d.data() as any;
+      if (!data.deleted && !res.find((x) => x.id === d.id)) {
+        res.push({ id: d.id, ...data });
+      }
+    });
 
     // legacy fallback (optional, safe no-op if field absent)
-    const q3 = query(collection(db, "listings"), where("ownerUid", "==", masterUid));
+    const q3 = query(
+      collection(db, "listings"),
+      where("ownerUid", "==", masterUid)
+    );
     const snap3 = await getDocs(q3);
-    snap3.forEach(d => {
+    snap3.forEach((d) => {
       const data = d.data() as any;
-      if (!res.find(x => x.id === d.id)) res.push({ id: d.id, ...data });
+      if (!data.deleted && !res.find((x) => x.id === d.id)) {
+        res.push({ id: d.id, ...data });
+      }
     });
   }
 

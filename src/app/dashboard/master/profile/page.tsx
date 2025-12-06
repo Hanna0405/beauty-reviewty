@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { doc, onSnapshot, deleteDoc } from "firebase/firestore";
+import { doc, onSnapshot, deleteDoc, collection, query, where, getDocs, updateDoc, serverTimestamp } from "firebase/firestore";
 import { ref, listAll, deleteObject } from "firebase/storage";
 
 import { requireDb, requireStorage } from "@/lib/firebase";
@@ -65,15 +65,53 @@ export default function MasterProfilePage() {
 
  async function handleDelete() {
  if (!user?.uid) return;
- if (!confirm("Delete this profile?")) return;
+ if (!confirm("Delete this profile? This will remove your profile from public listings.")) return;
  setDeleting(true);
  try {
  const db = requireDb();
+ 
+ // Delete profile document
  await deleteDoc(doc(db, "profiles", user.uid));
- // try to delete from masters too
+ 
+ // Soft delete all masters for this user
  try {
-  await deleteDoc(doc(db, "masters", user.uid));
- } catch {}
+  const mastersQuery = query(collection(db, "masters"), where("uid", "==", user.uid));
+  const mastersSnap = await getDocs(mastersQuery);
+  await Promise.all(
+   mastersSnap.docs.map((doc) =>
+    updateDoc(doc.ref, { deleted: true, deletedAt: serverTimestamp() })
+   )
+  );
+ } catch (err) {
+  console.error("Error soft-deleting masters:", err);
+ }
+ 
+ // Soft delete all listings for this user (check multiple owner fields)
+ try {
+  const ownerFields = ["masterUid", "ownerUid", "authorUid", "userUid", "profileId"];
+  const allListingDocs = new Map();
+  
+  for (const field of ownerFields) {
+   try {
+    const listingsQuery = query(collection(db, "listings"), where(field, "==", user.uid));
+    const listingsSnap = await getDocs(listingsQuery);
+    listingsSnap.docs.forEach((doc) => {
+     allListingDocs.set(doc.id, doc);
+    });
+   } catch (err) {
+    console.warn(`Failed to query listings by ${field}:`, err);
+   }
+  }
+  
+  await Promise.all(
+   Array.from(allListingDocs.values()).map((doc) =>
+    updateDoc(doc.ref, { deleted: true, deletedAt: serverTimestamp() })
+   )
+  );
+ } catch (err) {
+  console.error("Error soft-deleting listings:", err);
+ }
+ 
  // storage cleanup
  try {
   const storage = requireStorage();
@@ -81,7 +119,11 @@ export default function MasterProfilePage() {
   const list = await listAll(baseRef);
   await Promise.all(list.items.map((i) => deleteObject(i)));
  } catch {}
+ 
  router.push("/dashboard/master");
+ } catch (err) {
+  console.error("Error deleting profile:", err);
+  alert("Failed to delete profile. Please try again.");
  } finally {
  setDeleting(false);
  }
