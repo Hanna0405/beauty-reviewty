@@ -17,6 +17,8 @@ import { db } from "@/lib/firebase";
 
 const MastersMapNoSSR = dynamicImport(() => import('@/components/mapComponents').then(m => m.MastersMap), { ssr: false });
 
+const PAGE_SIZE = 20;
+
 function PageContent() {
   // Get URL search params for city fallback
   const searchParams = useSearchParams();
@@ -43,6 +45,10 @@ function PageContent() {
   // Map center and marker state
   const [mapCenter, setMapCenter] = useState<{lat: number; lng: number}>({ lat: 43.6532, lng: -79.3832 }); // default Toronto
   const [mapMarker, setMapMarker] = useState<{lat: number; lng: number} | null>(null);
+  
+  // Pagination state
+  const [visibleMastersCount, setVisibleMastersCount] = useState(PAGE_SIZE);
+  const [visibleListingsCount, setVisibleListingsCount] = useState(PAGE_SIZE);
 
   // Handlers with normalization
   const handleServicesChange = useCallback((next: any[]) => {
@@ -340,6 +346,12 @@ function PageContent() {
     return filtered;
   }, [allMasters, effectiveCitySlug, selectedServiceKeys, selectedLanguageKeys, name, minRating, masterRatings]);
 
+  // Reset pagination when filters change
+  useEffect(() => {
+    setVisibleMastersCount(PAGE_SIZE);
+    setVisibleListingsCount(PAGE_SIZE);
+  }, [effectiveCitySlug, selectedServiceKeys, selectedLanguageKeys, name, minRating]);
+
   // Filter listings - ALWAYS start from enhancedListings (full dataset with ratings), matching /reviewty pattern
   const filteredListingsWithRatings = useMemo(() => {
     let filtered = [...enhancedListings];
@@ -490,12 +502,23 @@ function PageContent() {
                 <section>
                   <h2 className="text-base font-semibold mb-3">Masters ({filteredMastersFinal.length})</h2>
                   <div className="grid gap-3 md:grid-cols-2">
-                    {filteredMastersFinal.map(m => {
+                    {filteredMastersFinal.slice(0, visibleMastersCount).map(m => {
                       const masterId = m.id || m.uid;
                       const ratingData = masterId ? masterRatings.get(masterId) : null;
                       return <MasterCard key={m.id} master={m} rating={ratingData?.rating} reviewCount={ratingData?.count} />;
                     })}
                   </div>
+                  {filteredMastersFinal.length > visibleMastersCount && (
+                    <div className="flex justify-center mt-4">
+                      <button
+                        type="button"
+                        onClick={() => setVisibleMastersCount((prev) => prev + PAGE_SIZE)}
+                        className="px-4 py-2 text-sm font-medium rounded-full border border-pink-300 hover:bg-pink-50"
+                      >
+                        Load more
+                      </button>
+                    </div>
+                  )}
                 </section>
               )}
 
@@ -504,8 +527,19 @@ function PageContent() {
                 <section>
                   <h2 className="text-base font-semibold mb-3">Listings ({filteredListingsWithRatings.length})</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-                    {filteredListingsWithRatings.map(l => <ListingCard key={l.id || l._id} item={l} />)}
+                    {filteredListingsWithRatings.slice(0, visibleListingsCount).map(l => <ListingCard key={l.id || l._id} item={l} />)}
                   </div>
+                  {filteredListingsWithRatings.length > visibleListingsCount && (
+                    <div className="flex justify-center mt-4">
+                      <button
+                        type="button"
+                        onClick={() => setVisibleListingsCount((prev) => prev + PAGE_SIZE)}
+                        className="px-4 py-2 text-sm font-medium rounded-full border border-pink-300 hover:bg-pink-50"
+                      >
+                        Load more
+                      </button>
+                    </div>
+                  )}
                 </section>
               )}
             </div>

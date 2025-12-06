@@ -1,20 +1,18 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useForm, Controller } from 'react-hook-form';
-import CityAutocomplete from './CityAutocomplete';
-import type { CityNorm } from '@/lib/city';
-import ServiceAutocomplete from './ServiceAutocomplete';
-import Portal from './ui/Portal';
-import FilterChips from './masters/FilterChips';
-import type { SearchFiltersValue } from '@/types';
-
-
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useForm, Controller } from "react-hook-form";
+import CityAutocomplete from "./CityAutocomplete";
+import type { CityNorm } from "@/lib/city";
+import ServiceAutocomplete from "./ServiceAutocomplete";
+import Portal from "./ui/Portal";
+import FilterChips from "./masters/FilterChips";
+import type { SearchFiltersValue } from "@/types";
 
 // Predefined languages list
 const PREDEFINED_LANGUAGES = [
   "English",
-  "French", 
+  "French",
   "Russian",
   "Ukrainian",
   "Polish",
@@ -32,13 +30,13 @@ const PREDEFINED_LANGUAGES = [
   "Vietnamese",
   "Arabic",
   "Persian (Farsi)",
-  "Turkish"
+  "Turkish",
 ];
 
 type Props = {
- value: SearchFiltersValue;
- onChange: (value: SearchFiltersValue) => void;
- className?: string;
+  value: SearchFiltersValue;
+  onChange: (value: SearchFiltersValue) => void;
+  className?: string;
 };
 
 export default function SearchFilters({ value, onChange, className }: Props) {
@@ -46,16 +44,12 @@ export default function SearchFilters({ value, onChange, className }: Props) {
   const [selectedService, setSelectedService] = useState(value.service);
   const [city, setCity] = useState<CityNorm | null>(null);
   const languageDropdownRef = useRef<HTMLDivElement>(null);
-  const debounceTimeoutRef = useRef<NodeJS.Timeout>();
+  const debounceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const {
-    control,
-    watch,
-    setValue,
-    handleSubmit
-  } = useForm<SearchFiltersValue>({
-    defaultValues: value
-  });
+  const { control, watch, setValue, handleSubmit } =
+    useForm<SearchFiltersValue>({
+      defaultValues: value,
+    });
 
   const watchedValues = watch();
 
@@ -77,59 +71,69 @@ export default function SearchFilters({ value, onChange, className }: Props) {
   }, [watchedValues, onChange]);
 
   // Handle service selection
-  const handleServiceSelect = useCallback((service: string) => {
-    setSelectedService(service);
-    setValue('service', service);
-  }, [setValue]);
+  const handleServiceSelect = useCallback(
+    (service: string) => {
+      setSelectedService(service);
+      setValue("service", service);
+    },
+    [setValue]
+  );
 
   // Handle language selection
-  const handleLanguageToggle = useCallback((language: string) => {
-    const currentLanguages = watchedValues.languages || [];
-    const newLanguages = currentLanguages.includes(language)
-      ? currentLanguages.filter(l => l !== language)
-      : [...currentLanguages, language];
-    
-    setValue('languages', newLanguages);
-  }, [setValue, watchedValues.languages]);
+  const handleLanguageToggle = useCallback(
+    (language: string) => {
+      const currentLanguages = watchedValues.languages || [];
+      const newLanguages = currentLanguages.includes(language)
+        ? currentLanguages.filter((l) => l !== language)
+        : [...currentLanguages, language];
+
+      setValue("languages", newLanguages);
+    },
+    [setValue, watchedValues.languages]
+  );
 
   // Handle clicks outside language dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (languageDropdownRef.current && !languageDropdownRef.current.contains(event.target as Node)) {
+      if (
+        languageDropdownRef.current &&
+        !languageDropdownRef.current.contains(event.target as Node)
+      ) {
         setShowLanguageDropdown(false);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
   // Handle clear all filters
   const handleClearAll = useCallback(() => {
     const clearedValues: SearchFiltersValue = {
-      q: '',
-      city: '',
-      service: '',
+      q: "",
+      city: "",
+      service: "",
       languages: [],
-      price: 'all',
+      price: "all",
     };
-    setValue('q', '');
-    setValue('city', '');
-    setValue('service', '');
-    setValue('languages', []);
-    setValue('price', 'all');
-    setSelectedService('');
+    setValue("q", "");
+    setValue("city", "");
+    setValue("service", "");
+    setValue("languages", []);
+    setValue("price", "all");
+    setSelectedService("");
     onChange(clearedValues);
   }, [onChange, setValue]);
 
- const update = (key: keyof SearchFiltersValue) => 
- (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
- onChange({ ...value, [key]: e.target.value });
- };
+  const update =
+    (key: keyof SearchFiltersValue) =>
+    (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
+      onChange({ ...value, [key]: e.target.value });
+    };
 
- return (
+  return (
     <form className={`space-y-4 ${className}`}>
       {/* Search Input */}
       <div>
@@ -156,14 +160,14 @@ export default function SearchFilters({ value, onChange, className }: Props) {
           City
         </label>
         <div data-testid="filter-city">
-           <CityAutocomplete
-             value={city}
-             onChange={(selectedCity) => {
-               setCity(selectedCity);
-               setValue('city', selectedCity?.formatted || '');
-             }}
-             placeholder="Start typing a city..."
-           />
+          <CityAutocomplete
+            value={city}
+            onChange={(selectedCity) => {
+              setCity(selectedCity);
+              setValue("city", selectedCity?.formatted || "");
+            }}
+            placeholder="Start typing a city..."
+          />
         </div>
       </div>
 
@@ -183,9 +187,21 @@ export default function SearchFilters({ value, onChange, className }: Props) {
               }
             }}
             options={[
-              "Nails", "Haircut", "Makeup", "Brows & Lashes", "Massage", "Facial", "Waxing", 
-              "Manicure", "Pedicure", "Hair Color", "Hair Styling", "Eyebrow Shaping", 
-              "Eyelash Extensions", "Skin Care", "Body Treatment"
+              "Nails",
+              "Haircut",
+              "Makeup",
+              "Brows & Lashes",
+              "Massage",
+              "Facial",
+              "Waxing",
+              "Manicure",
+              "Pedicure",
+              "Hair Color",
+              "Hair Styling",
+              "Eyebrow Shaping",
+              "Eyelash Extensions",
+              "Skin Care",
+              "Body Treatment",
             ]}
             placeholder="Type to search services..."
           />
@@ -196,13 +212,21 @@ export default function SearchFilters({ value, onChange, className }: Props) {
                 <button
                   type="button"
                   onClick={() => {
-                    setSelectedService('');
-                    setValue('service', '');
+                    setSelectedService("");
+                    setValue("service", "");
                   }}
                   className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full text-pink-400 hover:bg-pink-200 hover:text-pink-500 focus:outline-none focus:bg-pink-200"
                 >
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  <svg
+                    className="w-3 h-3"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                      clipRule="evenodd"
+                    />
                   </svg>
                 </button>
               </span>
@@ -222,73 +246,101 @@ export default function SearchFilters({ value, onChange, className }: Props) {
             onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-left focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500 flex items-center justify-between"
           >
-          <span className={watchedValues.languages && watchedValues.languages.length > 0 ? 'text-gray-900' : 'text-gray-500'}>
-            {watchedValues.languages && watchedValues.languages.length > 0 
-              ? `${watchedValues.languages.length} selected`
-              : 'Select languages...'
-            }
-          </span>
-          <svg
-            className={`w-4 h-4 transition-transform ${showLanguageDropdown ? 'rotate-180' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-
-        {/* Language Dropdown via Portal */}
-        {showLanguageDropdown && languageDropdownRef.current && (
-          <Portal>
-            <div
-              className="fixed z-[9999] bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto"
-              style={{
-                top: languageDropdownRef.current.getBoundingClientRect().bottom + window.scrollY + 4,
-                left: languageDropdownRef.current.getBoundingClientRect().left + window.scrollX,
-                width: languageDropdownRef.current.getBoundingClientRect().width,
-              }}
+            <span
+              className={
+                watchedValues.languages && watchedValues.languages.length > 0
+                  ? "text-gray-900"
+                  : "text-gray-500"
+              }
             >
-              {PREDEFINED_LANGUAGES.map((language) => (
-                <label
+              {watchedValues.languages && watchedValues.languages.length > 0
+                ? `${watchedValues.languages.length} selected`
+                : "Select languages..."}
+            </span>
+            <svg
+              className={`w-4 h-4 transition-transform ${
+                showLanguageDropdown ? "rotate-180" : ""
+              }`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </button>
+
+          {/* Language Dropdown via Portal */}
+          {showLanguageDropdown && languageDropdownRef.current && (
+            <Portal>
+              <div
+                className="fixed z-[9999] bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto"
+                style={{
+                  top:
+                    languageDropdownRef.current.getBoundingClientRect().bottom +
+                    window.scrollY +
+                    4,
+                  left:
+                    languageDropdownRef.current.getBoundingClientRect().left +
+                    window.scrollX,
+                  width:
+                    languageDropdownRef.current.getBoundingClientRect().width,
+                }}
+              >
+                {PREDEFINED_LANGUAGES.map((language) => (
+                  <label
+                    key={language}
+                    className="flex items-center px-3 py-2 cursor-pointer hover:bg-gray-50 text-sm border-b border-gray-100 last:border-b-0"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={
+                        watchedValues.languages?.includes(language) || false
+                      }
+                      onChange={() => handleLanguageToggle(language)}
+                      className="mr-3 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
+                    />
+                    {language}
+                  </label>
+                ))}
+              </div>
+            </Portal>
+          )}
+
+          {/* Selected Languages Tags */}
+          {watchedValues.languages && watchedValues.languages.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {watchedValues.languages.map((language) => (
+                <span
                   key={language}
-                  className="flex items-center px-3 py-2 cursor-pointer hover:bg-gray-50 text-sm border-b border-gray-100 last:border-b-0"
+                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-pink-100 text-pink-800"
                 >
-                  <input
-                    type="checkbox"
-                    checked={watchedValues.languages?.includes(language) || false}
-                    onChange={() => handleLanguageToggle(language)}
-                    className="mr-3 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
-                  />
                   {language}
-                </label>
+                  <button
+                    type="button"
+                    onClick={() => handleLanguageToggle(language)}
+                    className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full text-pink-400 hover:bg-pink-200 hover:text-pink-500 focus:outline-none focus:bg-pink-200"
+                  >
+                    <svg
+                      className="w-3 h-3"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </button>
+                </span>
               ))}
             </div>
-          </Portal>
-        )}
-
-        {/* Selected Languages Tags */}
-        {watchedValues.languages && watchedValues.languages.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {watchedValues.languages.map((language) => (
-              <span
-                key={language}
-                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-pink-100 text-pink-800"
-              >
-                {language}
-                <button
-                  type="button"
-                  onClick={() => handleLanguageToggle(language)}
-                  className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full text-pink-400 hover:bg-pink-200 hover:text-pink-500 focus:outline-none focus:bg-pink-200"
-                >
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
+          )}
         </div>
       </div>
 

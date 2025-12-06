@@ -4,12 +4,7 @@ import { getAdminDb } from "@/lib/firebaseAdmins";
 import PublicCardReviewFormClient from "@/components/reviewty/PublicCardReviewFormClient";
 import PhotoGallery from "@/components/reviewty/PhotoGallery";
 import { normalizePhotos } from "@/components/reviewty/getPhotoUrl";
-import dynamic from "next/dynamic";
-
-const PublicCardReviews = dynamic(
-  () => import("@/components/review/PublicCardReviews"),
-  { ssr: false }
-);
+import PublicCardReviews from "@/components/review/PublicCardReviews";
 
 type PublicCard = {
   id: string;
@@ -58,12 +53,13 @@ async function loadPublicCard(id: string) {
   return null;
 }
 
+// Next.js 15: params is now a Promise and must be awaited in async components
 export default async function PublicCardPage({
   params,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }) {
-  const { slug } = params;
+  const { slug } = await params;
 
   // 1. load Firestore doc by id = slug (with offline tolerance)
   const cardData = await loadPublicCard(slug);
@@ -71,7 +67,9 @@ export default async function PublicCardPage({
     return (
       <div className="mx-auto max-w-4xl px-4 py-6">
         <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
-          <h1 className="text-xl font-semibold text-gray-900 mb-2">Not Available</h1>
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">
+            Not Available
+          </h1>
           <p className="text-sm text-gray-600">
             This public card is not available right now.
           </p>
@@ -145,15 +143,21 @@ export default async function PublicCardPage({
           .doc(listingId)
           .collection("reviews")
           .get();
-        s4.forEach((d) => all.push({ id: d.id, source: "listing", ...d.data() }));
+        s4.forEach((d) =>
+          all.push({ id: d.id, source: "listing", ...d.data() })
+        );
       } catch (_) {}
     }
 
     // filter and sort
     const filtered = all.filter((r) => r.rating);
     filtered.sort((a, b) => {
-      const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt?.seconds || 0) * 1000;
-      const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt?.seconds || 0) * 1000;
+      const ta = a.createdAt?.toMillis
+        ? a.createdAt.toMillis()
+        : (a.createdAt?.seconds || 0) * 1000;
+      const tb = b.createdAt?.toMillis
+        ? b.createdAt.toMillis()
+        : (b.createdAt?.seconds || 0) * 1000;
       return tb - ta;
     });
 
@@ -220,9 +224,7 @@ export default async function PublicCardPage({
       {/* REVIEW TEXT */}
       {card.text && (
         <section className="bg-pink-50 border border-pink-100 rounded-lg p-4 shadow-sm">
-          <h2 className="text-base font-semibold text-gray-900 mb-3">
-            Review
-          </h2>
+          <h2 className="text-base font-semibold text-gray-900 mb-3">Review</h2>
           <p className="whitespace-pre-line text-sm md:text-base text-slate-800">
             {card.text}
           </p>

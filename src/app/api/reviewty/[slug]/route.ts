@@ -24,11 +24,12 @@ function getDbLite() {
   return getFirestore(app);
 }
 
+// Next.js 15: params is now a Promise and must be awaited
 export async function GET(
   req: Request,
-  { params }: { params: { slug: string } }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
-  const { slug } = params;
+  const { slug } = await params;
   if (!slug) {
     return NextResponse.json({ error: "Missing slug" }, { status: 400 });
   }

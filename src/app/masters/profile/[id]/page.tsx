@@ -1,8 +1,9 @@
-import { redirect } from 'next/navigation';
+import { redirect } from "next/navigation";
 
-type Props = { params: { id: string } };
+// Next.js 15: params is now a Promise and must be awaited
+type Props = { params: Promise<{ id: string }> };
 
-export default function LegacyMasterProfileRedirect({ params }: Props) {
-  redirect(`/profile/${params.id}`);
+export default async function LegacyMasterProfileRedirect({ params }: Props) {
+  const { id } = await params;
+  redirect(`/profile/${id}`);
 }
-

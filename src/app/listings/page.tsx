@@ -20,6 +20,8 @@ import { db } from "@/lib/firebase";
 
 const MastersMapNoSSR = dynamicImport(() => import('@/components/mapComponents').then(m => m.MastersMap), { ssr: false });
 
+const PAGE_SIZE = 20;
+
 function PageContent() {
   // Get URL search params for city
   const searchParams = useSearchParams();
@@ -45,6 +47,9 @@ function PageContent() {
     lng: -79.3832,
   });
   const [mapMarker, setMapMarker] = useState<{lat: number; lng: number} | null>(null);
+  
+  // Pagination state
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   // Handlers with normalization
   const handleServicesChange = useCallback((next: TagOption[]) => {
@@ -260,6 +265,11 @@ function PageContent() {
     return true;
   });
 
+  // Reset pagination when filters change
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [selectedCity, selectedServices, selectedLanguages, minRating, urlCity]);
+
   // Combine listing markers with city marker if available
   const allMapMarkers = filteredListingsWithRatings.map(i => ({ lat: i.geo?.lat ?? 0, lng: i.geo?.lng ?? 0, title: i.title ?? 'Listing' }));
   const mapMarkersWithCity = mapMarker 
@@ -387,9 +397,22 @@ function PageContent() {
           ) : filteredListingsWithRatings.length === 0 ? (
             <div className="py-8 text-center text-gray-500">No listings match your filters.</div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-              {filteredListingsWithRatings.map(l => <ListingCard key={l.id} item={l} />)}
-            </div>
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                {filteredListingsWithRatings.slice(0, visibleCount).map(l => <ListingCard key={l.id} item={l} />)}
+              </div>
+              {filteredListingsWithRatings.length > visibleCount && (
+                <div className="flex justify-center mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
+                    className="px-4 py-2 text-sm font-medium rounded-full border border-pink-300 hover:bg-pink-50"
+                  >
+                    Load more
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </section>
       </div>

@@ -1,6 +1,12 @@
-import React from 'react';
-import ClientListing from '@/app/masters/[id]/ClientListing';
+import React from "react";
+import ClientListing from "@/app/masters/[id]/ClientListing";
 
-export default function ListingOpenPage({ params }: { params: { id: string } }) {
-  return <ClientListing id={params.id} />;
+// Next.js 15: params is now a Promise and must be awaited
+export default async function ListingOpenPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  return <ClientListing id={id} />;
 }

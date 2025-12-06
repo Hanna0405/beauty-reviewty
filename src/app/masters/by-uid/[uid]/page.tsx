@@ -16,18 +16,20 @@ type MasterProfile = {
   createdAt?: unknown;
 };
 
+// Next.js 15: params is now a Promise and must be awaited in async components
 export default async function PublicMasterPage({
   params,
 }: {
-  params: { uid: string };
+  params: Promise<{ uid: string }>;
 }) {
   try {
+    const { uid } = await params;
     const adminDb = getAdminDb();
     if (!adminDb) {
       notFound();
     }
 
-    const snap = await adminDb.collection("masters").doc(params.uid).get();
+    const snap = await adminDb.collection("masters").doc(uid).get();
 
     if (!snap.exists) {
       notFound();
@@ -37,9 +39,9 @@ export default async function PublicMasterPage({
 
     // Transform to match MasterCard expected format
     const masterForCard = {
-      id: params.uid,
-      uid: params.uid,
-      ownerId: params.uid, // Add missing ownerId property
+      id: uid,
+      uid: uid,
+      ownerId: uid, // Add missing ownerId property
       title: master.displayName,
       displayName: master.displayName,
       name: master.displayName,

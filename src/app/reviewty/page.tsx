@@ -225,6 +225,7 @@ export default function ReviewtyPage() {
     "listing" | "community"
   >("listing");
   const [isFiltersOpen, setIsFiltersOpen] = useState(false); // mobile-only: filters sheet
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   async function loadReviews() {
     try {
@@ -564,6 +565,8 @@ export default function ReviewtyPage() {
     }
 
     setFilteredCards(filtered);
+    // Reset visible count when filters change
+    setVisibleCount(PAGE_SIZE);
   }, [publicCards, filters]);
 
   const handleResetFilters = () => {
@@ -648,41 +651,61 @@ export default function ReviewtyPage() {
             </div>
           </div>
         ) : (
-          <ul className="grid md:grid-cols-2 gap-4">
-            {filteredCards.map((review) => {
-              // Debug logging
-              console.log("[Reviewty List]", {
-                id: review.id,
-                masterName: review.masterName,
-              });
+          <>
+            <ul className="grid md:grid-cols-2 gap-4">
+              {filteredCards.slice(0, visibleCount).map((review) => {
+                // Debug logging
+                console.log("[Reviewty List]", {
+                  id: review.id,
+                  masterName: review.masterName,
+                });
 
-              return (
-                <li key={review.id}>
-                  <PublicReviewCard
-                    id={review.id}
-                    slugCandidate1={review.masterSlug || review.id}
-                    slugCandidate2={review.masterSlug}
-                    slugCandidate3={review.id}
-                    debugItem={review}
-                    rating={review.computedRating ?? review.rating}
-                    totalReviews={
-                      review.computedReviewsCount ?? review.totalReviews
-                    }
-                    masterName={review.masterName}
-                    masterDisplay={review.masterDisplay}
-                    cityName={review.cityName}
-                    masterCity={review.masterCity}
-                    text={review.text}
-                    photos={review.photos}
-                    masterServices={review.masterServices}
-                    authorName={review.authorName}
-                    createdAt={review.createdAt}
-                  />
-                </li>
-              );
-            })}
-          </ul>
+                return (
+                  <li key={review.id}>
+                    <PublicReviewCard
+                      id={review.id}
+                      slugCandidate1={review.masterSlug || review.id}
+                      slugCandidate2={review.masterSlug}
+                      slugCandidate3={review.id}
+                      debugItem={review}
+                      rating={review.computedRating ?? review.rating}
+                      totalReviews={
+                        review.computedReviewsCount ?? review.totalReviews
+                      }
+                      masterName={review.masterName}
+                      masterDisplay={review.masterDisplay}
+                      cityName={review.cityName}
+                      masterCity={review.masterCity}
+                      text={review.text}
+                      photos={review.photos}
+                      masterServices={review.masterServices}
+                      authorName={review.authorName}
+                      createdAt={review.createdAt}
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+            {filteredCards.length > visibleCount && (
+              <div className="flex justify-center mt-4">
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
+                  className="px-4 py-2 text-sm font-medium rounded-full border border-pink-300 hover:bg-pink-50"
+                >
+                  Load more
+                </button>
+              </div>
+            )}
+          </>
         )}
+
+        {/* Legal Disclaimer */}
+        <div className="mt-8 text-center">
+          <p className="text-[11px] text-gray-500 opacity-70 max-w-4xl mx-auto px-4 leading-relaxed">
+            All reviews, photos, and user-generated content on BeautyReviewty are posted by users and reflect their personal opinions and experiences. BeautyReviewty does not verify the accuracy or legality of user-submitted content and is not responsible for any possible consequences or claims related to such content. By publishing a review or uploading content, the user confirms that they hold the necessary rights and bear full responsibility for their submission. The platform reserves the right to remove or hide materials that violate the law, intellectual property rights, or the service rules.
+          </p>
+        </div>
 
         {/* Footer */}
         <div className="text-center py-4">
