@@ -6,25 +6,34 @@ export function getListingCoverUrl(listing: any): string | null {
     if (!v) return null;
     if (typeof v === "string" && v.length > 0) return v.trim();
     if (typeof v === "object") {
-      return (v.url || v.downloadURL || v.src || v.imageUrl || "").toString().trim();
+      return (v.url || v.downloadURL || v.src || v.imageUrl || "")
+        .toString()
+        .trim();
     }
     return null;
   };
 
-  // explicit cover fields (single images)
-  const coverUrl = getUrl(listing.coverPhoto) || 
-                   getUrl(listing._coverPhoto) || 
-                   getUrl(listing.coverUrl) ||
-                   getUrl(listing.mainPhoto) ||
-                   getUrl(listing.photoUrl) ||
-                   getUrl(listing.imageUrl) ||
-                   getUrl(listing.coverImage);
-  
+  // PRIMARY: Check listing.photos[0] first (Dashboard saves images here)
+  if (Array.isArray(listing.photos) && listing.photos.length > 0) {
+    const firstPhoto = listing.photos[0];
+    const photoUrl = getUrl(firstPhoto);
+    if (photoUrl) return photoUrl;
+  }
+
+  // FALLBACK: Check explicit cover fields for backward compatibility with old listings
+  const coverUrl =
+    getUrl(listing.coverPhoto) ||
+    getUrl(listing._coverPhoto) ||
+    getUrl(listing.coverUrl) ||
+    getUrl(listing.mainPhoto) ||
+    getUrl(listing.photoUrl) ||
+    getUrl(listing.imageUrl) ||
+    getUrl(listing.coverImage);
+
   if (coverUrl) return coverUrl;
 
-  // arrays: photos, images, gallery, previewPhotos
+  // FALLBACK: Check other arrays for backward compatibility
   const arrays = [
-    listing.photos,
     listing.images,
     listing.gallery,
     listing.previewPhotos,

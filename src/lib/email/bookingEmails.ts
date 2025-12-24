@@ -1,5 +1,6 @@
 import { sendAppEmail } from "./resendClient";
 import { renderBeautyReviewtyEmailLayout } from "./templates";
+import { getEmailBaseUrl } from "./baseUrl";
 
 function escapeHtml(input: string): string {
   return input
@@ -10,11 +11,7 @@ function escapeHtml(input: string): string {
     .replace(/'/g, "&#039;");
 }
 
-const DEFAULT_SENDER = "onboarding@resend.dev";
-
-const APP_BASE_URL =
-  process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-  "http://localhost:3000";
+// Removed unused DEFAULT_SENDER - sender is now handled by resendClient.ts
 
 export type NewBookingEmailToMasterOptions = {
   masterEmail: string;
@@ -61,7 +58,7 @@ export async function sendNewBookingEmailToMaster(
 
     const finalDashboardBookingUrl =
       dashboardBookingUrl ||
-      `${APP_BASE_URL}/dashboard/booking?bookingId=${bookingId}`;
+      `${getEmailBaseUrl()}/dashboard/booking?bookingId=${bookingId}`;
 
     const contentHtml = `
       <p style="margin:0 0 12px 0;">${greeting}</p>
@@ -69,13 +66,27 @@ export async function sendNewBookingEmailToMaster(
         You have a new booking request on BeautyReviewty.
       </p>
       <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="width:100%;margin-top:8px;margin-bottom:8px;font-size:13px;color:#374151;">
-        <tr><td style="padding:4px 0;"><strong>Client:</strong> ${escapeHtml(clientDisplay)}</td></tr>
-        <tr><td style="padding:4px 0;"><strong>Service:</strong> ${escapeHtml(serviceDisplay)}</td></tr>
-        ${dateTimeDisplay ? `<tr><td style="padding:4px 0;"><strong>Date &amp; Time:</strong> ${escapeHtml(dateTimeDisplay)}</td></tr>` : ""}
-        <tr><td style="padding:4px 0;"><strong>Status:</strong> ${escapeHtml(statusDisplay)}</td></tr>
+        <tr><td style="padding:4px 0;"><strong>Client:</strong> ${escapeHtml(
+          clientDisplay
+        )}</td></tr>
+        <tr><td style="padding:4px 0;"><strong>Service:</strong> ${escapeHtml(
+          serviceDisplay
+        )}</td></tr>
+        ${
+          dateTimeDisplay
+            ? `<tr><td style="padding:4px 0;"><strong>Date &amp; Time:</strong> ${escapeHtml(
+                dateTimeDisplay
+              )}</td></tr>`
+            : ""
+        }
+        <tr><td style="padding:4px 0;"><strong>Status:</strong> ${escapeHtml(
+          statusDisplay
+        )}</td></tr>
       </table>
       <p style="margin:12px 0 0 0;">You can review and manage this booking in your dashboard.</p>
-      <p style="margin:8px 0 0 0;color:#6b7280;font-size:12px;">Booking ID: ${escapeHtml(bookingId)}</p>
+      <p style="margin:8px 0 0 0;color:#6b7280;font-size:12px;">Booking ID: ${escapeHtml(
+        bookingId
+      )}</p>
     `;
 
     const html = renderBeautyReviewtyEmailLayout({
@@ -95,10 +106,7 @@ export async function sendNewBookingEmailToMaster(
       text,
     });
   } catch (error) {
-    console.error(
-      "[bookingEmails] sendNewBookingEmailToMaster error:",
-      error
-    );
+    console.error("[bookingEmails] sendNewBookingEmailToMaster error:", error);
   }
 }
 
@@ -171,18 +179,30 @@ export async function sendBookingStatusEmailToClient(
 
     const finalDashboardBookingUrl =
       dashboardBookingUrl ||
-      `${APP_BASE_URL}/dashboard/booking?bookingId=${bookingId}`;
+      `${getEmailBaseUrl()}/dashboard/booking?bookingId=${bookingId}`;
 
     const contentHtml = `
       <p style="margin:0 0 12px 0;">${greeting}</p>
       <p style="margin:0 0 12px 0;">${statusMessage}</p>
       <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="width:100%;margin-top:8px;margin-bottom:8px;font-size:13px;color:#374151;">
-        <tr><td style="padding:4px 0;"><strong>Master:</strong> ${escapeHtml(masterDisplay)}</td></tr>
-        <tr><td style="padding:4px 0;"><strong>Service:</strong> ${escapeHtml(serviceDisplay)}</td></tr>
-        ${dateTimeDisplay ? `<tr><td style="padding:4px 0;"><strong>Date &amp; Time:</strong> ${escapeHtml(dateTimeDisplay)}</td></tr>` : ""}
+        <tr><td style="padding:4px 0;"><strong>Master:</strong> ${escapeHtml(
+          masterDisplay
+        )}</td></tr>
+        <tr><td style="padding:4px 0;"><strong>Service:</strong> ${escapeHtml(
+          serviceDisplay
+        )}</td></tr>
+        ${
+          dateTimeDisplay
+            ? `<tr><td style="padding:4px 0;"><strong>Date &amp; Time:</strong> ${escapeHtml(
+                dateTimeDisplay
+              )}</td></tr>`
+            : ""
+        }
       </table>
       <p style="margin:12px 0 0 0;">View your booking details in the dashboard.</p>
-      <p style="margin:8px 0 0 0;color:#6b7280;font-size:12px;">Booking ID: ${escapeHtml(bookingId)}</p>
+      <p style="margin:8px 0 0 0;color:#6b7280;font-size:12px;">Booking ID: ${escapeHtml(
+        bookingId
+      )}</p>
     `;
 
     const html = renderBeautyReviewtyEmailLayout({
@@ -253,23 +273,27 @@ export async function sendChatMessageEmailNotification(
       : messagePreview || "";
 
   try {
-    const greeting = recipientName ? `Hi ${escapeHtml(recipientName)},` : "Hi there,";
+    const greeting = recipientName
+      ? `Hi ${escapeHtml(recipientName)},`
+      : "Hi there,";
     const senderDisplay = senderName || "Someone";
 
     // Build chat URL if not provided
     let finalDashboardChatUrl = dashboardChatUrl;
     if (!finalDashboardChatUrl && bookingId) {
-      finalDashboardChatUrl = `${APP_BASE_URL}/dashboard/chat/${bookingId}`;
+      finalDashboardChatUrl = `${getEmailBaseUrl()}/dashboard/chat/${bookingId}`;
     } else if (!finalDashboardChatUrl) {
       // Fallback to chat list if no bookingId
-      finalDashboardChatUrl = `${APP_BASE_URL}/dashboard/chat`;
+      finalDashboardChatUrl = `${getEmailBaseUrl()}/dashboard/chat`;
     }
 
     const BRAND_PINK = "#ff4fa3";
     const contentHtml = `
       <p style="margin:0 0 12px 0;">${greeting}</p>
       <p style="margin:0 0 12px 0;">
-        You have a new message on BeautyReviewty${senderName ? ` from <strong>${escapeHtml(senderName)}</strong>` : ""}.
+        You have a new message on BeautyReviewty${
+          senderName ? ` from <strong>${escapeHtml(senderName)}</strong>` : ""
+        }.
       </p>
       ${
         truncatedPreview
@@ -309,4 +333,3 @@ export async function sendChatMessageEmailNotification(
     console.error("Error sending chat email", error);
   }
 }
-

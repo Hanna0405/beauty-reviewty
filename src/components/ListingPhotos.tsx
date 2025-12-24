@@ -29,11 +29,13 @@ export default function ListingPhotos({
   onChange,
   maxPhotos = 10,
   userId,
-  listingId
+  listingId,
 }: ListingPhotosProps) {
   const { showToast } = useToast();
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>(
+    {}
+  );
   const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -41,124 +43,165 @@ export default function ListingPhotos({
   // Debug storage bucket on mount
   useEffect(() => {
     logStorageDebug();
-    console.info("[BR][ListingPhotos] Component mounted, photos:", photos.length);
+    console.info(
+      "[BR][ListingPhotos] Component mounted, photos:",
+      photos.length
+    );
   }, []);
 
-  // Upload single file using server-side API
-  const uploadSingleFile = useCallback(async (file: File, fileId: string): Promise<PhotoData> => {
-    try {
-      const folder = listingId ? `listings/${listingId}/photos` : 'uploads';
-      const url = await uploadImageViaApi(file, folder);
-      const savedPath = url; // For now, using URL as path
-      
-      // Compute dimensions
-      const dims = await new Promise<{w: number; h: number}>((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
-        img.onerror = reject;
-        img.src = url;
-      });
-      
-      return { url, path: savedPath, w: dims.w, h: dims.h };
-    } catch (error) {
-      setUploadErrors(prev => ({ ...prev, [fileId]: error instanceof Error ? error.message : 'Upload failed' }));
-      throw error;
-    }
-  }, [userId, listingId]);
+  // Upload single file using CLIENT SDK (not server API)
+  const uploadSingleFile = useCallback(
+    async (file: File, fileId: string): Promise<PhotoData> => {
+      try {
+        // Use proper folder structure for listings
+        const folder = listingId
+          ? `listings/${listingId}/photos`
+          : `listings/${userId}/uploads`;
+        const url = await uploadImageViaApi(file, folder);
+
+        // Safeguard: Reject signed URLs
+        if (url.includes("GoogleAccessId=") || url.includes("X-Goog-")) {
+          throw new Error("Invalid URL: signed URLs are not allowed");
+        }
+
+        // Extract storage path from URL for deletion later
+        // URL format: https://firebasestorage.googleapis.com/v0/b/BUCKET/o/PATH?alt=media&token=...
+        // We'll use the URL itself as the path identifier
+        const savedPath = url;
+
+        // Compute dimensions
+        const dims = await new Promise<{ w: number; h: number }>(
+          (resolve, reject) => {
+            const img = new Image();
+            img.onload = () =>
+              resolve({ w: img.naturalWidth, h: img.naturalHeight });
+            img.onerror = reject;
+            img.src = url;
+          }
+        );
+
+        return { url, path: savedPath, w: dims.w, h: dims.h };
+      } catch (error) {
+        setUploadErrors((prev) => ({
+          ...prev,
+          [fileId]: error instanceof Error ? error.message : "Upload failed",
+        }));
+        throw error;
+      }
+    },
+    [userId, listingId]
+  );
 
   // Handle file selection
-  const handleFileSelect = useCallback(async (files: FileList) => {
-    const fileArray = Array.from(files);
-    const validFiles = fileArray.filter(file => {
-      // Check file type
-      if (!file.type.startsWith('image/')) {
-        setUploadErrors(prev => ({ ...prev, [file.name]: 'Invalid file type' }));
-        return false;
-      }
-      
-      // Check file size (8MB limit)
-      if (file.size > 8 * 1024 * 1024) {
-        setUploadErrors(prev => ({ ...prev, [file.name]: 'File too large (max 8MB)' }));
-        return false;
-      }
-      
-      return true;
-    });
-
-    if (validFiles.length === 0) return;
-
-    // Debug logging for each file
-    validFiles.forEach(file => {
-      console.info("[BR] will upload", file.name, file.type, file.size);
-    });
-
-    // Check if adding these files would exceed the limit
-    const totalPhotos = photos.length + validFiles.length;
-    if (totalPhotos > maxPhotos) {
-      alert(`You can only upload up to ${maxPhotos} photos. Please remove some existing photos first.`);
-      return;
-    }
-
-    setUploading(true);
-    setUploadProgress({});
-    setUploadErrors({});
-
-    // Create abort controller for this upload batch
-    abortControllerRef.current = new AbortController();
-
-    try {
-      // Upload files in parallel
-      const uploadPromises = validFiles.map(async (file) => {
-        const fileId = `${file.name}-${Date.now()}`;
-        return uploadSingleFile(file, fileId);
-      });
-
-      const results = await Promise.allSettled(uploadPromises);
-      
-      // Process results
-      const successfulUploads: PhotoData[] = [];
-      const errors: string[] = [];
-
-      results.forEach((result, index) => {
-        if (result.status === 'fulfilled') {
-          successfulUploads.push(result.value);
-        } else {
-          errors.push(`Failed to upload ${validFiles[index].name}: ${result.reason.message}`);
+  const handleFileSelect = useCallback(
+    async (files: FileList) => {
+      const fileArray = Array.from(files);
+      const validFiles = fileArray.filter((file) => {
+        // Check file type
+        if (!file.type.startsWith("image/")) {
+          setUploadErrors((prev) => ({
+            ...prev,
+            [file.name]: "Invalid file type",
+          }));
+          return false;
         }
+
+        // Check file size (8MB limit)
+        if (file.size > 8 * 1024 * 1024) {
+          setUploadErrors((prev) => ({
+            ...prev,
+            [file.name]: "File too large (max 8MB)",
+          }));
+          return false;
+        }
+
+        return true;
       });
 
-      // Update photos state with successful uploads
-      if (successfulUploads.length > 0) {
-        onChange([...photos, ...successfulUploads]);
+      if (validFiles.length === 0) return;
+
+      // Debug logging for each file
+      validFiles.forEach((file) => {
+        console.info("[BR] will upload", file.name, file.type, file.size);
+      });
+
+      // Check if adding these files would exceed the limit
+      const totalPhotos = photos.length + validFiles.length;
+      if (totalPhotos > maxPhotos) {
+        alert(
+          `You can only upload up to ${maxPhotos} photos. Please remove some existing photos first.`
+        );
+        return;
       }
 
-      // Show errors if any
-      if (errors.length > 0) {
-        showToast(`Upload errors: ${errors.join(', ')}`, "error");
-      }
-
-    } catch (error) {
-      console.error('Upload error:', error);
-      showToast('Upload failed. Please try again.', "error");
-    } finally {
-      setUploading(false);
+      setUploading(true);
       setUploadProgress({});
       setUploadErrors({});
-      abortControllerRef.current = null;
-    }
-  }, [photos, maxPhotos, uploadSingleFile, onChange]);
+
+      // Create abort controller for this upload batch
+      abortControllerRef.current = new AbortController();
+
+      try {
+        // Upload files in parallel
+        const uploadPromises = validFiles.map(async (file) => {
+          const fileId = `${file.name}-${Date.now()}`;
+          return uploadSingleFile(file, fileId);
+        });
+
+        const results = await Promise.allSettled(uploadPromises);
+
+        // Process results
+        const successfulUploads: PhotoData[] = [];
+        const errors: string[] = [];
+
+        results.forEach((result, index) => {
+          if (result.status === "fulfilled") {
+            successfulUploads.push(result.value);
+          } else {
+            errors.push(
+              `Failed to upload ${validFiles[index].name}: ${result.reason.message}`
+            );
+          }
+        });
+
+        // Update photos state with successful uploads
+        if (successfulUploads.length > 0) {
+          onChange([...photos, ...successfulUploads]);
+        }
+
+        // Show errors if any
+        if (errors.length > 0) {
+          showToast(`Upload errors: ${errors.join(", ")}`, "error");
+        }
+      } catch (error) {
+        console.error("Upload error:", error);
+        showToast("Upload failed. Please try again.", "error");
+      } finally {
+        setUploading(false);
+        setUploadProgress({});
+        setUploadErrors({});
+        abortControllerRef.current = null;
+      }
+    },
+    [photos, maxPhotos, uploadSingleFile, onChange]
+  );
 
   // Remove photo
-  const removePhoto = useCallback(async (index: number) => {
-    const photoToRemove = photos[index];
-    const newPhotos = photos.filter((_, i) => i !== index);
-    onChange(newPhotos);
+  const removePhoto = useCallback(
+    async (index: number) => {
+      const photoToRemove = photos[index];
+      const newPhotos = photos.filter((_, i) => i !== index);
+      onChange(newPhotos);
 
-    // Try to delete from storage via API (best effort)
-    if (photoToRemove.path) {
-      fetch(`/api/upload?path=${encodeURIComponent(photoToRemove.path)}`, { method: "DELETE" }).catch(()=>{});
-    }
-  }, [photos, onChange]);
+      // Try to delete from storage via API (best effort)
+      if (photoToRemove.path) {
+        fetch(`/api/upload?path=${encodeURIComponent(photoToRemove.path)}`, {
+          method: "DELETE",
+        }).catch(() => {});
+      }
+    },
+    [photos, onChange]
+  );
 
   // Handle input change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -167,7 +210,7 @@ export default function ListingPhotos({
       handleFileSelect(files);
     }
     // Reset input value to allow selecting the same file again
-    e.target.value = '';
+    e.target.value = "";
   };
 
   // Cleanup on unmount
@@ -213,7 +256,7 @@ export default function ListingPhotos({
           {Object.entries(uploadProgress).map(([fileId, progress]) => (
             <div key={fileId} className="space-y-1">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">{fileId.split('-')[0]}</span>
+                <span className="text-gray-600">{fileId.split("-")[0]}</span>
                 <span className="text-gray-600">{Math.round(progress)}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">

@@ -1,10 +1,40 @@
 // src/lib/firestore-listings.ts
-'use client';
-import { addDoc, setDoc, doc, collection, serverTimestamp, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase.client';
-import type { User } from 'firebase/auth';
+"use client";
+import {
+  addDoc,
+  setDoc,
+  doc,
+  collection,
+  serverTimestamp,
+  getDoc,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase.client";
+import type { User } from "firebase/auth";
 
-export type Photo = { url: string; path: string; width?: number | null; height?: number | null };
+export type Photo = {
+  url: string;
+  path: string;
+  width?: number | null;
+  height?: number | null;
+};
+
+/**
+ * Safeguard: Filter out signed URLs (GoogleAccessId= or X-Goog-)
+ * Only allow public Firebase Storage URLs
+ */
+function filterSignedUrls(photos: Photo[]): Photo[] {
+  return photos.filter((photo) => {
+    if (!photo.url || typeof photo.url !== "string") return false;
+    if (
+      photo.url.includes("GoogleAccessId=") ||
+      photo.url.includes("X-Goog-")
+    ) {
+      console.error("[firestore-listings] Rejected signed URL:", photo.url);
+      return false;
+    }
+    return true;
+  });
+}
 export type CityObj = { name: string; placeId?: string } | null;
 
 export type NewListing = {
@@ -30,24 +60,27 @@ type AppUser = { uid: string; email: string | null };
 // Normalize city data before saving to Firestore
 function normalizeCity(c: string | CityObj | any): CityObj {
   if (!c) return null;
-  if (typeof c === 'string') return { name: c };
+  if (typeof c === "string") return { name: c };
   if (c.formatted) return { name: c.formatted, placeId: c.placeId }; // NormalizedCity
   return c; // already object {name, placeId?}
 }
 
 export async function createListing(user: User | AppUser, data: NewListing) {
+  // Safeguard: Filter out signed URLs before saving
+  const safePhotos = filterSignedUrls(data.photos ?? []);
+
   const payload = {
-    title: (data.title ?? '').trim(),
+    title: (data.title ?? "").trim(),
     city: normalizeCity(data.city),
     services: data.services ?? [],
     languages: data.languages ?? [],
     priceMin: data.priceMin ?? null,
     priceMax: data.priceMax ?? null,
-    description: (data.description ?? '').trim(),
-    photos: data.photos ?? [],
+    description: (data.description ?? "").trim(),
+    photos: safePhotos,
     // String mirrors for safe rendering
-    cityName: data.cityName || '',
-    cityKey: data.cityKey || '',
+    cityName: data.cityName || "",
+    cityKey: data.cityKey || "",
     serviceKeys: data.serviceKeys || [],
     serviceNames: data.serviceNames || [],
     languageKeys: data.languageKeys || [],
@@ -57,16 +90,24 @@ export async function createListing(user: User | AppUser, data: NewListing) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
-  console.info('[BR][CreateListing] payload:', payload);
-  return await addDoc(collection(db, 'listings'), payload);
+  console.info("[BR][CreateListing] payload:", payload);
+  return await addDoc(collection(db, "listings"), payload);
 }
 
-export async function updateListing(user: User | AppUser, id: string, data: Partial<NewListing>) {
+export async function updateListing(
+  user: User | AppUser,
+  id: string,
+  data: Partial<NewListing>
+) {
   // Ensure we never change owner on update
-  const ref = doc(db, 'listings', id);
+  const ref = doc(db, "listings", id);
   const snap = await getDoc(ref);
-  if (!snap.exists()) throw new Error('Listing not found');
+  if (!snap.exists()) throw new Error("Listing not found");
   const existing = snap.data() as any;
+
+  // Safeguard: Filter out signed URLs before saving
+  const safePhotos = data.photos ? filterSignedUrls(data.photos) : undefined;
+
   const payload = {
     title: data.title?.trim(),
     city: data.city ? normalizeCity(data.city) : undefined,
@@ -75,7 +116,7 @@ export async function updateListing(user: User | AppUser, id: string, data: Part
     priceMin: data.priceMin,
     priceMax: data.priceMax,
     description: data.description?.trim(),
-    photos: data.photos,
+    photos: safePhotos,
     // String mirrors for safe rendering
     cityName: data.cityName,
     cityKey: data.cityKey,
@@ -87,17 +128,28 @@ export async function updateListing(user: User | AppUser, id: string, data: Part
     ownerId: existing.ownerId, // keep owner
     ownerUid: existing.ownerUid, // keep owner
   };
-  console.info('[BR][UpdateListing] payload:', payload);
+  console.info("[BR][UpdateListing] payload:", payload);
   await setDoc(ref, payload, { merge: true });
 }
 
 // Legacy compatibility functions
-export async function createListingInBoth(user: User | AppUser, data: NewListing) {
- console.warn('[BR][Deprecated] createListingInBoth is deprecated, use createListing instead');
- return await createListing(user, data);
+export async function createListingInBoth(
+  user: User | AppUser,
+  data: NewListing
+) {
+  console.warn(
+    "[BR][Deprecated] createListingInBoth is deprecated, use createListing instead"
+  );
+  return await createListing(user, data);
 }
 
-export async function patchListingPhotos(user: User | AppUser, id: string, photos: Photo[]) {
- console.warn('[BR][Deprecated] patchListingPhotos is deprecated, use updateListing instead');
- return await updateListing(user, id, { photos });
+export async function patchListingPhotos(
+  user: User | AppUser,
+  id: string,
+  photos: Photo[]
+) {
+  console.warn(
+    "[BR][Deprecated] patchListingPhotos is deprecated, use updateListing instead"
+  );
+  return await updateListing(user, id, { photos });
 }

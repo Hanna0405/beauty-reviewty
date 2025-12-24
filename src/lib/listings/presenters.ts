@@ -1,16 +1,42 @@
 export type ListingLike = Record<string, any>;
 
 export function pickFirstImage(x: ListingLike): string | null {
+  // PRIMARY: Check listing.photos[0] first (Dashboard saves images here)
+  if (Array.isArray(x.photos) && x.photos.length > 0) {
+    const firstPhoto = x.photos[0];
+    if (firstPhoto) {
+      // Handle photo object with url field
+      const photoUrl =
+        typeof firstPhoto === "string"
+          ? firstPhoto
+          : firstPhoto.url || firstPhoto.downloadURL || firstPhoto.src;
+      if (photoUrl && typeof photoUrl === "string" && photoUrl.length > 0) {
+        // Only return HTTP/HTTPS URLs, not gs:// paths
+        if (photoUrl.startsWith("http")) {
+          return photoUrl;
+        }
+      }
+    }
+  }
+
+  // FALLBACK: Check other fields for backward compatibility with old listings
   const paths = [
-    "cover", "image", "photo", "thumbnail",
-    "photos.0.url", "images.0.url", "media.0.url",
-    "photos.0", "images.0", "media.0"
+    "cover",
+    "image",
+    "photo",
+    "thumbnail",
+    "images.0.url",
+    "media.0.url",
+    "images.0",
+    "media.0",
   ];
   for (const p of paths) {
-    const v = p.split(".").reduce((a, k) => (a == null ? a : a[k]), x) as unknown;
-    if (typeof v === 'string' && v.length > 0) {
+    const v = p
+      .split(".")
+      .reduce((a, k) => (a == null ? a : a[k]), x) as unknown;
+    if (typeof v === "string" && v.length > 0) {
       // Only return HTTP/HTTPS URLs, not gs:// paths
-      return v.startsWith('http') ? v : null;
+      return v.startsWith("http") ? v : null;
     }
   }
   return null;
@@ -38,14 +64,22 @@ export function serviceLabel(x: ListingLike): string {
 }
 
 const LANG_MAP: Record<string, string> = {
-  en: "English", uk: "Ukrainian", ru: "Russian",
-  fr: "French", es: "Spanish", pl: "Polish", de: "German"
+  en: "English",
+  uk: "Ukrainian",
+  ru: "Russian",
+  fr: "French",
+  es: "Spanish",
+  pl: "Polish",
+  de: "German",
 };
 
 export function languagesLabel(x: ListingLike): string {
   const names = (x?.languageNames as string[])?.filter(Boolean) || [];
-  const keys = (x?.languageKeys as string[])?.filter(Boolean) || (x?.languageCodes as string[])?.filter(Boolean) || [];
-  const fromKeys = keys.map(k => LANG_MAP[k] || k.toUpperCase());
+  const keys =
+    (x?.languageKeys as string[])?.filter(Boolean) ||
+    (x?.languageCodes as string[])?.filter(Boolean) ||
+    [];
+  const fromKeys = keys.map((k) => LANG_MAP[k] || k.toUpperCase());
   const all = [...names, ...fromKeys];
   return [...new Set(all)].join(", ");
 }
@@ -74,7 +108,11 @@ export function masterId(x: ListingLike): string | null {
 }
 
 export function reviewsCountValue(x: ListingLike): number {
-  const v = x?.finalCount ?? x?.reviewsCount ?? x?.reviews?.length ?? x?.ratingCount ?? 0;
+  const v =
+    x?.finalCount ??
+    x?.reviewsCount ??
+    x?.reviews?.length ??
+    x?.ratingCount ??
+    0;
   return typeof v === "number" ? v : 0;
 }
-

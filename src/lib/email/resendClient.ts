@@ -1,10 +1,22 @@
 import { Resend } from "resend";
 
-const apiKey = process.env.RESEND_API_KEY || process.env.RESEND_API_KEY_DEV || "";
+// Use only production RESEND_API_KEY (no dev fallback)
+const apiKey = process.env.RESEND_API_KEY || "";
 
-if (!apiKey) {
-  // eslint-disable-next-line no-console
-  console.warn("[Resend] Missing RESEND_API_KEY / RESEND_API_KEY_DEV env");
+// Default verified sender on our domain
+const DEFAULT_FROM = "BeautyReviewty <notifications@beautyreviewty.app>";
+
+// Support RESEND_FROM env var override, fallback to default
+const emailFrom = process.env.RESEND_FROM || DEFAULT_FROM;
+
+// Debug logging (server-side only)
+if (typeof window === "undefined") {
+  const senderDomain = emailFrom.match(/@([^>]+)/)?.[1] || emailFrom;
+  console.log(
+    `[Resend] Initialized - sender: ${senderDomain}, API key: ${
+      apiKey ? "present" : "missing"
+    }`
+  );
 }
 
 export const resend = apiKey ? new Resend(apiKey) : null;
@@ -17,6 +29,11 @@ export type SendAppEmailParams = {
 };
 
 export async function sendAppEmail(params: SendAppEmailParams) {
+  // Validate API key (server-side only)
+  if (typeof window === "undefined" && !apiKey) {
+    throw new Error("Missing RESEND_API_KEY");
+  }
+
   if (!resend) {
     // eslint-disable-next-line no-console
     console.warn("[Resend] sendAppEmail called but client is not configured");
@@ -30,7 +47,7 @@ export async function sendAppEmail(params: SendAppEmailParams) {
     console.log("[Resend] sending email to", to, "with subject", subject);
 
     const { data, error } = await resend.emails.send({
-      from: "BeautyReviewty <onboarding@resend.dev>",
+      from: emailFrom,
       to,
       subject,
       html,
@@ -49,4 +66,3 @@ export async function sendAppEmail(params: SendAppEmailParams) {
     console.error("[Resend] sendAppEmail exception", err);
   }
 }
-

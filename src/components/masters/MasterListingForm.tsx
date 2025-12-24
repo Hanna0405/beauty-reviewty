@@ -1,89 +1,73 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import Image from 'next/image';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { requireAuth, requireStorage, requireDb } from "@/lib/firebase/client";
 import { uploadFilesAndGetURLs } from "@/lib/services/storage";
 
-async function uploadImageViaApi(file: File, folder: string): Promise<string> {
-  const { getAuth } = await import('firebase/auth');
-  const auth = getAuth();
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
-
-  const fd = new FormData();
-  fd.set('file', file);
-  fd.set('folder', folder);
-  const res = await fetch('/api/upload', {
-    method: 'POST',
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: fd,
-  });
-  const data = await res.json();
-  if (!data?.ok || !data?.url) {
-    console.error('[upload failed]', data);
-    throw new Error(data?.error || 'Upload failed');
-  }
-  console.log('[upload success]', data.url);
-  return data.url as string;
-}
-import { createListingInBoth, patchListingPhotos } from "@/lib/firestore-listings";
+// Import client-side upload function
+import { uploadImageViaApi } from "@/lib/upload-client";
+import {
+  createListingInBoth,
+  patchListingPhotos,
+} from "@/lib/firestore-listings";
 import { addDoc, collection, serverTimestamp, doc } from "firebase/firestore";
 import { stripUndefined, toNumberOrNull } from "@/lib/object-helpers";
-import { useAuth } from '@/contexts/AuthContext';
-import type { Listing, GeoPoint } from '@/types';
-import { listingFormSchema, type ListingFormData } from '@/lib/schemas';
-import CityAutocomplete from '@/components/CityAutocompleteSimple';
-import ServiceAutocomplete from './ServiceAutocomplete';
-import LanguagesField from '@/components/LanguagesField';
-import { SERVICE_GROUPS } from '@/constants/services';
-import { useToast } from '@/components/ui/Toast';
+import { useAuth } from "@/contexts/AuthContext";
+import type { Listing, GeoPoint } from "@/types";
+import { listingFormSchema, type ListingFormData } from "@/lib/schemas";
+import CityAutocomplete from "@/components/CityAutocompleteSimple";
+import ServiceAutocomplete from "./ServiceAutocomplete";
+import LanguagesField from "@/components/LanguagesField";
+import { SERVICE_GROUPS } from "@/constants/services";
+import { useToast } from "@/components/ui/Toast";
 
 interface MasterListingFormProps {
-  mode: 'create' | 'edit';
+  mode: "create" | "edit";
   uid: string;
   listingId?: string;
   initialData?: Listing;
 }
 
-
-
-export default function MasterListingForm({ mode, uid, listingId, initialData }: MasterListingFormProps) {
+export default function MasterListingForm({
+  mode,
+  uid,
+  listingId,
+  initialData,
+}: MasterListingFormProps) {
   const router = useRouter();
   const { showToast } = useToast();
-  
+
   const {
     control,
     handleSubmit,
     formState: { errors },
     setValue,
     watch,
-    reset
+    reset,
   } = useForm({
     resolver: zodResolver(listingFormSchema),
     defaultValues: {
-      title: '',
-      about: '',
+      title: "",
+      about: "",
       city: null,
       services: [],
       languages: [],
       priceFrom: undefined,
-      status: 'active' as const,
+      status: "active" as const,
       isPublished: false,
       priceTo: undefined,
-      photos: []
-    }
+      photos: [],
+    },
   });
 
   const [saving, setSaving] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState(0);
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Helper to ensure user is authenticated
@@ -96,7 +80,10 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
   // Dev test function to verify Firestore write permissions
   async function devTestWrite() {
     const u = requireAuth().currentUser;
-    if (!u) { alert("Not signed in"); return; }
+    if (!u) {
+      alert("Not signed in");
+      return;
+    }
     try {
       await addDoc(collection(requireDb(), "listings"), {
         uid: u.uid,
@@ -126,7 +113,8 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
       // @ts-ignore
       // Some SDKs expose options directly as app.options
       const options: any = (app as any).options || {};
-      const projectId = options.projectId || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+      const projectId =
+        options.projectId || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
       const u = requireAuth().currentUser;
       console.log("[DEBUG] projectId:", projectId, "uid:", u?.uid);
       alert(`Project: ${projectId}\nUID: ${u?.uid ?? "null"}`);
@@ -141,11 +129,16 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
       const app = requireAuth().app;
       // @ts-ignore
       const opts: any = (app as any).options || {};
-      const projectId = opts.projectId || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-      // @ts-ignore
-      const bucket = requireStorage().bucket || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+      const projectId =
+        opts.projectId || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+      const storage = requireStorage();
+      const bucket =
+        process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
+        (storage ? "configured" : "not configured");
       const uid = requireAuth().currentUser?.uid || "null";
-      alert(`Origin: ${window.location.origin}\nProject: ${projectId}\nBucket: ${bucket}\nUID: ${uid}`);
+      alert(
+        `Origin: ${window.location.origin}\nProject: ${projectId}\nBucket: ${bucket}\nUID: ${uid}`
+      );
     } catch (e) {
       console.error("[DEBUG] error reading app/options:", e);
     }
@@ -154,43 +147,48 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
   // Debug function to check App Check state
   function debugAppCheck() {
     const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_V3_SITE_KEY;
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
-    const dbg = typeof window !== "undefined" ? (self.FIREBASE_APPCHECK_DEBUG_TOKEN ? "on" : "off") : "n/a";
-    alert(`Origin: ${window.location.origin}\nSiteKey set: ${!!siteKey}\nDebug token: ${dbg}`);
+    const dbg =
+      typeof window !== "undefined"
+        ? (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN
+          ? "on"
+          : "off"
+        : "n/a";
+    alert(
+      `Origin: ${
+        window.location.origin
+      }\nSiteKey set: ${!!siteKey}\nDebug token: ${dbg}`
+    );
   }
 
   // Initialize form with existing data
   useEffect(() => {
     if (initialData) {
       reset({
-        title: initialData.title || '',
-        about: initialData.about || '',
-        city: initialData.city ? {
-          label: initialData.city,
-          placeId: undefined,
-          lat: initialData.location?.lat,
-          lng: initialData.location?.lng,
-        } : null,
+        title: initialData.title || "",
+        about: initialData.about || "",
+        city: initialData.city
+          ? {
+              label: initialData.city,
+              placeId: undefined,
+              lat: initialData.location?.lat,
+              lng: initialData.location?.lng,
+            }
+          : null,
         services: initialData.services || [],
         languages: initialData.languages || [],
         priceFrom: initialData.priceFrom || undefined,
         priceTo: initialData.priceTo || undefined,
         photos: initialData.photos || [],
-        status: initialData.status || 'active',
-        isPublished: initialData.isPublished ?? false
+        status: initialData.status || "active",
+        isPublished: initialData.isPublished ?? false,
       });
     }
   }, [initialData, reset]);
 
-
-
   // Handle language selection
   const handleLanguageChange = (languages: string[]) => {
-    setValue('languages', languages);
+    setValue("languages", languages);
   };
-
-
 
   // Handle file upload
   const handleFileUpload = (fileList: FileList) => {
@@ -199,10 +197,10 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
 
   // Handle photo removal
   const handlePhotoRemove = async (photoUrl: string) => {
-    const currentPhotos = watch('photos') || [];
-    const newPhotos = currentPhotos.filter(photo => photo !== photoUrl);
-    setValue('photos', newPhotos);
-    
+    const currentPhotos = watch("photos") || [];
+    const newPhotos = currentPhotos.filter((photo) => photo !== photoUrl);
+    setValue("photos", newPhotos);
+
     // Note: Photo removal from storage is handled by the storage service
     // For now, we'll just remove from the form state
   };
@@ -212,7 +210,10 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
     e.preventDefault();
     if (saving) return;
     const u = requireAuth().currentUser;
-    if (!u) { alert("Please log in."); return; }
+    if (!u) {
+      alert("Please log in.");
+      return;
+    }
 
     const formData = watch();
     const title = (formData.title || "").trim();
@@ -223,55 +224,84 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
     const minPrice = toNumberOrNull(formData.priceFrom);
     const maxPrice = toNumberOrNull(formData.priceTo);
 
-    if (!title || !city || services.length === 0) { 
-      alert("Please fill Title, City and at least one Service."); 
-      return; 
+    if (!title || !city || services.length === 0) {
+      alert("Please fill Title, City and at least one Service.");
+      return;
     }
 
     let id: string | null = null;
     try {
-      setSaving(true); 
+      setSaving(true);
       setProgress(0);
 
       // 1) Create listing doc (in both collections)
       const listingRef = doc(requireDb(), "listings", "");
-      const docRef = await createListingInBoth(u, stripUndefined({
-        title,
-        description: description || '',
-        city, 
-        services, 
-        languages,
- priceMin: minPrice, 
- priceMax: maxPrice,
-        photos: [], 
-        status: "active" as const
- }));
- id = docRef.id;
+      const docRef = await createListingInBoth(
+        u,
+        stripUndefined({
+          title,
+          description: description || "",
+          city,
+          services,
+          languages,
+          priceMin: minPrice,
+          priceMax: maxPrice,
+          photos: [],
+          status: "active" as const,
+        })
+      );
+      id = docRef.id;
 
- // 2) Upload photos using new API
+      // 2) Upload photos using CLIENT SDK (not server API)
       let urls: string[] = [];
       if (files?.length) {
-        const candid = files.filter(f => (f.size || 0) <= 8 * 1024 * 1024);
-        urls = await Promise.all(
-          candid.map(file => uploadImageViaApi(file, `listings/${id}`))
+        const candid = files.filter((f) => (f.size || 0) <= 8 * 1024 * 1024);
+        const uploadedUrls = await Promise.all(
+          candid.map((file) => uploadImageViaApi(file, `listings/${id}`))
+        );
+
+        // Safeguard: Filter out signed URLs
+        urls = uploadedUrls.filter((url) => {
+          if (url.includes("GoogleAccessId=") || url.includes("X-Goog-")) {
+            console.error("[MasterListingForm] Rejected signed URL:", url);
+            return false;
+          }
+          return true;
+        });
+
+        if (uploadedUrls.length !== urls.length) {
+          console.warn(
+            `[MasterListingForm] Filtered out ${
+              uploadedUrls.length - urls.length
+            } signed URLs`
+          );
+        }
+      }
+
+      // 3) Patch photos (if any) - only valid public URLs
+      if (id && urls.length) {
+        const updateRef = doc(requireDb(), "listings", id);
+        await patchListingPhotos(
+          u,
+          id,
+          urls.map((url) => ({ url, path: "", width: null, height: null }))
         );
       }
 
-      // 3) Patch photos (if any)
-      if (id && urls.length) {
-        const updateRef = doc(requireDb(), "listings", id);
-        await patchListingPhotos(u, id, urls.map(url => ({ url, path: '', width: null, height: null })));
-      }
-
-      alert(urls.length ? "Listing created with photos!" : "Listing created (no photos uploaded).");
+      alert(
+        urls.length
+          ? "Listing created with photos!"
+          : "Listing created (no photos uploaded)."
+      );
 
       // 4) Navigate or reload so pages see it immediately
       router.push("/dashboard/master/listings");
       router.refresh();
-
     } catch (err: any) {
       console.error("[NewListing] submit error:", err);
-      alert(`Save failed: ${err?.code ?? "unknown"}\n${err?.message ?? String(err)}`);
+      alert(
+        `Save failed: ${err?.code ?? "unknown"}\n${err?.message ?? String(err)}`
+      );
     } finally {
       setSaving(false);
     }
@@ -279,72 +309,86 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
-        {/* Title */}
-        <div>
-          <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
-            Listing Title *
-          </label>
-          <Controller
-            name="title"
-            control={control}
-            render={({ field, fieldState }) => (
-              <>
-                <input
-                  {...field}
-                  type="text"
-                  id="title"
-                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500 ${
-                    fieldState.error ? 'border-red-300' : 'border-gray-300'
-                  }`}
-                  placeholder="e.g., Anna Petrenko — Brow Artist"
-                />
-                {fieldState.error && <p className="mt-1 text-sm text-red-600">{fieldState.error.message}</p>}
-              </>
-            )}
-          />
-        </div>
-
-        {/* About */}
-        <div>
-          <label htmlFor="about" className="block text-sm font-medium text-gray-700 mb-2">
-            About Your Services
-          </label>
-          <Controller
-            name="about"
-            control={control}
-            render={({ field, fieldState }) => (
-              <>
-                <textarea
-                  {...field}
-                  id="about"
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500"
-                  placeholder="Describe your services, experience, and what makes you unique..."
-                  maxLength={2000}
-                />
-                <p className="mt-1 text-sm text-gray-500">{field.value?.length || 0}/2000 characters</p>
-              </>
-            )}
-          />
-        </div>
-
-        {/* City */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            City/Location *
-          </label>
-          <Controller
-            name="city"
-            control={control}
-            render={({ field }) => (
-              <CityAutocomplete
-                value={field.value?.label || ''}
-                onChange={(value) => field.onChange({ label: value, lat: undefined, lng: undefined })}
-                placeholder="Enter city name"
+      {/* Title */}
+      <div>
+        <label
+          htmlFor="title"
+          className="block text-sm font-medium text-gray-700 mb-2"
+        >
+          Listing Title *
+        </label>
+        <Controller
+          name="title"
+          control={control}
+          render={({ field, fieldState }) => (
+            <>
+              <input
+                {...field}
+                type="text"
+                id="title"
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500 ${
+                  fieldState.error ? "border-red-300" : "border-gray-300"
+                }`}
+                placeholder="e.g., Anna Petrenko — Brow Artist"
               />
-            )}
-          />
-        </div>
+              {fieldState.error && (
+                <p className="mt-1 text-sm text-red-600">
+                  {fieldState.error.message}
+                </p>
+              )}
+            </>
+          )}
+        />
+      </div>
+
+      {/* About */}
+      <div>
+        <label
+          htmlFor="about"
+          className="block text-sm font-medium text-gray-700 mb-2"
+        >
+          About Your Services
+        </label>
+        <Controller
+          name="about"
+          control={control}
+          render={({ field, fieldState }) => (
+            <>
+              <textarea
+                {...field}
+                id="about"
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500"
+                placeholder="Describe your services, experience, and what makes you unique..."
+                maxLength={2000}
+              />
+              <p className="mt-1 text-sm text-gray-500">
+                {field.value?.length || 0}/2000 characters
+              </p>
+            </>
+          )}
+        />
+      </div>
+
+      {/* City */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          City/Location *
+        </label>
+        <Controller
+          name="city"
+          control={control}
+          render={({ field }) => (
+            <CityAutocomplete
+              value={field.value?.label || ""}
+              onChange={(value) =>
+                field.onChange({ label: value, lat: undefined, lng: undefined })
+              }
+              placeholder="Enter city name"
+            />
+          )}
+        />
+      </div>
 
       {/* Services */}
       <div>
@@ -369,8 +413,12 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
                         <button
                           type="button"
                           onClick={() => {
-                            const newServices = field.value?.filter((_, i) => i !== index) || [];
-                            setValue('services', newServices, { shouldDirty: true, shouldValidate: false });
+                            const newServices =
+                              field.value?.filter((_, i) => i !== index) || [];
+                            setValue("services", newServices, {
+                              shouldDirty: true,
+                              shouldValidate: false,
+                            });
                           }}
                           className="text-pink-600 hover:text-pink-800 ml-1"
                         >
@@ -380,16 +428,25 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
                     ))}
                   </div>
                 )}
-                
+
                 {/* Service autocomplete */}
                 <ServiceAutocomplete
                   value={field.value || []}
-                  onChange={(newServices) => setValue('services', newServices, { shouldDirty: true, shouldValidate: false })}
+                  onChange={(newServices) =>
+                    setValue("services", newServices, {
+                      shouldDirty: true,
+                      shouldValidate: false,
+                    })
+                  }
                   groups={SERVICE_GROUPS}
                   placeholder="Type to search services..."
                 />
-                
-                {fieldState.error && <p className="mt-1 text-sm text-red-600">{fieldState.error.message}</p>}
+
+                {fieldState.error && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {fieldState.error.message}
+                  </p>
+                )}
               </div>
             </>
           )}
@@ -412,7 +469,10 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
       {/* Price Range */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label htmlFor="priceFrom" className="block text-sm font-medium text-gray-700 mb-2">
+          <label
+            htmlFor="priceFrom"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
             Minimum Price ($)
           </label>
           <Controller
@@ -423,8 +483,12 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
                 {...field}
                 type="number"
                 id="priceFrom"
-                value={field.value || ''}
-                onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                value={field.value || ""}
+                onChange={(e) =>
+                  field.onChange(
+                    e.target.value ? Number(e.target.value) : undefined
+                  )
+                }
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500"
                 placeholder="0"
                 min="0"
@@ -433,7 +497,10 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
           />
         </div>
         <div>
-          <label htmlFor="priceTo" className="block text-sm font-medium text-gray-700 mb-2">
+          <label
+            htmlFor="priceTo"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
             Maximum Price ($)
           </label>
           <Controller
@@ -444,8 +511,12 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
                 {...field}
                 type="number"
                 id="priceTo"
-                value={field.value || ''}
-                onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                value={field.value || ""}
+                onChange={(e) =>
+                  field.onChange(
+                    e.target.value ? Number(e.target.value) : undefined
+                  )
+                }
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500"
                 placeholder="0"
                 min="0"
@@ -474,28 +545,34 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
               type="file"
               multiple
               accept="image/*"
-              onChange={(e) => handleFileUpload(e.target.files || new FileList())}
+              onChange={(e) =>
+                handleFileUpload(e.target.files || new FileList())
+              }
               className="hidden"
             />
             <p className="text-sm text-gray-500">Upload photos of your work</p>
           </div>
-          
+
           {/* Progress display */}
           {progress > 0 && progress < 100 && (
             <div className="bg-blue-50 p-3 rounded-lg">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-blue-700">Uploading photos...</span>
-                <span className="text-sm text-blue-600">{Math.round(progress)}%</span>
+                <span className="text-sm font-medium text-blue-700">
+                  Uploading photos...
+                </span>
+                <span className="text-sm text-blue-600">
+                  {Math.round(progress)}%
+                </span>
               </div>
               <div className="w-full bg-blue-200 rounded-full h-2">
-                <div 
+                <div
                   className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${progress}%` }}
                 />
               </div>
             </div>
           )}
-          
+
           {/* File preview */}
           {files.length > 0 && (
             <div className="space-y-2">
@@ -507,11 +584,11 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
               ))}
             </div>
           )}
-          
+
           <Controller
             name="photos"
             control={control}
-            render={({ field }) => (
+            render={({ field }) =>
               field.value && field.value.length > 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {field.value.map((photo: string, index: number) => (
@@ -524,7 +601,7 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
                           className="object-cover rounded-lg"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
-                            target.src = '/placeholder.jpg';
+                            target.src = "/placeholder.jpg";
                           }}
                         />
                       </div>
@@ -538,8 +615,10 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
                     </div>
                   ))}
                 </div>
-              ) : <div></div>
-            )}
+              ) : (
+                <div></div>
+              )
+            }
           />
         </div>
       </div>
@@ -558,8 +637,10 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
                 <input
                   type="radio"
                   value="active"
-                  checked={field.value === 'active'}
-                  onChange={(e) => field.onChange(e.target.value as 'active' | 'hidden')}
+                  checked={field.value === "active"}
+                  onChange={(e) =>
+                    field.onChange(e.target.value as "active" | "hidden")
+                  }
                   className="mr-2"
                 />
                 <span className="text-sm">Active - Visible to clients</span>
@@ -568,8 +649,10 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
                 <input
                   type="radio"
                   value="hidden"
-                  checked={field.value === 'hidden'}
-                  onChange={(e) => field.onChange(e.target.value as 'active' | 'hidden')}
+                  checked={field.value === "hidden"}
+                  onChange={(e) =>
+                    field.onChange(e.target.value as "active" | "hidden")
+                  }
                   className="mr-2"
                 />
                 <span className="text-sm">Hidden - Not visible to clients</span>
@@ -598,25 +681,25 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
             >
               DEV: show Firebase project
             </button>
-                        <button
-                          type="button"
-                          onClick={debugFirebaseContext}
-                          className="px-4 py-2 text-gray-600 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors text-sm"
-                        >
-                          DEV: Firebase context
-                        </button>
-                        <button
-                          type="button"
-                          onClick={debugAppCheck}
-                          className="px-4 py-2 text-gray-600 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors text-sm"
-                        >
-                          DEV: AppCheck state
-                        </button>
+            <button
+              type="button"
+              onClick={debugFirebaseContext}
+              className="px-4 py-2 text-gray-600 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors text-sm"
+            >
+              DEV: Firebase context
+            </button>
+            <button
+              type="button"
+              onClick={debugAppCheck}
+              className="px-4 py-2 text-gray-600 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors text-sm"
+            >
+              DEV: AppCheck state
+            </button>
           </>
         )}
         <button
           type="button"
-          onClick={() => router.push('/dashboard/master/listings')}
+          onClick={() => router.push("/dashboard/master/listings")}
           className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
         >
           Cancel
@@ -628,7 +711,7 @@ export default function MasterListingForm({ mode, uid, listingId, initialData }:
         >
           {saving ? "Saving..." : "Create Listing"}
         </button>
-                        </div>
-       </form>
-   );
- }
+      </div>
+    </form>
+  );
+}
