@@ -100,28 +100,62 @@ export function docLanguageKeys(x: any): string[] {
   return [];
 }
 
+// Map service name to catalog key (case-insensitive name matching)
+function serviceNameToKey(name: string): string | null {
+  if (!name || typeof name !== "string") return null;
+  const normalized = name.trim().toLowerCase();
+  
+  // Special case: "Permanent Makeup" maps to "permanent_makeup"
+  if (normalized === "permanent makeup") {
+    return "permanent_makeup";
+  }
+  
+  // Default: slugify the name
+  return slugifyKey(name);
+}
+
 // Deep extractors - check nested paths like profile.serviceKeys, details.serviceKeys, etc.
 export function docServiceKeysDeep(x: any): string[] {
-  // candidate paths to arrays of strings:
+  // candidate paths to arrays of strings (preferred):
   const stringArray = firstNonEmpty<string[]>(x,
     ["serviceKeys", "servicesKeys", "profile.serviceKeys", "details.serviceKeys", "data.serviceKeys"],
     v => Array.isArray(v) && v.every((s: any) => typeof s === "string")
   );
   if (stringArray) return stringArray;
 
-  // candidate paths to arrays of objects:
+  // candidate paths to arrays of objects (fallback 1):
   const objArray = firstNonEmpty<any[]>(x,
     ["services", "profile.services", "details.services", "data.services"],
     v => Array.isArray(v) && v.length > 0 && typeof v[0] === "object"
   );
-  if (objArray) return mapToKeys(objArray);
+  if (objArray) {
+    // Extract keys from objects: match by key property only (as per requirement)
+    const keys = objArray.map((obj: any) => {
+      if (obj?.key && typeof obj.key === "string") return obj.key;
+      return null;
+    }).filter(Boolean) as string[];
+    if (keys.length > 0) return keys;
+  }
 
-  // names fallback:
+  // names/text fallback (fallback 2):
   const nameArray = firstNonEmpty<any[]>(x,
     ["serviceNames", "profile.serviceNames", "details.serviceNames", "data.serviceNames"],
     v => Array.isArray(v)
   );
-  if (nameArray) return mapToKeys(nameArray);
+  if (nameArray) {
+    const keys = nameArray.map((n: any) => {
+      if (typeof n === "string") return serviceNameToKey(n);
+      return null;
+    }).filter(Boolean) as string[];
+    if (keys.length > 0) return keys;
+  }
+  
+  // Check servicesText (single string field)
+  const servicesText = x?.servicesText || x?.profile?.servicesText || x?.details?.servicesText || x?.data?.servicesText;
+  if (typeof servicesText === "string" && servicesText.trim()) {
+    const key = serviceNameToKey(servicesText);
+    if (key) return [key];
+  }
 
   return [];
 }

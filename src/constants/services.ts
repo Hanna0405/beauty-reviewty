@@ -63,6 +63,7 @@ export const SERVICE_GROUPS: ServiceGroup[] = [
       { value: 'makeup-day', label: 'Day Makeup' },
       { value: 'makeup-evening', label: 'Evening Makeup' },
       { value: 'makeup-bridal', label: 'Bridal Makeup' },
+      { value: 'permanent-makeup', label: 'Permanent Makeup' },
     ],
   },
   {

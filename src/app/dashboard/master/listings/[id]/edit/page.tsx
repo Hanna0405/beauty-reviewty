@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { doc, getDoc } from "firebase/firestore";
 import { requireDb, auth } from "@/lib/firebase/client";
@@ -26,6 +26,7 @@ export default function EditListingPage() {
  const router = useRouter();
  const params = useParams() as { id: string };
  const id = params.id;
+ const submitLockRef = useRef(false);
 
  const currentUid = auth?.currentUser?.uid ?? "";
 
@@ -157,10 +158,13 @@ export default function EditListingPage() {
  const onSubmit = async (e: React.FormEvent) => {
  e.preventDefault();
     
-    if (!validateForm()) return;
+    // Robust double-submit protection: ref guard at the very top
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
+    setSaving(true);
 
  try {
- setSaving(true);
+      if (!validateForm()) return;
       
        // Derive keys and names like in profile
        const serviceKeys = services.map(s => s.key);
@@ -191,12 +195,13 @@ export default function EditListingPage() {
       await updateListing(auth.currentUser, id, formData);
       console.info("[BR][EditListing] Updated successfully:", id);
       
-      alert(`Listing updated successfully: ${toDisplayText(title)} in ${toDisplayText(formData.cityName)}`);
-      // Stay on the same page as requested
+      // Redirect after successful save
+      router.push("/dashboard/master/listings");
  } catch (err) {
  console.error(err);
       alert("Failed to update listing");
  } finally {
+ submitLockRef.current = false;
  setSaving(false);
  }
  };
@@ -328,7 +333,7 @@ export default function EditListingPage() {
             </button>
             <button 
               type="submit" 
-              disabled={saving} 
+              disabled={saving || submitLockRef.current} 
               className="flex-1 px-6 py-4 bg-pink-500 text-white rounded-lg font-medium hover:bg-pink-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-target"
             >
               {saving ? "Saving..." : "Save Changes"}

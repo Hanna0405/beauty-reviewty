@@ -72,13 +72,13 @@ export async function fetchMastersOnce(
   const buildConstraints = (): QueryConstraint[] => {
     const constraints: QueryConstraint[] = [];
 
-    // Optional city filter
-    if ((filters as any).cityPlaceId) {
+    // Optional city filter - ONLY apply if explicitly provided (do not default to any city)
+    if ((filters as any).cityPlaceId && (filters as any).cityPlaceId.trim()) {
       constraints.push(
         where("city.placeId", "==", (filters as any).cityPlaceId)
       );
-    } else if (filters.city) {
-      constraints.push(where("city.name", "==", filters.city));
+    } else if (filters.city && filters.city.trim()) {
+      constraints.push(where("city.name", "==", filters.city.trim()));
     }
 
     // Optional rating filter
@@ -130,6 +130,8 @@ export async function fetchMastersOnce(
       }
     }
 
+    // Always add orderBy for consistent sorting (Firestore includes documents without the field, just at end)
+    // Required for pagination with cursor
     constraints.push(orderBy("displayName"));
     if (cursor) constraints.push(startAfter(cursor));
     constraints.push(limit(pageSize));
@@ -166,6 +168,8 @@ export async function fetchMastersOnce(
         languageKeys: extractKeys(data, "language"),
         // Explicitly include deleted field for TypeScript
         deleted: data.deleted ?? false,
+        // Ensure displayName exists for sorting (fallback to empty string so all masters are included)
+        displayName: data.displayName || data.name || "",
       };
     })
     // Filter out deleted masters

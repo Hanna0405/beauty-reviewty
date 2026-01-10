@@ -4,6 +4,7 @@ import { getImageDimensions } from "@/lib/storage-helpers";
 import { uploadImageViaApi } from "@/lib/upload-client";
 import { useToast } from "@/components/ui/Toast";
 import { logStorageDebug } from "@/lib/debug-storage";
+import { compressImage } from "@/lib/imageCompress";
 
 interface PhotoData {
   url: string;
@@ -39,6 +40,7 @@ export default function ListingPhotos({
   const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const uploadLockRef = useRef(false);
 
   // Debug storage bucket on mount
   useEffect(() => {
@@ -53,11 +55,17 @@ export default function ListingPhotos({
   const uploadSingleFile = useCallback(
     async (file: File, fileId: string): Promise<PhotoData> => {
       try {
+        // Compress listing photo: max 1600px, quality 0.82
+        const compressedFile = await compressImage(file, {
+          maxSide: 1600,
+          quality: 0.82,
+        });
+
         // Use proper folder structure for listings
         const folder = listingId
           ? `listings/${listingId}/photos`
           : `listings/${userId}/uploads`;
-        const url = await uploadImageViaApi(file, folder);
+        const url = await uploadImageViaApi(compressedFile, folder);
 
         // Safeguard: Reject signed URLs
         if (url.includes("GoogleAccessId=") || url.includes("X-Goog-")) {
@@ -95,53 +103,58 @@ export default function ListingPhotos({
   // Handle file selection
   const handleFileSelect = useCallback(
     async (files: FileList) => {
-      const fileArray = Array.from(files);
-      const validFiles = fileArray.filter((file) => {
-        // Check file type
-        if (!file.type.startsWith("image/")) {
-          setUploadErrors((prev) => ({
-            ...prev,
-            [file.name]: "Invalid file type",
-          }));
-          return false;
-        }
-
-        // Check file size (8MB limit)
-        if (file.size > 8 * 1024 * 1024) {
-          setUploadErrors((prev) => ({
-            ...prev,
-            [file.name]: "File too large (max 8MB)",
-          }));
-          return false;
-        }
-
-        return true;
-      });
-
-      if (validFiles.length === 0) return;
-
-      // Debug logging for each file
-      validFiles.forEach((file) => {
-        console.info("[BR] will upload", file.name, file.type, file.size);
-      });
-
-      // Check if adding these files would exceed the limit
-      const totalPhotos = photos.length + validFiles.length;
-      if (totalPhotos > maxPhotos) {
-        alert(
-          `You can only upload up to ${maxPhotos} photos. Please remove some existing photos first.`
-        );
-        return;
-      }
-
+      // Double-click protection: ref guard at the very top
+      if (uploadLockRef.current) return;
+      uploadLockRef.current = true;
       setUploading(true);
       setUploadProgress({});
       setUploadErrors({});
 
-      // Create abort controller for this upload batch
-      abortControllerRef.current = new AbortController();
-
       try {
+        const fileArray = Array.from(files);
+        const validFiles = fileArray.filter((file) => {
+          // Check file type
+          if (!file.type.startsWith("image/")) {
+            setUploadErrors((prev) => ({
+              ...prev,
+              [file.name]: "Invalid file type",
+            }));
+            return false;
+          }
+
+          // Check file size (8MB limit)
+          if (file.size > 8 * 1024 * 1024) {
+            setUploadErrors((prev) => ({
+              ...prev,
+              [file.name]: "File too large (max 8MB)",
+            }));
+            return false;
+          }
+
+          return true;
+        });
+
+        if (validFiles.length === 0) {
+          return;
+        }
+
+        // Debug logging for each file
+        validFiles.forEach((file) => {
+          console.info("[BR] will upload", file.name, file.type, file.size);
+        });
+
+        // Check if adding these files would exceed the limit
+        const totalPhotos = photos.length + validFiles.length;
+        if (totalPhotos > maxPhotos) {
+          alert(
+            `You can only upload up to ${maxPhotos} photos. Please remove some existing photos first.`
+          );
+          return;
+        }
+
+        // Create abort controller for this upload batch
+        abortControllerRef.current = new AbortController();
+
         // Upload files in parallel
         const uploadPromises = validFiles.map(async (file) => {
           const fileId = `${file.name}-${Date.now()}`;
@@ -159,7 +172,9 @@ export default function ListingPhotos({
             successfulUploads.push(result.value);
           } else {
             errors.push(
-              `Failed to upload ${validFiles[index].name}: ${result.reason.message}`
+              `Failed to upload ${validFiles[index].name}: ${
+                result.reason?.message || "Unknown error"
+              }`
             );
           }
         });
@@ -177,13 +192,14 @@ export default function ListingPhotos({
         console.error("Upload error:", error);
         showToast("Upload failed. Please try again.", "error");
       } finally {
+        uploadLockRef.current = false;
         setUploading(false);
         setUploadProgress({});
         setUploadErrors({});
         abortControllerRef.current = null;
       }
     },
-    [photos, maxPhotos, uploadSingleFile, onChange]
+    [photos, maxPhotos, uploadSingleFile, onChange, showToast]
   );
 
   // Remove photo
@@ -219,6 +235,8 @@ export default function ListingPhotos({
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
+      setUploadErrors({});
+      abortControllerRef.current = null;
     };
   }, []);
 
@@ -229,7 +247,9 @@ export default function ListingPhotos({
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          disabled={uploading || photos.length >= maxPhotos}
+          disabled={
+            uploading || uploadLockRef.current || photos.length >= maxPhotos
+          }
           className="px-6 py-3 bg-pink-500 text-white rounded-lg font-medium hover:bg-pink-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {uploading ? "Uploading..." : "Add Photos"}
@@ -247,7 +267,7 @@ export default function ListingPhotos({
         multiple
         onChange={handleInputChange}
         className="hidden"
-        disabled={uploading}
+        disabled={uploading || uploadLockRef.current}
       />
 
       {/* Upload progress */}

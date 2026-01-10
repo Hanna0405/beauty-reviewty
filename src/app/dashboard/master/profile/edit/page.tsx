@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { requireAuth, requireDb } from "@/lib/firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, deleteField } from "firebase/firestore";
 import CityAutocomplete from "@/components/CityAutocomplete";
 import type { CityNorm } from "@/lib/city";
 import MultiSelectAutocompleteV2 from "@/components/inputs/MultiSelectAutocompleteV2";
@@ -202,24 +202,26 @@ export default function EditProfilePage() {
  };
 
  const rawDataMasters: any = {
- uid,
- name: form.displayName.trim(),
- displayName: form.displayName.trim(),
- avatarUrl: form.avatarUrl || null,
- role: "master",
- isMaster: true,
- services: selServices,
- serviceKeys: svcMirrors.keys,
- serviceNames: svcMirrors.names,
- languages: selLanguages,
- languageKeys: lngMirrors.keys,
- languageNames: lngMirrors.names,
- socials: {
- instagram: form.socials?.instagram?.trim() || "",
- facebook: form.socials?.facebook?.trim() || "",
- website: form.socials?.website?.trim() || "",
- },
- updatedAt: new Date().toISOString(),
+  uid,
+  name: form.displayName.trim(),
+  displayName: form.displayName.trim(),
+  avatarUrl: form.avatarUrl || null,
+  role: "master",
+  isMaster: true,
+  deleted: false, // Restore soft-deleted profile
+  deletedAt: deleteField(), // Remove deletedAt field if it exists
+  services: selServices,
+  serviceKeys: svcMirrors.keys,
+  serviceNames: svcMirrors.names,
+  languages: selLanguages,
+  languageKeys: lngMirrors.keys,
+  languageNames: lngMirrors.names,
+  socials: {
+    instagram: form.socials?.instagram?.trim() || "",
+    facebook: form.socials?.facebook?.trim() || "",
+    website: form.socials?.website?.trim() || "",
+  },
+  updatedAt: new Date().toISOString(),
  };
 
  // Add city fields if selected
@@ -243,17 +245,23 @@ export default function EditProfilePage() {
  rawDataMasters.city = form.city.trim();
  }
 
- // Remove undefined values from payload
- function cleanPayload(data: any): any {
+// Remove undefined values from payload
+function cleanPayload(data: any): any {
  const payload: any = {};
  Object.entries(data).forEach(([key, value]) => {
  if (value !== undefined && value !== null) {
+ // Preserve Firestore deleteField() sentinel (FieldValue) - check for FieldValue signature
+ if (value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+ // If it's a Firestore FieldValue (deleteField, serverTimestamp, etc.), preserve it
+ if ('_methodName' in value || Object.keys(value).length === 0) {
+ payload[key] = value;
+ } else {
  // Recursively clean nested objects
- if (typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
  const cleaned = cleanPayload(value);
  // Only add if the cleaned object has at least one key
  if (Object.keys(cleaned).length > 0) {
  payload[key] = cleaned;
+ }
  }
  } else {
  payload[key] = value;
