@@ -4,7 +4,7 @@ import { Resend } from "resend";
 const apiKey = process.env.RESEND_API_KEY || "";
 
 // Default verified sender on our domain
-const DEFAULT_FROM = "BeautyReviewty <notifications@beautyreviewty.app>";
+const DEFAULT_FROM = "BeautyReviewty Notifications <notifications@beautyreviewty.com>";
 
 // Support RESEND_FROM env var override, fallback to default
 const emailFrom = process.env.RESEND_FROM || DEFAULT_FROM;
