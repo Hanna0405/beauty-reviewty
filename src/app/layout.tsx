@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { GoogleTagManager } from "@next/third-parties/google";
+
 import { AuthProvider } from "@/context/AuthContext";
 
 import "./globals.css";
@@ -33,6 +35,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
+        <GoogleTagManager gtmId="GTM-P3W8GS97" />
         <SwRegister />
         <InstallAppBanner />
         <AuthProvider>
@@ -45,7 +48,7 @@ export default function RootLayout({
               {/* Social Icons */}
               <div className="flex items-center justify-center gap-4 mb-3">
                 <a
-                  href="#"
+                  href="https://instagram.com/beautyreviewty"
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="Instagram"

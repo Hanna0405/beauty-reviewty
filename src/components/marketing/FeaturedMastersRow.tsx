@@ -93,7 +93,7 @@ export default function FeaturedMastersRow() {
   return (
     <div className="w-full overflow-x-auto no-scrollbar">
       <div className="flex gap-3 w-max">
-        {data.map((it)=> {
+        {data.map((it, idx)=> {
           const name = it.displayName || it.title || it.name || 'Beauty master';
           const city = it.city || '';
           const firstService = (it.services && it.services[0]) as ServiceOption | string | undefined;
@@ -114,6 +114,7 @@ export default function FeaturedMastersRow() {
                     fill 
                     className="object-cover" 
                     sizes="(max-width: 768px) 150px, 170px"
+                    priority={idx === 0}
                   />
                 ) : (
                   <div className="w-full h-full bg-slate-100 rounded-lg flex items-center justify-center text-xs text-gray-400">

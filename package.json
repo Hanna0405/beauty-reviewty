@@ -20,6 +20,7 @@
     "@googlemaps/js-api-loader": "^1.16.10",
     "@headlessui/react": "^2.2.7",
     "@hookform/resolvers": "^5.2.1",
+    "@next/third-parties": "^15.5.7",
     "@react-google-maps/api": "^2.20.7",
     "canvas-confetti": "^1.9.3",
     "date-fns": "^4.1.0",
