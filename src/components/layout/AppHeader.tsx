@@ -9,23 +9,48 @@ import { AvatarWithBadge } from "@/components/notifications/AvatarWithBadge";
 export default function AppHeader() {
  const { user, profile, loading, logout } = useAuth();
  const nameOrEmail = profile?.displayName || user?.email || "";
+ const pathname = usePathname();
+ const skincareActive = pathname === "/skincare-checker";
 
  return (
- <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
- {/* LEFT: Logo + Masters */}
- <div className="flex items-center gap-6">
- <Link href="/" className="group relative w-10 h-10 flex items-center justify-center rounded-full bg-pink-500 text-white font-bold hover:bg-pink-600 transition-colors">
+ <div className="mx-auto flex min-w-0 max-w-6xl items-start justify-between gap-3 px-3 py-2.5 sm:px-4 sm:items-center">
+ {/* LEFT: Logo + nav (Masters/Reviewty + Check skincare below) */}
+ <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-4">
+ <Link href="/" className="group relative w-10 h-10 flex shrink-0 items-center justify-center rounded-full bg-pink-500 text-white font-bold hover:bg-pink-600 transition-colors">
  BR
  <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-white text-gray-900 text-xs px-2 py-1 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
   BeautyReviewty
  </span>
  </Link>
- <Link href="/masters" className="text-sm font-medium text-gray-700 hover:text-gray-900">
-  Masters
- </Link>
- <Link href="/reviewty" className="text-sm font-medium text-gray-700 hover:text-gray-900">
-  Reviewty
- </Link>
+ <div className="flex min-w-0 flex-col items-center gap-1.5 sm:pt-0.5">
+  <div className="flex items-center justify-center gap-4 sm:gap-6">
+   <Link href="/masters" className="text-sm font-medium text-gray-700 hover:text-gray-900">
+    Masters
+   </Link>
+   <Link href="/reviewty" className="text-sm font-medium text-gray-700 hover:text-gray-900">
+    Reviewty
+   </Link>
+  </div>
+  <Link
+  href="/skincare-checker"
+  className={
+   "inline-flex w-auto max-w-full shrink-0 items-center justify-center no-underline rounded-md border-2 border-pink-500 px-2.5 py-1.5 text-[14px] font-semibold leading-normal antialiased shadow-sm transition-colors sm:px-3 " +
+   (skincareActive
+    ? "border-pink-500 bg-pink-500 hover:bg-pink-600"
+    : "bg-white text-gray-900 border-pink-500 hover:bg-rose-100 active:bg-pink-500 active:[&>span]:text-white")
+  }
+  aria-current={skincareActive ? "page" : undefined}
+  >
+   <span
+    className={
+     "block max-w-full whitespace-nowrap" +
+     (skincareActive ? " text-white" : " text-gray-900")
+    }
+   >
+    Check skincare
+   </span>
+  </Link>
+ </div>
  </div>
 
  {/* RIGHT: Auth area (never blocks) */}
