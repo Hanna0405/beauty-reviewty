@@ -12,12 +12,12 @@ import { fetchMastersOnce, fetchListingsOnce, MasterFilters as FM } from "@/lib/
 import { includesAll } from "@/lib/filters/matchers";
 import { selectedToKeys, docServiceKeysDeep, docLanguageKeysDeep, extractCityKey, normalizeCitySelection, toKey, docCityKeyDeep, toRegionKey } from "@/lib/filters/normalize";
 import dynamicImport from 'next/dynamic';
-import { collection, getDocs, query, where, type Firestore } from "firebase/firestore";
+import { collection, getDocs, query, where, type Firestore, type DocumentData } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 const MastersMapNoSSR = dynamicImport(() => import('@/components/mapComponents').then(m => m.MastersMap), { ssr: false });
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 8;
 
 function isFirestoreDb(value: unknown): value is Firestore {
   return !!value && typeof value === "object" && "_databaseId" in (value as Record<string, unknown>);
@@ -51,8 +51,12 @@ function PageContent() {
   const [mapMarker, setMapMarker] = useState<{lat: number; lng: number} | null>(null);
   
   // Pagination state
-  const [visibleMastersCount, setVisibleMastersCount] = useState(PAGE_SIZE);
-  const [visibleListingsCount, setVisibleListingsCount] = useState(PAGE_SIZE);
+  const [mastersCursor, setMastersCursor] = useState<DocumentData | undefined>(undefined);
+  const [listingsCursor, setListingsCursor] = useState<DocumentData | undefined>(undefined);
+  const [hasMoreMasters, setHasMoreMasters] = useState(true);
+  const [hasMoreListings, setHasMoreListings] = useState(true);
+  const [loadingMoreMasters, setLoadingMoreMasters] = useState(false);
+  const [loadingMoreListings, setLoadingMoreListings] = useState(false);
 
   // Handlers with normalization
   const handleServicesChange = useCallback((next: any[]) => {
@@ -125,29 +129,84 @@ function PageContent() {
     }
   }, [selectedCity]);
 
-  // Initial data load on mount (ONCE - loads ALL data, no filters)
+  // Initial data load on mount (first batch only)
   useEffect(() => {
     let alive = true;
     (async () => {
       setLoading(true);
       try {
         const [mastersResult, listingsResult] = await Promise.all([
-          fetchMastersOnce({}, 500), // Fetch large initial dataset without filters
-          fetchListingsOnce({}, 500)
+          fetchMastersOnce({}, PAGE_SIZE),
+          fetchListingsOnce({}, PAGE_SIZE)
         ]);
         if (alive) {
           setAllMasters(mastersResult.items);
           setAllListings(listingsResult.items);
+          setMastersCursor(mastersResult.nextCursor);
+          setListingsCursor(listingsResult.nextCursor);
+          setHasMoreMasters(mastersResult.items.length >= PAGE_SIZE && !!mastersResult.nextCursor);
+          setHasMoreListings(listingsResult.items.length >= PAGE_SIZE && !!listingsResult.nextCursor);
           setInitialLoad(false); // Mark initial load complete
         }
       } catch (error) {
-        console.error('[Masters] Initial load error:', error);
+        console.warn('[Masters] Initial load error:', error);
+        if (alive) {
+          setAllMasters([]);
+          setAllListings([]);
+          setHasMoreMasters(false);
+          setHasMoreListings(false);
+          setInitialLoad(false);
+        }
       } finally {
         if (alive) setLoading(false);
       }
     })();
     return () => { alive = false; };
-  }, []); // Run only ONCE on mount - no refetching!
+  }, []);
+
+  const mergeUniqueById = useCallback((prev: any[], next: any[]) => {
+    const map = new Map<string, any>();
+    prev.forEach((item) => {
+      const id = String(item?.id ?? item?._id ?? "");
+      if (id) map.set(id, item);
+    });
+    next.forEach((item) => {
+      const id = String(item?.id ?? item?._id ?? "");
+      if (!id) return;
+      if (!map.has(id)) map.set(id, item);
+    });
+    return Array.from(map.values());
+  }, []);
+
+  const loadMoreMasters = useCallback(async () => {
+    if (loadingMoreMasters || !hasMoreMasters || !mastersCursor) return;
+    setLoadingMoreMasters(true);
+    try {
+      const result = await fetchMastersOnce({}, PAGE_SIZE, mastersCursor);
+      setAllMasters((prev) => mergeUniqueById(prev, result.items));
+      setMastersCursor(result.nextCursor);
+      setHasMoreMasters(result.items.length >= PAGE_SIZE && !!result.nextCursor);
+    } catch (error) {
+      console.warn("[Masters] Load more masters failed:", error);
+    } finally {
+      setLoadingMoreMasters(false);
+    }
+  }, [loadingMoreMasters, hasMoreMasters, mastersCursor, mergeUniqueById]);
+
+  const loadMoreListings = useCallback(async () => {
+    if (loadingMoreListings || !hasMoreListings || !listingsCursor) return;
+    setLoadingMoreListings(true);
+    try {
+      const result = await fetchListingsOnce({}, PAGE_SIZE, listingsCursor);
+      setAllListings((prev) => mergeUniqueById(prev, result.items));
+      setListingsCursor(result.nextCursor);
+      setHasMoreListings(result.items.length >= PAGE_SIZE && !!result.nextCursor);
+    } catch (error) {
+      console.warn("[Masters] Load more listings failed:", error);
+    } finally {
+      setLoadingMoreListings(false);
+    }
+  }, [loadingMoreListings, hasMoreListings, listingsCursor, mergeUniqueById]);
 
   // Load reviews for listings after listings are loaded
   useEffect(() => {
@@ -355,12 +414,6 @@ function PageContent() {
     return filtered;
   }, [allMasters, effectiveCitySlug, selectedServiceKeys, selectedLanguageKeys, name, minRating, masterRatings]);
 
-  // Reset pagination when filters change
-  useEffect(() => {
-    setVisibleMastersCount(PAGE_SIZE);
-    setVisibleListingsCount(PAGE_SIZE);
-  }, [effectiveCitySlug, selectedServiceKeys, selectedLanguageKeys, name, minRating]);
-
   // Filter listings - ALWAYS start from enhancedListings (full dataset with ratings), matching /reviewty pattern
   const filteredListingsWithRatings = useMemo(() => {
     let filtered = [...enhancedListings];
@@ -511,20 +564,21 @@ function PageContent() {
                 <section>
                   <h2 className="text-base font-semibold mb-3">Masters ({filteredMastersFinal.length})</h2>
                   <div className="grid gap-3 md:grid-cols-2">
-                    {filteredMastersFinal.slice(0, visibleMastersCount).map(m => {
+                    {filteredMastersFinal.map(m => {
                       const masterId = m.id || m.uid;
                       const ratingData = masterId ? masterRatings.get(masterId) : null;
                       return <MasterCard key={m.id} master={m} rating={ratingData?.rating} reviewCount={ratingData?.count} />;
                     })}
                   </div>
-                  {filteredMastersFinal.length > visibleMastersCount && (
+                  {hasMoreMasters && (
                     <div className="flex justify-center mt-4">
                       <button
                         type="button"
-                        onClick={() => setVisibleMastersCount((prev) => prev + PAGE_SIZE)}
+                        onClick={loadMoreMasters}
+                        disabled={loadingMoreMasters}
                         className="px-4 py-2 text-sm font-medium rounded-full border border-pink-300 hover:bg-pink-50"
                       >
-                        Load more
+                        {loadingMoreMasters ? "Loading..." : "Load more"}
                       </button>
                     </div>
                   )}
@@ -536,16 +590,17 @@ function PageContent() {
                 <section>
                   <h2 className="text-base font-semibold mb-3">Listings ({filteredListingsWithRatings.length})</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-                    {filteredListingsWithRatings.slice(0, visibleListingsCount).map(l => <ListingCard key={l.id || l._id} item={l} />)}
+                    {filteredListingsWithRatings.map(l => <ListingCard key={l.id || l._id} item={l} />)}
                   </div>
-                  {filteredListingsWithRatings.length > visibleListingsCount && (
+                  {hasMoreListings && (
                     <div className="flex justify-center mt-4">
                       <button
                         type="button"
-                        onClick={() => setVisibleListingsCount((prev) => prev + PAGE_SIZE)}
+                        onClick={loadMoreListings}
+                        disabled={loadingMoreListings}
                         className="px-4 py-2 text-sm font-medium rounded-full border border-pink-300 hover:bg-pink-50"
                       >
-                        Load more
+                        {loadingMoreListings ? "Loading..." : "Load more"}
                       </button>
                     </div>
                   )}
