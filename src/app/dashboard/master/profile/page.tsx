@@ -149,6 +149,16 @@ export default function MasterProfilePage() {
   ? profile.languageNames
   : profile?.languages || [];
 
+ const avatarVersion =
+  (profile as any)?.updatedAt?.seconds ||
+  (profile as any)?.updatedAt ||
+  Date.now();
+ const avatarDisplayUrl = profile?.avatarUrl
+  ? `${profile.avatarUrl}${profile.avatarUrl.includes("?") ? "&" : "?"}v=${encodeURIComponent(
+      String(avatarVersion)
+    )}`
+  : null;
+
  // IMPORTANT: fix 404 — go to /master/{uid}
  const viewHref = `/master/${user?.uid ?? profile?.uid ?? ""}`;
 
@@ -176,9 +186,9 @@ export default function MasterProfilePage() {
    {/* Left part: avatar + name + location */}
    <div className="flex flex-row items-start gap-3 md:items-center md:flex-1 min-w-0">
    <div className="h-16 w-16 shrink-0 rounded-full bg-pink-200 flex items-center justify-center overflow-hidden ring-2 ring-white">
-   {profile?.avatarUrl ? (
+  {avatarDisplayUrl ? (
    <img
-   src={profile.avatarUrl}
+  src={avatarDisplayUrl}
    alt={displayName}
    className="h-full w-full object-cover"
    />

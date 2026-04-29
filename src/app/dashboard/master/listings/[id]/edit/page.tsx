@@ -322,6 +322,12 @@ export default function EditListingPage() {
           />
         </div>
 
+        {errors.city ? (
+          <p className="text-rose-600 text-sm font-medium mt-1">
+            City is required. Please select a city before saving.
+          </p>
+        ) : null}
+
         <div className="sticky-save md:relative md:sticky-0 md:bg-transparent md:border-0 md:p-0 md:m-0">
           <div className="flex gap-4">
             <button 

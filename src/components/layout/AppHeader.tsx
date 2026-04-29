@@ -34,19 +34,14 @@ export default function AppHeader() {
   <Link
   href="/skincare-checker"
   className={
-   "inline-flex w-auto max-w-full shrink-0 items-center justify-center no-underline rounded-md border-2 border-pink-500 px-2.5 py-1.5 text-[14px] font-semibold leading-normal antialiased shadow-sm transition-colors sm:px-3 " +
+   "inline-flex w-auto max-w-full shrink-0 items-center justify-center no-underline rounded-md border-0 px-2.5 py-1.5 text-[14px] font-semibold leading-normal antialiased shadow-none transition-colors sm:px-3 " +
    (skincareActive
-    ? "border-pink-500 bg-pink-500 hover:bg-pink-600"
-    : "bg-white text-gray-900 border-pink-500 hover:bg-rose-100 active:bg-pink-500 active:[&>span]:text-white")
+    ? "bg-[#F5DAE9] text-pink-700 hover:bg-[#F5D7E7]"
+    : "bg-[#FCE4EF] text-pink-600 hover:bg-[#F9E0ED] hover:text-pink-700 active:bg-[#F5DDE8]")
   }
   aria-current={skincareActive ? "page" : undefined}
   >
-   <span
-    className={
-     "block max-w-full whitespace-nowrap" +
-     (skincareActive ? " text-white" : " text-gray-900")
-    }
-   >
+   <span className="block max-w-full whitespace-nowrap">
     Check skincare
    </span>
   </Link>

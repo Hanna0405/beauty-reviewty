@@ -1,5 +1,5 @@
 import { getFirebaseDb } from "@/lib/firebase/client";
-import { collection, getDocs, orderBy, limit, query } from "firebase/firestore";
+import { collection, getDocs, orderBy, limit, query, type Firestore } from "firebase/firestore";
 
 export type ReviewData = {
   reviewId: string;
@@ -11,13 +11,17 @@ export type ReviewData = {
   createdAt?: any;
 };
 
+function isFirestoreDb(value: unknown): value is Firestore {
+  return !!value && typeof value === "object" && "_databaseId" in (value as Record<string, unknown>);
+}
+
 export async function getLatestReviews(
   limitCount: number
 ): Promise<ReviewData[]> {
   const db = getFirebaseDb();
 
-  if (!db) {
-    console.warn("[Firestore] getFirebaseDb() returned null (likely server-side build). Returning empty result.");
+  if (!isFirestoreDb(db)) {
+    console.warn("[Firestore] getLatestReviews: Firestore DB unavailable. Returning empty result.");
     return [];
   }
 
@@ -38,7 +42,7 @@ export async function getLatestReviews(
         } as ReviewData)
     );
   } catch (error) {
-    console.error("Failed to fetch latest reviews:", error);
+    console.warn("Failed to fetch latest reviews:", error);
     return [];
   }
 }

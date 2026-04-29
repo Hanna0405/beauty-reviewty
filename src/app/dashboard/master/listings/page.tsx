@@ -49,6 +49,8 @@ export default function MyListingsPage() {
     deleteDoc(ref)
       .then(() => {
         console.log("[DashboardListings] deleted listing", listingId);
+        // Remove immediately from local UI so user sees instant feedback.
+        setItems((prev) => prev.filter((it) => it.id !== listingId));
       })
       .catch((err) => {
         console.error("[DashboardListings] delete error:", err);

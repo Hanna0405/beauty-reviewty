@@ -345,6 +345,12 @@ export default function NewListingPage() {
                 />
               </div>
 
+              {errors.city ? (
+                <p className="text-rose-600 text-sm font-medium mt-1">
+                  City is required. Please select a city before saving.
+                </p>
+              ) : null}
+
               {/* Success Banner */}
               {successId && (
                 <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-800">

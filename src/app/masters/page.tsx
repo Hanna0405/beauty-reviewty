@@ -12,12 +12,16 @@ import { fetchMastersOnce, fetchListingsOnce, MasterFilters as FM } from "@/lib/
 import { includesAll } from "@/lib/filters/matchers";
 import { selectedToKeys, docServiceKeysDeep, docLanguageKeysDeep, extractCityKey, normalizeCitySelection, toKey, docCityKeyDeep, toRegionKey } from "@/lib/filters/normalize";
 import dynamicImport from 'next/dynamic';
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, query, where, type Firestore } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 const MastersMapNoSSR = dynamicImport(() => import('@/components/mapComponents').then(m => m.MastersMap), { ssr: false });
 
 const PAGE_SIZE = 20;
+
+function isFirestoreDb(value: unknown): value is Firestore {
+  return !!value && typeof value === "object" && "_databaseId" in (value as Record<string, unknown>);
+}
 
 function PageContent() {
   // Get URL search params for city fallback
@@ -148,6 +152,11 @@ function PageContent() {
   // Load reviews for listings after listings are loaded
   useEffect(() => {
     if (!allListings.length || initialLoad) return;
+    if (!isFirestoreDb(db)) {
+      console.warn("[Masters] Firestore DB unavailable for reviews fetch. Using empty fallback.");
+      setAllReviews([]);
+      return;
+    }
     
     let cancelled = false;
     (async () => {
@@ -177,7 +186,7 @@ function PageContent() {
               }
             });
           } catch (batchError) {
-            console.error('[Masters] Failed to load reviews batch:', batchError);
+            console.warn('[Masters] Failed to load reviews batch:', batchError);
           }
         }
 
@@ -185,7 +194,7 @@ function PageContent() {
           setAllReviews(reviewsBatch);
         }
       } catch (error) {
-        console.error('[Masters] Reviews load error:', error);
+        console.warn('[Masters] Reviews load error:', error);
       }
     })();
     

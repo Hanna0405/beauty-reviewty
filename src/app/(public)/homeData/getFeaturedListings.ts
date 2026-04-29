@@ -6,6 +6,7 @@ import {
   where,
   orderBy,
   limit,
+  type Firestore,
 } from "firebase/firestore";
 
 export type ListingData = {
@@ -17,14 +18,18 @@ export type ListingData = {
   href: string;
 };
 
+function isFirestoreDb(value: unknown): value is Firestore {
+  return !!value && typeof value === "object" && "_databaseId" in (value as Record<string, unknown>);
+}
+
 export async function getFeaturedListings(
   limitCount: number
 ): Promise<ListingData[]> {
   const db = getFirebaseDb();
 
   // safety guard for build / SSR
-  if (!db) {
-    console.warn("[getFeaturedListings] Firestore not initialized (server-side build). Returning empty list.");
+  if (!isFirestoreDb(db)) {
+    console.warn("[getFeaturedListings] Firestore DB unavailable. Returning empty list.");
     return [];
   }
 
@@ -90,7 +95,7 @@ export async function getFeaturedListings(
       };
     });
   } catch (error) {
-    console.error("Failed to fetch featured listings:", error);
+    console.warn("Failed to fetch featured listings:", error);
     return [];
   }
 }

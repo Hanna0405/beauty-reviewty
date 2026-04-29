@@ -14,6 +14,16 @@ interface ProfileCardProps {
 
 export default function ProfileCard({ profile, onEdit, onDelete }: ProfileCardProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const avatarVersion =
+    (profile as any)?.avatarUpdatedAt?.seconds ||
+    (profile as any)?.updatedAt?.seconds ||
+    (profile as any)?.updatedAt ||
+    Date.now();
+  const avatarDisplayUrl = profile.avatarUrl
+    ? `${profile.avatarUrl}${profile.avatarUrl.includes("?") ? "&" : "?"}v=${encodeURIComponent(
+        String(avatarVersion)
+      )}`
+    : "";
 
   const handleDeleteClick = () => {
     setShowDeleteConfirm(true);
@@ -36,7 +46,7 @@ export default function ProfileCard({ profile, onEdit, onDelete }: ProfileCardPr
           {profile.avatarUrl ? (
             <div className="relative w-20 h-20 rounded-full overflow-hidden border-4 border-white/20">
               <Image
-                src={profile.avatarUrl}
+                src={avatarDisplayUrl}
                 alt={profile.displayName}
                 fill
                 className="object-cover"

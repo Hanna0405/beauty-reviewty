@@ -56,6 +56,7 @@ export default function EditProfilePage() {
  const [loading, setLoading] = useState(true);
  const [saving, setSaving] = useState(false);
  const [error, setError] = useState<string | null>(null);
+ const [avatarDisplayVersion, setAvatarDisplayVersion] = useState<number>(() => Date.now());
 
  useEffect(() => {
  let cancelled = false;
@@ -150,6 +151,12 @@ export default function EditProfilePage() {
 
  function setField<K extends keyof MasterProfile>(key: K, val: MasterProfile[K]) {
  setForm((p) => ({ ...p, [key]: val }));
+ }
+
+ function withAvatarCacheBust(url?: string | null, version?: number | string) {
+ if (!url) return "";
+ const suffix = `${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(String(version ?? Date.now()))}`;
+ return `${url}${suffix}`;
  }
 
  function validate(p: MasterProfile, cityObj: CityNorm | null, svc: TagOption[], lng: TagOption[]) {
@@ -289,8 +296,11 @@ function cleanPayload(data: any): any {
  // - this payload includes all required fields
  await setDoc(doc(db, "masters", uid), payloadMasters, { merge: true });
 
+ setAvatarDisplayVersion(Date.now());
+
  alert("Profile updated successfully");
  router.replace("/dashboard/master/profile");
+ router.refresh();
  } catch (err: any) {
  console.error(err);
  setError(err?.message || "Failed to save profile");
@@ -339,8 +349,11 @@ function cleanPayload(data: any): any {
  {/* Avatar section */}
  <MasterAvatarInput
  uid={uid}
- currentUrl={form.avatarUrl}
- onUploaded={(url) => setField("avatarUrl", url)}
+ currentUrl={withAvatarCacheBust(form.avatarUrl, avatarDisplayVersion)}
+ onUploaded={(url) => {
+ setField("avatarUrl", url);
+ setAvatarDisplayVersion(Date.now());
+ }}
  />
 
  {/* display name */}

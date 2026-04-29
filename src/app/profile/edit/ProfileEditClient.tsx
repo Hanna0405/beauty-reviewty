@@ -88,6 +88,15 @@ export default function ProfileEditClient() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [localAvatarFile, setLocalAvatarFile] = useState<File | null>(null);
   const [currentAvatarPath, setCurrentAvatarPath] = useState<string | null>(null);
+  const [avatarDisplayVersion, setAvatarDisplayVersion] = useState<number>(() => Date.now());
+
+  function withAvatarCacheBust(url?: string | null, version?: number | string) {
+    if (!url) return "";
+    const suffix = `${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(
+      String(version ?? Date.now())
+    )}`;
+    return `${url}${suffix}`;
+  }
 
   useEffect(() => {
     if (authLoading) return;
@@ -181,12 +190,12 @@ export default function ProfileEditClient() {
       // Prepare form data for API - include all avatar fields
       const formData = {
         ...form,
-        photoURL: form.photoURL || avatarUrl,
-        avatarUrl: form.avatarUrl || avatarUrl,
-        avatarPath: form.avatarPath || avatarPath,
+        photoURL: avatarUrl || form.photoURL,
+        avatarUrl: avatarUrl || form.avatarUrl,
+        avatarPath: avatarPath || form.avatarPath,
         avatar: {
-          url: form.avatar?.url || avatarUrl,
-          path: form.avatar?.path || avatarPath,
+          url: avatarUrl || form.avatar?.url,
+          path: avatarPath || form.avatar?.path,
         },
         links: {
           instagram: form.socials?.instagram ?? null,
@@ -251,8 +260,26 @@ export default function ProfileEditClient() {
         updatedAt: serverTimestamp(),
       }, { merge: true });
 
+      const savedAvatarRaw = String(avatarUrl || formData.avatarUrl || "");
+      if (savedAvatarRaw) {
+        const nextVersion = Date.now();
+        setAvatarDisplayVersion(nextVersion);
+        setAvatarPreview(withAvatarCacheBust(savedAvatarRaw, nextVersion));
+        setForm((prev) => ({
+          ...prev,
+          photoURL: savedAvatarRaw,
+          avatarUrl: savedAvatarRaw,
+          avatarPath: String(avatarPath || prev.avatarPath || ""),
+          avatar: {
+            url: savedAvatarRaw,
+            path: String(avatarPath || prev.avatar?.path || ""),
+          },
+        }));
+      }
+
       alert('Profile saved successfully');
-      router.push('/profile');
+      router.replace('/profile');
+      router.refresh();
     } catch (e: any) {
       if (e?.message === "NOT_SIGNED_IN") {
         // gently redirect to login and preserve return path
@@ -299,7 +326,9 @@ export default function ProfileEditClient() {
       }));
 
       // Update preview with real URL
-      setAvatarPreview(url);
+      const nextVersion = Date.now();
+      setAvatarDisplayVersion(nextVersion);
+      setAvatarPreview(withAvatarCacheBust(url, nextVersion));
       setCurrentAvatarPath(path);
 
       // 2) ✅ Optional instant persist (safe; ignore if fails)
@@ -343,7 +372,9 @@ export default function ProfileEditClient() {
             <ProfileAvatar 
               user={{
                 ...user,
-                avatarUrl: avatarPreview || form.avatarUrl,
+                avatarUrl:
+                  avatarPreview ||
+                  withAvatarCacheBust(form.avatarUrl || form.photoURL, avatarDisplayVersion),
                 displayName: form.displayName
               }} 
               size={80} 

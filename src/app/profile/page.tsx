@@ -33,6 +33,7 @@ export default function PublicProfilePage() {
 
   const [listings, setListings] = useState<any[]>([]);
   const [listingsLoading, setListingsLoading] = useState(true);
+  const [avatarVersion, setAvatarVersion] = useState<number>(Date.now());
 
   // 1. load profile document for this user
   useEffect(() => {
@@ -45,8 +46,12 @@ export default function PublicProfilePage() {
         if (snap.exists()) {
           const data = snap.data() as any;
           setProfile({ ...data, uid: user.uid });
+          setAvatarVersion(
+            Number(data?.avatarUpdatedAt?.seconds || data?.updatedAt?.seconds || Date.now())
+          );
         } else {
           setProfile(null);
+          setAvatarVersion(Date.now());
         }
         setProfileLoading(false);
       },
@@ -135,7 +140,9 @@ export default function PublicProfilePage() {
               // real avatar photo if you store it
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={profile.photoURL}
+                src={`${profile.photoURL}${profile.photoURL.includes("?") ? "&" : "?"}v=${encodeURIComponent(
+                  String(avatarVersion)
+                )}`}
                 alt={profile.displayName || "avatar"}
                 className="w-full h-full object-cover"
               />

@@ -21,6 +21,51 @@ async function getUidFromRequest(req: Request) {
   return decoded.uid as string;
 }
 
+function normalizeStoragePath(input: string): string {
+  let raw = input.trim();
+  if (!raw) return '';
+
+  // If caller passes an encoded value, decode once safely.
+  try {
+    raw = decodeURIComponent(raw);
+  } catch {
+    // keep original raw if decoding fails
+  }
+
+  // Handle full public URLs:
+  // https://storage.googleapis.com/<bucket>/<path>
+  // https://firebasestorage.googleapis.com/v0/b/<bucket>/o/<encodedPath>?...
+  try {
+    const url = new URL(raw);
+    if (url.hostname === 'storage.googleapis.com') {
+      const parts = url.pathname.split('/').filter(Boolean);
+      if (parts.length >= 2) {
+        raw = parts.slice(1).join('/');
+      }
+    } else if (url.hostname === 'firebasestorage.googleapis.com') {
+      const marker = '/o/';
+      const idx = url.pathname.indexOf(marker);
+      if (idx >= 0) {
+        raw = url.pathname.slice(idx + marker.length);
+      }
+    }
+  } catch {
+    // not a URL, continue
+  }
+
+  // Handle gs://bucket/path
+  if (raw.startsWith('gs://')) {
+    const withoutScheme = raw.slice('gs://'.length);
+    const slash = withoutScheme.indexOf('/');
+    raw = slash >= 0 ? withoutScheme.slice(slash + 1) : '';
+  }
+
+  // Normalize leading/trailing slashes and guard traversal.
+  raw = raw.replace(/^\/+/, '').replace(/\/+$/, '');
+  if (!raw || raw.includes('..')) return '';
+  return raw;
+}
+
 export async function POST(req: Request) {
   let objectPath = '';
   let bucket: any = null;
@@ -134,5 +179,46 @@ export async function POST(req: Request) {
       },
       { status: 500 }
     );
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const url = new URL(req.url);
+    const inputPath = url.searchParams.get('path') || '';
+    if (!inputPath.trim()) {
+      return NextResponse.json(
+        { ok: false, error: 'Missing required query parameter: path' },
+        { status: 400 }
+      );
+    }
+
+    const objectPath = normalizeStoragePath(inputPath);
+    if (!objectPath) {
+      return NextResponse.json(
+        { ok: false, error: 'Invalid path parameter' },
+        { status: 400 }
+      );
+    }
+
+    const bucket = adminBucket();
+    if (!bucket?.name) {
+      console.warn('[upload][delete] storage bucket not configured');
+      // Keep delete non-blocking for parent flow.
+      return NextResponse.json({ success: true });
+    }
+
+    try {
+      await bucket.file(objectPath).delete({ ignoreNotFound: true });
+    } catch (error) {
+      // Do not block listing deletion if the file is already gone or delete fails.
+      console.warn('[upload][delete] delete warning:', objectPath, error);
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.warn('[upload][delete] unexpected warning:', error);
+    // Non-blocking response to avoid breaking parent delete flow.
+    return NextResponse.json({ success: true });
   }
 }
