@@ -11,6 +11,8 @@ import {
   QueryConstraint,
   getDoc,
   doc,
+  getCountFromServer,
+  or,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { matchesAllFilters } from "@/lib/filtering";
@@ -246,6 +248,30 @@ export type ListingFilters = {
   languages?: Array<{ key: string; name: string; emoji?: string }>;
   minRating?: number;
 };
+
+export async function fetchMastersTotalCount(): Promise<number> {
+  const colRef = collection(db, "masters");
+  try {
+    const snap = await getCountFromServer(
+      query(colRef, or(where("role", "==", "master"), where("isMaster", "==", true)))
+    );
+    return snap.data().count;
+  } catch (error) {
+    console.warn("[fetchMastersTotalCount] Failed to fetch masters total count:", error);
+    throw error;
+  }
+}
+
+export async function fetchListingsTotalCount(): Promise<number> {
+  const colRef = collection(db, "listings");
+  try {
+    const snap = await getCountFromServer(query(colRef));
+    return snap.data().count;
+  } catch (error) {
+    console.warn("[fetchListingsTotalCount] Failed to fetch listings total count:", error);
+    throw error;
+  }
+}
 
 export async function fetchListingsOnce(
   filters: ListingFilters,

@@ -8,7 +8,7 @@ import { useSearchParams } from "next/navigation";
 import MasterFilters from "@/components/Filters/MasterFilters";
 import MasterCard from "@/components/MasterCard";
 import ListingCard from "./components/ListingCard";
-import { fetchMastersOnce, fetchListingsOnce, MasterFilters as FM } from "@/lib/firestoreQueries";
+import { fetchMastersOnce, fetchListingsOnce, fetchMastersTotalCount, fetchListingsTotalCount, MasterFilters as FM } from "@/lib/firestoreQueries";
 import { includesAll } from "@/lib/filters/matchers";
 import { selectedToKeys, docServiceKeysDeep, docLanguageKeysDeep, extractCityKey, normalizeCitySelection, toKey, docCityKeyDeep, toRegionKey } from "@/lib/filters/normalize";
 import dynamicImport from 'next/dynamic';
@@ -39,6 +39,9 @@ function PageContent() {
   const [allMasters, setAllMasters] = useState<any[]>([]);
   const [allListings, setAllListings] = useState<any[]>([]);
   const [allReviews, setAllReviews] = useState<any[]>([]);
+  const [mastersTotalCount, setMastersTotalCount] = useState(0);
+  const [listingsTotalCount, setListingsTotalCount] = useState(0);
+  const [countFetchFailed, setCountFetchFailed] = useState(false);
   
   const [loading, setLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true); // Track initial data load
@@ -65,6 +68,30 @@ function PageContent() {
       : [];
     setSelectedServices(norm);
   }, []);
+
+  useEffect(() => {
+    if (initialLoad) return;
+    let alive = true;
+    (async () => {
+      try {
+        const [mastersCount, listingsCount] = await Promise.all([
+          fetchMastersTotalCount(),
+          fetchListingsTotalCount(),
+        ]);
+        if (!alive) return;
+        setMastersTotalCount(mastersCount);
+        setListingsTotalCount(listingsCount);
+        setCountFetchFailed(false);
+      } catch (error) {
+        console.warn("[Masters] Failed to fetch total counters, falling back to loaded counts:", error);
+        if (!alive) return;
+        setCountFetchFailed(true);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [initialLoad]);
 
   const handleLanguagesChange = useCallback((next: any[]) => {
     const norm = Array.isArray(next) 
@@ -562,7 +589,7 @@ function PageContent() {
               {/* Masters Section */}
               {filteredMastersFinal.length > 0 && (
                 <section>
-                  <h2 className="text-base font-semibold mb-3">Masters ({filteredMastersFinal.length})</h2>
+                  <h2 className="text-base font-semibold mb-3">Masters ({countFetchFailed ? filteredMastersFinal.length : mastersTotalCount || filteredMastersFinal.length})</h2>
                   <div className="grid gap-3 md:grid-cols-2">
                     {filteredMastersFinal.map(m => {
                       const masterId = m.id || m.uid;
@@ -588,7 +615,7 @@ function PageContent() {
               {/* Listings Section */}
               {filteredListingsWithRatings.length > 0 && (
                 <section>
-                  <h2 className="text-base font-semibold mb-3">Listings ({filteredListingsWithRatings.length})</h2>
+                  <h2 className="text-base font-semibold mb-3">Listings ({countFetchFailed ? filteredListingsWithRatings.length : listingsTotalCount || filteredListingsWithRatings.length})</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
                     {filteredListingsWithRatings.map(l => <ListingCard key={l.id || l._id} item={l} />)}
                   </div>
