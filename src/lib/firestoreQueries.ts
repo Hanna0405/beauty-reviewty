@@ -309,6 +309,7 @@ export async function fetchListingsOnce(
   cons.push(limit(pageSize));
 
   const snap = await getDocs(query(colRef, ...cons));
+  const fetchedCount = snap.docs.length;
   let items: any[] = snap.docs
     .map((d) => {
       const data = d.data();
@@ -324,6 +325,7 @@ export async function fetchListingsOnce(
     })
     // Filter out deleted listings
     .filter((item) => !item.deleted);
+  const deletedSkippedCount = fetchedCount - items.length;
 
   // Post-filter: ensure items include ALL selected services and languages
   // This enforces "must include ALL" for multi-select cases
@@ -338,9 +340,23 @@ export async function fetchListingsOnce(
   items = items.filter((it) =>
     matchesAllFilters(it, filters as any, /*isMaster*/ false)
   );
+  const postFilterSkippedCount = fetchedCount - deletedSkippedCount - items.length;
+
+  if (deletedSkippedCount > 0 || postFilterSkippedCount > 0) {
+    console.warn(
+      "[fetchListingsOnce] Some listing docs skipped during pagination page",
+      {
+        deletedSkippedCount,
+        postFilterSkippedCount,
+        fetchedCount,
+        keptCount: items.length,
+      }
+    );
+  }
 
   return {
     items,
     nextCursor: snap.docs.length ? snap.docs[snap.docs.length - 1] : undefined,
+    fetchedCount,
   };
 }

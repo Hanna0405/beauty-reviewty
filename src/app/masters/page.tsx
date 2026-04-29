@@ -145,7 +145,7 @@ function PageContent() {
           setMastersCursor(mastersResult.nextCursor);
           setListingsCursor(listingsResult.nextCursor);
           setHasMoreMasters(mastersResult.items.length >= PAGE_SIZE && !!mastersResult.nextCursor);
-          setHasMoreListings(listingsResult.items.length >= PAGE_SIZE && !!listingsResult.nextCursor);
+          setHasMoreListings(listingsResult.fetchedCount >= PAGE_SIZE && !!listingsResult.nextCursor);
           setInitialLoad(false); // Mark initial load complete
         }
       } catch (error) {
@@ -200,7 +200,7 @@ function PageContent() {
       const result = await fetchListingsOnce({}, PAGE_SIZE, listingsCursor);
       setAllListings((prev) => mergeUniqueById(prev, result.items));
       setListingsCursor(result.nextCursor);
-      setHasMoreListings(result.items.length >= PAGE_SIZE && !!result.nextCursor);
+      setHasMoreListings(result.fetchedCount >= PAGE_SIZE && !!result.nextCursor);
     } catch (error) {
       console.warn("[Masters] Load more listings failed:", error);
     } finally {
