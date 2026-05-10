@@ -4,7 +4,10 @@ export default function MasterCta() {
   return (
     <div className="w-full mx-auto max-w-5xl rounded-2xl bg-white/90 border border-pink-100 p-5 md:p-6 text-center shadow-sm">
       <p className="text-gray-900 font-semibold text-base md:text-lg">
-        Are you a beauty master? Create your <span className="font-semibold text-pink-600">FREE</span> profile today!
+        Are you a beauty master?
+      </p>
+      <p className="mt-1 text-gray-800 text-sm md:text-base">
+        Create your <span className="font-semibold text-pink-600">FREE</span> profile today!
       </p>
       <div className="mt-3">
         <Link

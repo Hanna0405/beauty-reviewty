@@ -6,17 +6,16 @@ import {
   collection,
   query,
   where,
-  orderBy,
   getDocs,
   limit,
 } from "firebase/firestore";
 import { getStorage, ref, getDownloadURL } from "firebase/storage";
-import Image from "next/image";
 import { db } from "@/lib/firebase";
 import type { MasterProfile, Listing } from "@/types/models";
 import { Chips } from "./UiChips";
 import MapPreview from "./MapPreview";
 import PublicListingCard from "@/app/master/PublicListingCard";
+import SharePillButton from "@/components/SharePillButton";
 
 type Props = { id: string };
 
@@ -136,12 +135,21 @@ async function fetchListingsForMaster(
   return [] as Listing[];
 }
 
+function listingAnchorSlug(listing: any): string {
+  return (
+    listing?.id ||
+    listing?.listingId ||
+    listing?.listingID ||
+    listing?.slug ||
+    ""
+  );
+}
+
 export default function MasterProfileClient({ id }: Props) {
   const [loading, setLoading] = useState(true);
   const [master, setMaster] = useState<MasterProfile | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
   const [error, setError] = useState<string | null>(null);
-
   useEffect(() => {
     let cancelled = false;
 
@@ -218,6 +226,20 @@ export default function MasterProfileClient({ id }: Props) {
     };
   }, [id]);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || loading) return;
+    const hash = window.location.hash.replace(/^#/, "");
+    if (!hash.startsWith("listing-")) return;
+    requestAnimationFrame(() => {
+      const el = document.getElementById(hash);
+      if (el)
+        el.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+    });
+  }, [loading, listings.length]);
+
   if (loading) return <div className="p-6 text-sm text-gray-600">Loading…</div>;
   if (error)
     return <div className="p-6 text-sm text-red-600">Error: {error}</div>;
@@ -239,37 +261,58 @@ export default function MasterProfileClient({ id }: Props) {
         &larr; Back to Masters
       </a>
 
-      <div className="mt-4 rounded-xl border p-4 bg-white/60">
-        <div className="flex items-center gap-4">
-          {(() => {
-            const avatar =
-              master.avatarUrl ||
-              master.photoURL ||
-              master.imageUrl ||
-              master.imageURL ||
-              master.image ||
-              "";
-            return avatar ? (
-              <img
-                src={avatar}
-                alt={master.displayName || master.nickname || "Master"}
-                className="h-20 w-20 rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-10 h-10 bg-gray-200 rounded-full" />
-            );
-          })()}
-          <div>
-            <h1 className="text-xl font-semibold">
-              {master.displayName || master.nickname || "Master"}
-            </h1>
-            {cityLabel && (
-              <div className="text-sm text-gray-600">{cityLabel}</div>
-            )}
-            {!!master.services?.length && <Chips items={master.services} />}
-            {!!master.languages?.length && <Chips items={master.languages} />}
+      <div className="mt-4 rounded-xl border border-pink-100 bg-white/60 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+            {(() => {
+              const avatar =
+                master.avatarUrl ||
+                master.photoURL ||
+                master.imageUrl ||
+                master.imageURL ||
+                master.image ||
+                "";
+              return avatar ? (
+                <img
+                  src={avatar}
+                  alt={master.displayName || master.nickname || "Master"}
+                  className="h-20 w-20 shrink-0 rounded-full object-cover sm:mt-0"
+                />
+              ) : (
+                <div className="h-20 w-20 shrink-0 rounded-full bg-gray-200 sm:mt-0" />
+              );
+            })()}
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl font-semibold">
+                {master.displayName || master.nickname || "Master"}
+              </h1>
+              {cityLabel && (
+                <div className="text-sm text-gray-600">{cityLabel}</div>
+              )}
+            </div>
+          </div>
+          <div className="relative z-20 shrink-0 self-start pt-0.5">
+            <SharePillButton
+              ariaLabel={`Share profile: ${master.displayName || master.nickname || "master"}`}
+              shareTitle={`${master.displayName || master.nickname || "Master"} — Beauty Reviewty`}
+              shareText={`Meet ${master.displayName || master.nickname || "this master"} on Beauty Reviewty`}
+              getUrl={() =>
+                typeof window !== "undefined"
+                  ? `${window.location.origin}${window.location.pathname}`
+                  : ""
+              }
+            />
           </div>
         </div>
+
+        {(!!master.services?.length || !!master.languages?.length) && (
+          <div className="mt-3 w-full min-w-0 border-t border-pink-100/80 pt-3">
+            {!!master.services?.length && (
+              <Chips items={master.services} className="mt-0" />
+            )}
+            {!!master.languages?.length && <Chips items={master.languages} />}
+          </div>
+        )}
 
         {/* Contact buttons */}
         <div className="mt-4 flex flex-wrap gap-2">
@@ -358,9 +401,19 @@ export default function MasterProfileClient({ id }: Props) {
 
         {!loading && !error && listings.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {listings.map((lst: any) => (
-              <PublicListingCard key={lst.id} listing={lst} />
-            ))}
+            {listings.map((lst: any) => {
+              const anchorSlug = listingAnchorSlug(lst);
+              return (
+                <div
+                  key={lst.id ?? anchorSlug}
+                  id={
+                    anchorSlug ? `listing-${anchorSlug}` : undefined
+                  }
+                >
+                  <PublicListingCard listing={lst} />
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

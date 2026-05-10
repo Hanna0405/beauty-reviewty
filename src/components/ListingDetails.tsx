@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import SharePillButton from "@/components/SharePillButton";
 import { getMasterProfileId } from "@/lib/listings/getMasterProfileId";
 
 type Props = {
@@ -33,7 +34,19 @@ export default function ListingDetails({
 
   return (
     <aside className="rounded-xl border border-neutral-200 p-4 sm:p-5 bg-white">
-      <h1 className="text-2xl font-semibold leading-tight">{title}</h1>
+      <div className="flex items-start justify-between gap-3">
+        <h1 className="min-w-0 flex-1 text-2xl font-semibold leading-tight">
+          {title}
+        </h1>
+        <SharePillButton
+          ariaLabel={`Share listing: ${title}`}
+          shareTitle={`${title} — Beauty Reviewty`}
+          shareText={`See this listing on Beauty Reviewty`}
+          getUrl={() =>
+            typeof window !== "undefined" ? window.location.href : ""
+          }
+        />
+      </div>
 
       <div className="mt-3 space-y-2 text-sm text-neutral-700">
         {city && (

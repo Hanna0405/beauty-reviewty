@@ -196,6 +196,19 @@ function totalRankScore(
   );
 }
 
+/** Lower = show first. Applied after scoring; tie-break by score inside each tier. */
+function getAffiliatePriority(p: SkincareProduct): 1 | 2 | 3 | 4 | 5 {
+  const url = (p.productUrl ?? "").trim();
+  const img = (p.imageUrl ?? "").trim();
+  const src = (p.affiliateSource ?? "").trim();
+
+  if (!url) return 5;
+  if (src && img) return 1;
+  if (src) return 2;
+  if (img) return 3;
+  return 4;
+}
+
 function buildReason(
   p: SkincareProduct,
   userSkin: string,
@@ -326,6 +339,13 @@ function rankAndPick(
   } else {
     picks = flat.slice(0, limit);
   }
+
+  picks.sort((a, b) => {
+    const pa = getAffiliatePriority(a.p);
+    const pb = getAffiliatePriority(b.p);
+    if (pa !== pb) return pa - pb;
+    return b.score - a.score;
+  });
 
   return picks.map((row, idx) => ({
     label: labelForRank(idx, row.score),
