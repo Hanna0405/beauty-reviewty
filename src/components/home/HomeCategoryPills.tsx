@@ -17,7 +17,7 @@ export default function HomeCategoryPills() {
   return (
     <div className="relative -mx-0.5">
       <div
-        className="flex flex-nowrap gap-2 overflow-x-auto pb-0.5 pl-0.5 pr-8 no-scrollbar"
+        className="flex flex-nowrap gap-2 overflow-x-auto pb-0.5 pl-0.5 pr-8 no-scrollbar lg:gap-3 lg:pr-10"
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
       >
         {CATEGORIES.map(({ emoji, label }) => (

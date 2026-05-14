@@ -3,7 +3,7 @@ import { MdPersonAddAlt1 } from "react-icons/md";
 
 export default function HomeMasterSignupBanner() {
   return (
-    <div className="rounded-2xl border border-pink-100/70 bg-white/75 px-3.5 py-3 flex flex-row items-center gap-3 justify-between shadow-sm">
+    <div className="rounded-2xl border border-pink-100/70 bg-white/75 px-3.5 py-3 lg:px-6 lg:py-4 flex flex-row items-center gap-3 justify-between shadow-sm">
       <div className="min-w-0 flex-1 text-left">
         <p className="font-semibold text-[15px] text-gray-900 leading-snug">
           Are you a beauty master?

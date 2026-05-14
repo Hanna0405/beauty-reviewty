@@ -69,9 +69,9 @@ export default function HomeHero({ coverUrl, reviewCount, ratingAvg }: Props) {
   return (
     <section className="-mx-px">
       <div className="rounded-3xl border border-rose-100/90 bg-gradient-to-br from-white via-rose-50/50 to-pink-50/70 shadow-sm overflow-hidden">
-        <div className="flex flex-row items-center gap-2.5 sm:gap-3 p-3.5 sm:p-4">
-          <div className="min-w-0 flex-1 flex flex-col justify-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold text-rose-900 leading-snug tracking-tight">
+        <div className="flex flex-row items-center gap-2.5 sm:gap-3 p-3.5 sm:p-4 lg:gap-8 lg:p-8 lg:items-center">
+          <div className="min-w-0 flex-1 flex flex-col justify-center gap-2 lg:gap-3 lg:pr-4">
+            <h1 className="text-xl sm:text-2xl font-bold text-rose-900 leading-snug tracking-tight lg:text-3xl xl:text-[2rem]">
               Find beauty masters near you
             </h1>
             <div className="space-y-0.5 text-[13px] sm:text-sm leading-snug">
@@ -108,14 +108,14 @@ export default function HomeHero({ coverUrl, reviewCount, ratingAvg }: Props) {
             </div>
           </div>
 
-          <div className="relative shrink-0 w-[41%] max-w-[150px] sm:max-w-[168px]">
+          <div className="relative shrink-0 w-[41%] max-w-[150px] sm:max-w-[168px] lg:w-auto lg:min-w-[200px] lg:max-w-[240px] xl:max-w-[280px]">
             <div className="relative aspect-[3/4] w-full overflow-hidden rounded-3xl bg-rose-50 shadow-md ring-1 ring-rose-100/70">
               {coverUrl ? (
                 <NextImage
                   src={coverUrl}
                   alt="Featured listing photo"
                   fill
-                  sizes="168px"
+                  sizes="(max-width: 1024px) 168px, 280px"
                   className="object-cover"
                   priority
                 />

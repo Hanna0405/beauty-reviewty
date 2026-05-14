@@ -10,7 +10,7 @@ export default function AppHeader() {
  const { user, profile, loading, logout } = useAuth();
  const nameOrEmail = profile?.displayName || user?.email || "";
  return (
- <div className="mx-auto flex min-w-0 max-w-6xl items-center justify-between gap-3 px-3 py-2 sm:px-4">
+ <div className="mx-auto flex min-w-0 max-w-6xl items-center justify-between gap-3 px-3 py-2.5 sm:px-4">
  {/* LEFT: Logo + nav */}
  <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
  <Link href="/" className="group relative w-10 h-10 flex shrink-0 items-center justify-center rounded-full bg-pink-500 text-white font-bold hover:bg-pink-600 transition-colors">

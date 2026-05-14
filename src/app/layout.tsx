@@ -15,8 +15,36 @@ import { SwRegister } from "@/components/pwa/SwRegister";
 import { InstallAppBanner } from "@/components/pwa/InstallAppBanner";
 import { FaInstagram, FaTiktok, FaFacebook } from "react-icons/fa";
 
+const defaultDescription =
+  "Find beauty professionals by location, language, services, and real client reviews. Discover trusted beauty masters near you.";
+
 export const metadata: Metadata = {
-  title: "BeautyReviewty",
+  metadataBase: new URL("https://beautyreviewty.com"),
+  title: {
+    default: "BeautyReviewty",
+    template: "%s | BeautyReviewty",
+  },
+  description: defaultDescription,
+  applicationName: "BeautyReviewty",
+  authors: [{ name: "BeautyReviewty" }],
+  creator: "BeautyReviewty",
+  publisher: "BeautyReviewty",
+  robots: {
+    index: true,
+    follow: true,
+  },
+  openGraph: {
+    type: "website",
+    siteName: "BeautyReviewty",
+    title: "BeautyReviewty",
+    description: defaultDescription,
+    url: "https://beautyreviewty.com",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "BeautyReviewty",
+    description: defaultDescription,
+  },
   icons: {
     icon: [
       { url: "/icons/br-icon-192.png", sizes: "192x192", type: "image/png" },

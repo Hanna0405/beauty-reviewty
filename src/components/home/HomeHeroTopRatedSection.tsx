@@ -53,7 +53,7 @@ export default function HomeHeroTopRatedSection() {
   }, [latestHeroListing, heroImageUrl]);
 
   return (
-    <div className="flex flex-col gap-2 sm:gap-2.5">
+    <div className="flex flex-col gap-2 sm:gap-2.5 lg:gap-5">
       <HomeHero
         coverUrl={heroImageUrl}
         reviewCount={reviewCount}
@@ -64,9 +64,9 @@ export default function HomeHeroTopRatedSection() {
         <HomeCategoryPills />
       </section>
 
-      <section className="space-y-2">
-        <div className="flex items-baseline justify-between gap-3 px-0.5">
-          <h2 className="text-base font-semibold text-rose-900">
+      <section className="space-y-2 lg:space-y-3">
+        <div className="flex items-baseline justify-between gap-3 px-0.5 lg:px-0">
+          <h2 className="text-base font-semibold text-rose-900 lg:text-lg">
             Top rated masters
           </h2>
           <a
@@ -76,7 +76,9 @@ export default function HomeHeroTopRatedSection() {
             View all
           </a>
         </div>
-        <FeaturedMastersRow prefetchedListings={rows} />
+        <div className="lg:[&_article]:w-[200px] xl:[&_article]:w-[220px] lg:[&_.flex]:gap-5">
+          <FeaturedMastersRow prefetchedListings={rows} />
+        </div>
       </section>
     </div>
   );
