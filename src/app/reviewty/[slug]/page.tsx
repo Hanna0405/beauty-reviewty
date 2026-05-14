@@ -1,10 +1,13 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import Image from "next/image";
 import { getAdminDb } from "@/lib/firebaseAdmins";
 import PublicCardReviewFormClient from "@/components/reviewty/PublicCardReviewFormClient";
 import PhotoGallery from "@/components/reviewty/PhotoGallery";
 import { normalizePhotos } from "@/components/reviewty/getPhotoUrl";
 import PublicCardReviews from "@/components/review/PublicCardReviews";
+import { loadPublicCard } from "./loadPublicCard";
+import { buildReviewtyPageMetadata } from "./buildReviewtyMetadata";
 
 type PublicCard = {
   id: string;
@@ -36,21 +39,13 @@ function Stars({ rating }: { rating: number }) {
 }
 
 // Safe load function for server-side
-async function loadPublicCard(id: string) {
-  const db = getAdminDb();
-  const ref = db.collection("publicCards").doc(id);
-
-  try {
-    const snap = await ref.get();
-    if (snap.exists) {
-      return { id: snap.id, ...snap.data() };
-    }
-  } catch (err: any) {
-    console.error("[loadPublicCard] Error loading card:", err);
-    throw err;
-  }
-
-  return null;
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  return buildReviewtyPageMetadata(slug);
 }
 
 // Next.js 15: params is now a Promise and must be awaited in async components
@@ -177,9 +172,9 @@ export default async function PublicCardPage({
       {/* HEADER: name / rating / review count / location / badges */}
       <section className="bg-pink-50 border border-pink-100 rounded-lg p-4 shadow-sm">
         <div className="flex flex-col gap-2">
-          <div className="text-xl font-semibold text-gray-900 flex flex-wrap items-center gap-2">
-            <span>{card.masterName}</span>
-          </div>
+          <h1 className="text-xl font-semibold text-gray-900 flex flex-wrap items-center gap-2">
+            {card.masterName}
+          </h1>
 
           <div className="flex flex-wrap items-center gap-2 text-sm text-gray-700">
             <div className="flex items-center gap-2">

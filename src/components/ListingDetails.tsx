@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { getMasterProfileId } from "@/lib/listings/getMasterProfileId";
+import ShareIconButton from "@/components/ShareIconButton";
 
 type Props = {
   title?: string;
@@ -11,6 +12,7 @@ type Props = {
   languages?: string[]; // <- ожидаем массив строк
   onBook?: () => void;
   masterId?: string | null;
+  listingId?: string | null;
 };
 
 export default function ListingDetails({
@@ -21,6 +23,7 @@ export default function ListingDetails({
   languages = [],
   onBook,
   masterId,
+  listingId,
 }: Props) {
   const price =
     priceMin != null && priceMax != null
@@ -33,7 +36,22 @@ export default function ListingDetails({
 
   return (
     <aside className="rounded-xl border border-neutral-200 p-4 sm:p-5 bg-white">
-      <h1 className="text-2xl font-semibold leading-tight">{title}</h1>
+      <div className="flex items-start justify-between gap-2">
+        <h1 className="text-2xl font-semibold leading-tight">{title}</h1>
+        <ShareIconButton
+          title={title}
+          text={city ? `${title} in ${city}` : title}
+          getUrl={
+            listingId
+              ? () => {
+                  const base = window.location.href.split("#")[0];
+                  return `${base}#listing-${listingId}`;
+                }
+              : undefined
+          }
+          aria-label="Share listing"
+        />
+      </div>
 
       <div className="mt-3 space-y-2 text-sm text-neutral-700">
         {city && (

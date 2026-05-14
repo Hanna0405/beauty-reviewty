@@ -1,8 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import Image from 'next/image';
+import {
+  fetchTopRatedMastersRows,
+  type TopRatedListingRow,
+  TOP_RATED_LISTINGS_LIMIT,
+} from '@/components/home/topRatedMastersShared';
 
 type Item = {
   id: string;
@@ -30,48 +33,49 @@ function Stars({ rating = 0 }: { rating?: number }) {
   return <div className="text-rose-500 text-xs">{'★★★★★'.slice(0, r)}<span className="text-rose-200">{'★★★★★'.slice(r)}</span></div>;
 }
 
-export default function FeaturedMastersRow() {
+function rowsToItems(rows: TopRatedListingRow[]): Item[] {
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    displayName: r.displayName,
+    city: r.city,
+    services: r.services,
+    image: r.image ?? undefined,
+    ratingAvg: r.ratingAvg,
+  }));
+}
+
+type Props = {
+  /** When provided (homepage), skip fetch — same array as hero. `null` = loading. */
+  prefetchedListings?: TopRatedListingRow[] | null;
+};
+
+export default function FeaturedMastersRow({ prefetchedListings }: Props) {
   const [items, setItems] = useState<Item[]|null>(null);
 
+  const controlled = prefetchedListings !== undefined;
+
   useEffect(()=>{
+    if (controlled) return;
     (async ()=>{
       try {
-        // Use the same query approach as /masters page: collection('listings') with orderBy createdAt
-        const qy = query(
-          collection(db, 'listings'),
-          orderBy('createdAt', 'desc'),
-          limit(3) // STRICT: 3 items
-        );
-        const snap = await getDocs(qy);
-        
-        // Normalize listings data similar to fetchListingsOnce
-        const featured = snap.docs.map((doc) => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            title: data.title || data.name || data.displayName || "Listing",
-            displayName: data.displayName || data.title || data.name || "Listing",
-            city: data.cityName || data.city?.formatted || data.city?.name || data.city || "",
-            services: data.services || [],
-            // Normalize image field - try multiple possible sources
-            image:
-              (data.photos && Array.isArray(data.photos) && data.photos.length > 0 && 
-                (typeof data.photos[0] === 'string' ? data.photos[0] : data.photos[0]?.url)) ||
-              data.coverUrl ||
-              data.imageUrl ||
-              data.photoUrl ||
-              null,
-            ratingAvg: data.ratingAvg || data.rating || 0,
-          };
-        });
-        
-        setItems(featured);
+        const rows = await fetchTopRatedMastersRows();
+        setItems(rowsToItems(rows));
       } catch (error) {
         console.error('[FeaturedMastersRow] Failed to load listings:', error);
         setItems([]);
       }
     })();
-  }, []);
+  }, [controlled]);
+
+  useEffect(() => {
+    if (!controlled) return;
+    if (prefetchedListings === null) {
+      setItems(null);
+      return;
+    }
+    setItems(rowsToItems(prefetchedListings));
+  }, [controlled, prefetchedListings]);
 
   const data = items ?? [];
 
@@ -80,7 +84,7 @@ export default function FeaturedMastersRow() {
     return (
       <div className="w-full overflow-x-auto no-scrollbar">
         <div className="flex gap-3 w-max">
-          {Array.from({length:3}).map((_,i)=>(
+          {Array.from({length: TOP_RATED_LISTINGS_LIMIT}).map((_,i)=>(
             <div key={i} className="w-[150px] md:w-[170px] rounded-xl border border-rose-100 bg-white shadow-sm">
               <div className="w-full aspect-[3/4] bg-rose-100/70 skeleton-shimmer rounded-t-xl" />
             </div>

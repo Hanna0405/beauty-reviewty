@@ -151,7 +151,10 @@ export default function ClientListing({ id }: { id: string }) {
   const handleBook = () => setOpen(true);
 
   return (
-    <div className="container mx-auto px-4 py-5 lg:py-8">
+    <div
+      id={listing?.id ? `listing-${listing.id}` : undefined}
+      className="container mx-auto px-4 py-5 lg:py-8"
+    >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left: gallery */}
         <div className="lg:col-span-7">
@@ -168,6 +171,7 @@ export default function ClientListing({ id }: { id: string }) {
             languages={languages}
             onBook={handleBook}
             masterId={mId}
+            listingId={listing.id}
           />
         </div>
       </div>

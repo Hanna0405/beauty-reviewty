@@ -17,6 +17,7 @@ import type { MasterProfile, Listing } from "@/types/models";
 import { Chips } from "./UiChips";
 import MapPreview from "./MapPreview";
 import PublicListingCard from "@/app/master/PublicListingCard";
+import ShareIconButton from "@/components/ShareIconButton";
 
 type Props = { id: string };
 
@@ -259,10 +260,21 @@ export default function MasterProfileClient({ id }: Props) {
               <div className="w-10 h-10 bg-gray-200 rounded-full" />
             );
           })()}
-          <div>
-            <h1 className="text-xl font-semibold">
-              {master.displayName || master.nickname || "Master"}
-            </h1>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <h1 className="text-xl font-semibold">
+                {master.displayName || master.nickname || "Master"}
+              </h1>
+              <ShareIconButton
+                title={master.displayName || master.nickname || "Master"}
+                text={
+                  cityLabel
+                    ? `${master.displayName || master.nickname || "Master"} on BeautyReviewty — ${cityLabel}`
+                    : `${master.displayName || master.nickname || "Master"} on BeautyReviewty`
+                }
+                aria-label="Share profile"
+              />
+            </div>
             {cityLabel && (
               <div className="text-sm text-gray-600">{cityLabel}</div>
             )}
