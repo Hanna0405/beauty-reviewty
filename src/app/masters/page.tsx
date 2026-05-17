@@ -536,8 +536,8 @@ function PageContent() {
   // Show loading screen during initial data load
   if (initialLoad) {
     return (
-      <div className="mx-auto max-w-6xl px-4 py-6">
-          <div className="mb-4 flex gap-2">
+      <div className="mx-auto w-full max-w-6xl min-w-0 overflow-x-hidden px-4 py-6">
+          <div className="mb-4 flex flex-wrap gap-2">
             <Link href="/masters" className="rounded-md border px-3 py-2 text-sm font-medium bg-pink-500 text-white border-pink-500">Masters</Link>
             <Link href="/listings" className="rounded-md border px-3 py-2 text-sm font-medium bg-white text-gray-900 hover:bg-pink-50">Listings</Link>
           </div>
@@ -552,9 +552,9 @@ function PageContent() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6">
+    <div className="mx-auto w-full max-w-6xl min-w-0 overflow-x-hidden px-4 py-6">
       {/* Toggle Masters | Listings */}
-      <div className="mb-4 flex gap-2">
+      <div className="mb-4 flex flex-wrap gap-2">
         <Link href="/masters" className="rounded-md border px-3 py-2 text-sm font-medium bg-pink-500 text-white border-pink-500">Masters</Link>
         <Link href="/listings" className="rounded-md border px-3 py-2 text-sm font-medium bg-white text-gray-900 hover:bg-pink-50">Listings</Link>
       </div>
@@ -570,7 +570,7 @@ function PageContent() {
       </div>
 
       {/* Layout: sidebar + content */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-[300px_1fr]">
+      <div className="grid w-full min-w-0 grid-cols-1 gap-6 md:grid-cols-[300px_minmax(0,1fr)]">
         {/* Sidebar filters (vertical) - hidden on mobile, shown on desktop */}
         <aside className="hidden rounded-lg border p-4 md:block">
           <MasterFilters
@@ -597,7 +597,7 @@ function PageContent() {
         </aside>
 
         {/* Content: map + list */}
-        <section>
+        <section className="min-w-0 w-full max-w-full">
           {/* Desktop Map */}
           <div className={`mb-4 hidden md:block ${showMap ? 'block' : 'hidden'}`}>
             <div className="relative z-0">
@@ -625,12 +625,12 @@ function PageContent() {
           ) : !hasResults ? (
             <div className="py-8 text-center text-gray-500">No matches for selected filters.</div>
           ) : (
-            <div className="space-y-10">
+            <div className="min-w-0 w-full max-w-full space-y-10">
               {/* Masters Section */}
               {filteredMastersFinal.length > 0 && (
-                <section>
+                <section className="min-w-0 w-full max-w-full">
                   <h2 className="text-base font-semibold mb-3">Masters ({filteredMastersFinal.length})</h2>
-                  <div className="grid gap-3 md:grid-cols-2">
+                  <div className="grid w-full min-w-0 grid-cols-1 gap-3 md:grid-cols-2">
                     {filteredMastersFinal.map(m => {
                       const masterId = m.id || m.uid;
                       const ratingData = masterId ? masterRatings.get(masterId) : null;
@@ -654,9 +654,9 @@ function PageContent() {
 
               {/* Listings Section */}
               {filteredListingsWithRatings.length > 0 && (
-                <section>
+                <section className="min-w-0 w-full max-w-full">
                   <h2 className="text-base font-semibold mb-3">Listings ({filteredListingsWithRatings.length})</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                  <div className="grid w-full min-w-0 grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
                     {filteredListingsWithRatings.map((l, i) => (
                       <ListingCard key={l.id || l._id || `listing-${i}`} item={l} />
                     ))}
