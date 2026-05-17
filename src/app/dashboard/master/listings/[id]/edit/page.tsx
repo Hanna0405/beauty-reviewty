@@ -271,6 +271,23 @@ export default function EditListingPage() {
           {errors.languages && <p className="text-red-500 text-sm mt-1">{errors.languages}</p>}
         </div>
 
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Photos (up to 10)</label>
+          <ListingPhotos
+            photos={photos}
+            onChange={setPhotos}
+            maxPhotos={10}
+            userId={currentUid}
+            listingId={id}
+          />
+        </div>
+
+        <details className="rounded-lg border-2 border-pink-200 bg-pink-50/30 overflow-hidden group">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-gray-700 list-none flex items-center justify-between hover:bg-pink-50/50 [&::-webkit-details-marker]:hidden">
+            <span>More options</span>
+            <span className="text-pink-500 text-xs group-open:rotate-180 transition-transform">▼</span>
+          </summary>
+          <div className="px-4 pb-4 pt-2 space-y-6 border-t border-pink-100">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Minimum Price ($)</label>
@@ -310,17 +327,8 @@ export default function EditListingPage() {
             onChange={e => setDescription(e.target.value)} 
           />
         </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Photos (up to 10)</label>
-          <ListingPhotos
-            photos={photos}
-            onChange={setPhotos}
-            maxPhotos={10}
-            userId={currentUid}
-            listingId={id}
-          />
-        </div>
+          </div>
+        </details>
 
         {errors.city ? (
           <p className="text-rose-600 text-sm font-medium mt-1">

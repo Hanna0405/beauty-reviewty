@@ -17,7 +17,8 @@ import { db } from "@/lib/firebase";
 
 const MastersMapNoSSR = dynamicImport(() => import('@/components/mapComponents').then(m => m.MastersMap), { ssr: false });
 
-const PAGE_SIZE = 8;
+const MASTERS_PAGE_SIZE = 60;
+const LISTINGS_PAGE_SIZE = 500;
 
 function isFirestoreDb(value: unknown): value is Firestore {
   return !!value && typeof value === "object" && "_databaseId" in (value as Record<string, unknown>);
@@ -156,6 +157,24 @@ function PageContent() {
     }
   }, [selectedCity]);
 
+  const reloadPublicData = useCallback(async () => {
+    const [mastersResult, listingsResult] = await Promise.all([
+      fetchMastersOnce({}, MASTERS_PAGE_SIZE),
+      fetchListingsOnce({}, LISTINGS_PAGE_SIZE),
+    ]);
+    setAllMasters(mastersResult.items);
+    setAllListings(listingsResult.items);
+    setMastersCursor(mastersResult.nextCursor);
+    setListingsCursor(listingsResult.nextCursor);
+    setHasMoreMasters(
+      mastersResult.items.length >= MASTERS_PAGE_SIZE && !!mastersResult.nextCursor
+    );
+    setHasMoreListings(
+      listingsResult.fetchedCount >= LISTINGS_PAGE_SIZE &&
+        !!listingsResult.nextCursor
+    );
+  }, []);
+
   // Initial data load on mount (first batch only)
   useEffect(() => {
     let alive = true;
@@ -163,18 +182,23 @@ function PageContent() {
       setLoading(true);
       try {
         const [mastersResult, listingsResult] = await Promise.all([
-          fetchMastersOnce({}, PAGE_SIZE),
-          fetchListingsOnce({}, PAGE_SIZE)
+          fetchMastersOnce({}, MASTERS_PAGE_SIZE),
+          fetchListingsOnce({}, LISTINGS_PAGE_SIZE),
         ]);
-        if (alive) {
-          setAllMasters(mastersResult.items);
-          setAllListings(listingsResult.items);
-          setMastersCursor(mastersResult.nextCursor);
-          setListingsCursor(listingsResult.nextCursor);
-          setHasMoreMasters(mastersResult.items.length >= PAGE_SIZE && !!mastersResult.nextCursor);
-          setHasMoreListings(listingsResult.fetchedCount >= PAGE_SIZE && !!listingsResult.nextCursor);
-          setInitialLoad(false); // Mark initial load complete
-        }
+        if (!alive) return;
+        setAllMasters(mastersResult.items);
+        setAllListings(listingsResult.items);
+        setMastersCursor(mastersResult.nextCursor);
+        setListingsCursor(listingsResult.nextCursor);
+        setHasMoreMasters(
+          mastersResult.items.length >= MASTERS_PAGE_SIZE &&
+            !!mastersResult.nextCursor
+        );
+        setHasMoreListings(
+          listingsResult.fetchedCount >= LISTINGS_PAGE_SIZE &&
+            !!listingsResult.nextCursor
+        );
+        setInitialLoad(false);
       } catch (error) {
         console.warn('[Masters] Initial load error:', error);
         if (alive) {
@@ -191,6 +215,19 @@ function PageContent() {
     return () => { alive = false; };
   }, []);
 
+  // Refresh when user returns to the tab (keeps public view in sync with dashboard)
+  useEffect(() => {
+    if (initialLoad) return;
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      reloadPublicData().catch((error) => {
+        console.warn("[Masters] Refresh on focus failed:", error);
+      });
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [initialLoad, reloadPublicData]);
+
   const mergeUniqueById = useCallback((prev: any[], next: any[]) => {
     const map = new Map<string, any>();
     prev.forEach((item) => {
@@ -199,8 +236,7 @@ function PageContent() {
     });
     next.forEach((item) => {
       const id = String(item?.id ?? item?._id ?? "");
-      if (!id) return;
-      if (!map.has(id)) map.set(id, item);
+      if (id) map.set(id, item);
     });
     return Array.from(map.values());
   }, []);
@@ -209,10 +245,12 @@ function PageContent() {
     if (loadingMoreMasters || !hasMoreMasters || !mastersCursor) return;
     setLoadingMoreMasters(true);
     try {
-      const result = await fetchMastersOnce({}, PAGE_SIZE, mastersCursor);
+      const result = await fetchMastersOnce({}, MASTERS_PAGE_SIZE, mastersCursor);
       setAllMasters((prev) => mergeUniqueById(prev, result.items));
       setMastersCursor(result.nextCursor);
-      setHasMoreMasters(result.items.length >= PAGE_SIZE && !!result.nextCursor);
+      setHasMoreMasters(
+        result.items.length >= MASTERS_PAGE_SIZE && !!result.nextCursor
+      );
     } catch (error) {
       console.warn("[Masters] Load more masters failed:", error);
     } finally {
@@ -224,10 +262,12 @@ function PageContent() {
     if (loadingMoreListings || !hasMoreListings || !listingsCursor) return;
     setLoadingMoreListings(true);
     try {
-      const result = await fetchListingsOnce({}, PAGE_SIZE, listingsCursor);
+      const result = await fetchListingsOnce({}, LISTINGS_PAGE_SIZE, listingsCursor);
       setAllListings((prev) => mergeUniqueById(prev, result.items));
       setListingsCursor(result.nextCursor);
-      setHasMoreListings(result.fetchedCount >= PAGE_SIZE && !!result.nextCursor);
+      setHasMoreListings(
+        result.fetchedCount >= LISTINGS_PAGE_SIZE && !!result.nextCursor
+      );
     } catch (error) {
       console.warn("[Masters] Load more listings failed:", error);
     } finally {
@@ -589,7 +629,7 @@ function PageContent() {
               {/* Masters Section */}
               {filteredMastersFinal.length > 0 && (
                 <section>
-                  <h2 className="text-base font-semibold mb-3">Masters ({countFetchFailed ? filteredMastersFinal.length : mastersTotalCount || filteredMastersFinal.length})</h2>
+                  <h2 className="text-base font-semibold mb-3">Masters ({filteredMastersFinal.length})</h2>
                   <div className="grid gap-3 md:grid-cols-2">
                     {filteredMastersFinal.map(m => {
                       const masterId = m.id || m.uid;
@@ -615,9 +655,11 @@ function PageContent() {
               {/* Listings Section */}
               {filteredListingsWithRatings.length > 0 && (
                 <section>
-                  <h2 className="text-base font-semibold mb-3">Listings ({countFetchFailed ? filteredListingsWithRatings.length : listingsTotalCount || filteredListingsWithRatings.length})</h2>
+                  <h2 className="text-base font-semibold mb-3">Listings ({filteredListingsWithRatings.length})</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-                    {filteredListingsWithRatings.map(l => <ListingCard key={l.id || l._id} item={l} />)}
+                    {filteredListingsWithRatings.map((l, i) => (
+                      <ListingCard key={l.id || l._id || `listing-${i}`} item={l} />
+                    ))}
                   </div>
                   {hasMoreListings && (
                     <div className="flex justify-center mt-4">

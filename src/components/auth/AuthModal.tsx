@@ -5,6 +5,7 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "fire
 import { signInWithGoogle } from "@/lib/auth-helpers";
 import { requireAuth, requireDb } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
+import { getMasterPostAuthRedirect } from "@/lib/masterOnboarding";
 import { useRouter } from "next/navigation";
 
 type Props = { open: boolean; onClose: () => void };
@@ -69,10 +70,11 @@ export default function AuthModal({ open, onClose }: Props) {
  const db = requireDb();
  const userRef = doc(db, "users", cred.user.uid);
  const us = await getDoc(userRef);
- let role: "client" | "master" = "client";
- if (us.exists() && (us.data() as any).role === "master") role = "master";
- if (role === "master") router.push("/dashboard");
- onClose();
+    let role: "client" | "master" = "client";
+    if (us.exists() && (us.data() as any).role === "master") role = "master";
+    const dest = await getMasterPostAuthRedirect(db, cred.user.uid, role);
+    router.push(dest);
+    onClose();
  } catch (e) {
  alert("Login error");
  console.error(e);
@@ -85,11 +87,13 @@ export default function AuthModal({ open, onClose }: Props) {
  setLoading(true);
  try {
  const auth = requireAuth();
+ const db = requireDb();
  const cred = await createUserWithEmailAndPassword(auth, email, pass);
- const role = tab; // вкладка определяет роль
- await ensureUserDoc(cred.user.uid, role, cred.user.displayName || name);
- if (role === "master") router.push("/dashboard");
- onClose();
+    const role = tab; // вкладка определяет роль
+    await ensureUserDoc(cred.user.uid, role, cred.user.displayName || name);
+    const dest = await getMasterPostAuthRedirect(db, cred.user.uid, role);
+    router.push(dest);
+    onClose();
  } catch (e) {
  alert("Register error");
  console.error(e);
@@ -102,8 +106,16 @@ export default function AuthModal({ open, onClose }: Props) {
  setLoading(true);
  try {
  await signInWithGoogle();
- // при успехе можно редиректнуть пользователя:
- if (tab === "master") router.push("/dashboard");
+ const auth = requireAuth();
+ const fbUser = auth.currentUser;
+ const db = requireDb();
+ if (tab === "master" && fbUser) {
+  await ensureUserDoc(fbUser.uid, "master", fbUser.displayName || name);
+  const dest = await getMasterPostAuthRedirect(db, fbUser.uid, "master");
+  router.push(dest);
+ } else {
+  router.push("/");
+ }
  onClose();
  } catch (e) {
  console.error("Google sign-in error:", e);

@@ -1,8 +1,11 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { doc, collection } from "firebase/firestore";
 import { requireDb, auth } from "@/lib/firebase/client";
+import {
+  hasActiveMasterProfile,
+  masterProfileEditUrl,
+} from "@/lib/masterOnboarding";
 import { createListing } from "@/lib/firestore-listings";
 import { toDisplayText } from "@/lib/safeText";
 import CityAutocomplete from "@/components/CityAutocomplete";
@@ -38,6 +41,40 @@ export default function NewListingPage() {
   const [priceMax, setPriceMax] = useState<string>("");
   const [description, setDescription] = useState("");
   const [photos, setPhotos] = useState<PhotoData[]>([]);
+  const [profileChecked, setProfileChecked] = useState(false);
+  const [hasProfile, setHasProfile] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const user = auth?.currentUser;
+      if (!user) {
+        if (alive) {
+          setHasProfile(false);
+          setProfileChecked(true);
+        }
+        return;
+      }
+      try {
+        const db = requireDb();
+        const active = await hasActiveMasterProfile(db, user.uid);
+        if (!alive) return;
+        if (!active) {
+          router.replace(masterProfileEditUrl(true));
+          return;
+        }
+        setHasProfile(true);
+      } catch (err) {
+        console.warn("[NewListing] Profile check failed:", err);
+        if (alive) setHasProfile(false);
+      } finally {
+        if (alive) setProfileChecked(true);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [router]);
 
   // Clear banners when user edits form fields after submit
   useEffect(() => {
@@ -155,6 +192,32 @@ export default function NewListingPage() {
 
   const currentUid = auth?.currentUser?.uid ?? "";
 
+  if (!profileChecked) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-sm text-gray-500">Loading…</p>
+      </div>
+    );
+  }
+
+  if (!hasProfile) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="max-w-md rounded-xl border border-pink-100 bg-white p-6 text-center shadow-sm">
+          <p className="text-sm text-gray-700">
+            Create your master profile first before adding a listing.
+          </p>
+          <a
+            href={masterProfileEditUrl(true)}
+            className="mt-4 inline-flex rounded-md bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700"
+          >
+            Create profile
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <MapContainer>
       <div className="min-h-screen bg-gray-50">
@@ -189,6 +252,12 @@ export default function NewListingPage() {
                 Back
               </button>
             </div>
+          </div>
+          <div className="mb-6 rounded-lg border border-pink-100 bg-pink-50/50 px-4 py-3 text-sm text-gray-700">
+            <p className="font-medium text-pink-800">Step 2 of 2: Add your first service</p>
+            <p className="mt-1">
+              Add a title, city, services, languages and photos for this listing.
+            </p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             {/* Error Banner */}
@@ -242,7 +311,7 @@ export default function NewListingPage() {
                   Services *
                 </label>
                 <MultiSelectAutocompleteV2
-                  label="Services"
+                  label=""
                   options={SERVICE_OPTIONS}
                   value={services}
                   onChange={(vals: TagOption[]) => {
@@ -260,7 +329,7 @@ export default function NewListingPage() {
                   Languages *
                 </label>
                 <MultiSelectAutocompleteV2
-                  label="Languages"
+                  label=""
                   options={LANGUAGE_OPTIONS}
                   value={languages}
                   onChange={(vals: TagOption[]) => {
@@ -275,6 +344,26 @@ export default function NewListingPage() {
                 )}
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Photos (up to 10)
+                </label>
+                <ListingPhotos
+                  photos={photos}
+                  onChange={setPhotos}
+                  maxPhotos={10}
+                  userId={currentUid}
+                />
+              </div>
+
+              <details className="rounded-lg border-2 border-pink-200 bg-pink-50/30 overflow-hidden group">
+                <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-gray-700 list-none flex items-center justify-between hover:bg-pink-50/50 [&::-webkit-details-marker]:hidden">
+                  <span>More options</span>
+                  <span className="text-pink-500 text-xs group-open:rotate-180 transition-transform">
+                    ▼
+                  </span>
+                </summary>
+                <div className="px-4 pb-4 pt-2 space-y-6 border-t border-pink-100">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -332,18 +421,8 @@ export default function NewListingPage() {
                   onChange={(e) => setDescription(e.target.value)}
                 />
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Photos (up to 10)
-                </label>
-                <ListingPhotos
-                  photos={photos}
-                  onChange={setPhotos}
-                  maxPhotos={10}
-                  userId={currentUid}
-                />
-              </div>
+                </div>
+              </details>
 
               {errors.city ? (
                 <p className="text-rose-600 text-sm font-medium mt-1">

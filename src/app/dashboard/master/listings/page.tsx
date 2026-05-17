@@ -8,6 +8,7 @@ import {
   onSnapshot,
   orderBy,
   getDocs,
+  getDoc,
   deleteDoc,
   doc,
 } from "firebase/firestore";
@@ -18,6 +19,7 @@ import { safeImageSrc } from "@/lib/safeImage";
 import Image from "next/image";
 import DeleteButton from "@/components/listings/DeleteButton";
 import DashboardListingCard from "./DashboardListingCard";
+import { masterProfileEditUrl } from "@/lib/masterOnboarding";
 
 type Listing = {
   id: string;
@@ -32,6 +34,7 @@ type Listing = {
   priceMin?: number | null;
   priceMax?: number | null;
   status?: "active" | "draft";
+  deleted?: boolean;
   photos?: { url: string; path: string }[];
 };
 
@@ -39,6 +42,7 @@ export default function MyListingsPage() {
   const { user, loading } = useAuthUser();
   const [items, setItems] = useState<Listing[]>([]);
   const [listingsLoading, setListingsLoading] = useState(false);
+  const [hasActiveProfile, setHasActiveProfile] = useState<boolean | null>(null);
 
   function handleDelete(listingId: string) {
     // NOTE: we assume listings are stored in "listings" or "publicListings".
@@ -66,12 +70,34 @@ export default function MyListingsPage() {
       async function fetchListingsForUser() {
         if (!user) return;
 
+        const profileSnap = await getDoc(doc(db, "profiles", user.uid));
+        if (!profileSnap.exists()) {
+          setHasActiveProfile(false);
+          setItems([]);
+          setListingsLoading(false);
+          return;
+        }
+
+        const masterSnap = await getDoc(doc(db, "masters", user.uid));
+        if (masterSnap.exists() && masterSnap.data()?.deleted === true) {
+          setHasActiveProfile(false);
+          setItems([]);
+          setListingsLoading(false);
+          return;
+        }
+
+        setHasActiveProfile(true);
+
         const candidates = [
-          ["masterUid", user.uid],
+          ["ownerId", user.uid],
           ["ownerUid", user.uid],
+          ["masterUid", user.uid],
+          ["masterId", user.uid],
           ["authorUid", user.uid],
           ["userUid", user.uid],
+          ["userId", user.uid],
           ["profileId", user.uid],
+          ["profileUid", user.uid],
         ];
         const results: Record<string, Listing> = {};
 
@@ -83,7 +109,10 @@ export default function MyListingsPage() {
             );
             const snap = await getDocs(q);
             snap.forEach((d) => {
-              results[d.id] = { id: d.id, ...d.data() } as Listing;
+              const data = d.data() as Listing;
+              if (data.deleted) return;
+              const { id: _id, ...rest } = data;
+              results[d.id] = { id: d.id, ...rest };
             });
           } catch (err) {
             console.warn(`Failed to query listings by ${field}:`, err);
@@ -135,18 +164,28 @@ export default function MyListingsPage() {
       <div className="flex items-start justify-between flex-wrap gap-4 mb-4">
         <h1 className="text-xl font-semibold">My listings</h1>
 
-        {user && (
+        {user && hasActiveProfile ? (
           <a
             href="/dashboard/master/listings/new"
             className="inline-flex items-center rounded-md bg-pink-600 px-3 py-2 text-sm font-medium text-white hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2"
           >
             + Add listing
           </a>
-        )}
+        ) : null}
       </div>
 
       {listingsLoading ? (
         <p className="text-sm text-gray-500">Loading listings…</p>
+      ) : hasActiveProfile === false ? (
+        <div className="text-sm text-gray-600 space-y-3">
+          <p>Create your master profile first to add listings.</p>
+          <Link
+            href={masterProfileEditUrl(true)}
+            className="inline-flex rounded-md bg-pink-600 px-3 py-2 text-sm font-medium text-white hover:bg-pink-700"
+          >
+            Create profile
+          </Link>
+        </div>
       ) : items.length === 0 ? (
         <div className="text-sm text-gray-500">
           You don't have any listings yet.

@@ -24,8 +24,11 @@ function formatTagList(items?: any[], fallback?: any[]): string {
 }
 
 export default function MasterCard({ master, rating, reviewCount }: Props) {
-  // Unified avatar fallback: photoURL → avatarUrl → avatar.url
-  const avatarSrc = master?.photoURL || master?.avatarUrl || master?.avatar?.url || null;
+  // Public cards: same source as dashboard profile (profiles.avatarUrl via fetch merge)
+  const avatarSrc =
+    typeof master?.avatarUrl === "string" && master.avatarUrl.trim()
+      ? master.avatarUrl.trim()
+      : null;
 
   return (
     <div className="flex gap-3 rounded-lg border p-3">

@@ -14,6 +14,7 @@ import {
 import { setDoc, doc, serverTimestamp } from "firebase/firestore";
 import { auth, db, googleProvider } from "@/lib/firebase.client";
 import { ensureUserDoc } from "@/lib/users";
+import { masterProfileEditUrl } from "@/lib/masterOnboarding";
 
 type Role = "master" | "client";
 
@@ -84,7 +85,9 @@ export default function SignupPage() {
  createdAt: serverTimestamp(),
  updatedAt: serverTimestamp(),
  }, { merge: true });
- router.push("/profile");
+ router.push(
+  form.role === "master" ? masterProfileEditUrl(true) : "/profile"
+ );
  } catch (e:any) {
  setErr(e?.message || "Signup failed");
  } finally { setLoading(false); }
@@ -96,7 +99,9 @@ export default function SignupPage() {
    try {
      const { user } = await signInWithPopup(auth, googleProvider);
      await ensureUserDoc(user, form.role);
-     router.push('/');
+     router.push(
+      form.role === "master" ? masterProfileEditUrl(true) : "/"
+     );
    } catch (e: any) {
      if (e?.code === 'auth/popup-closed-by-user' || e?.code === 'auth/cancelled-popup-request') {
        setErr('Sign-in cancelled');
@@ -148,7 +153,9 @@ export default function SignupPage() {
    try {
      const { user } = await confirmationResult.confirm(verificationCode);
      await ensureUserDoc(user, form.role);
-     router.push('/');
+     router.push(
+      form.role === "master" ? masterProfileEditUrl(true) : "/"
+     );
    } catch (e: any) {
      setErr(e?.message ?? 'Invalid verification code');
    } finally {

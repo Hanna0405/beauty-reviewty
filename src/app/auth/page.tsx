@@ -8,6 +8,7 @@ signInEmail,
 } from '@/lib/authClient';
 import { signInWithGoogle } from '@/lib/auth-helpers';
 import type { UserRole } from '@/types';
+import { masterProfileEditUrl } from '@/lib/masterOnboarding';
 
 export default function AuthPage() {
 const router = useRouter();
@@ -22,7 +23,7 @@ const [busy, setBusy] = useState(false);
 const [err, setErr] = useState<string | null>(null);
 
 const goToDashboard = (r: UserRole | null) => {
-if (r === 'master') router.replace('/dashboard/master');
+if (r === 'master') router.replace(masterProfileEditUrl(true));
 else router.replace('/dashboard/client');
 };
 
