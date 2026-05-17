@@ -25,7 +25,7 @@ export default function ListingCard({ item }: { item: any }) {
   const profileId = getMasterProfileId(item);
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm hover:shadow-md transition">
+    <div className="flex w-full max-w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm transition hover:shadow-md">
       {/* Top photo */}
       <div className="relative w-full h-44 bg-zinc-100">
         {img ? (

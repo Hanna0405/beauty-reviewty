@@ -17,7 +17,7 @@ export default function Stars({ value = 0, count = 0 }: { value?: number | null;
   }
   
   return (
-    <div className="flex gap-[2px] items-center">
+    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-[2px]">
       {[1, 2, 3, 4, 5].map((i) => (
         <Star key={i} filled={i <= Math.round(value)} />
       ))}
