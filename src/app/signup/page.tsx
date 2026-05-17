@@ -1,22 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { setDoc, doc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase.client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { masterProfileEditUrl } from "@/lib/masterOnboarding";
 
 type Role = "master" | "client";
 
-export default function SignupPage() {
+function SignupPageContent() {
  const router = useRouter();
+ const searchParams = useSearchParams();
  const [form, setForm] = useState({
  displayName: "",
  email: "",
  password: "",
  confirmPassword: "",
- role: "master" as Role,
+ role: (searchParams?.get("role") === "client" ? "client" : "master") as Role,
  });
  const [error, setError] = useState<string | null>(null);
  const [loading, setLoading] = useState(false);
@@ -62,7 +64,11 @@ export default function SignupPage() {
  },
  { merge: true }
  );
- router.push("/profile"); // or "/profile/edit" if preferred
+ router.push(
+  form.role === "master"
+   ? masterProfileEditUrl(true)
+   : "/profile"
+ );
  } catch (err: any) {
  console.error(err);
  setError(err?.message ?? "Signup failed");
@@ -166,5 +172,13 @@ export default function SignupPage() {
  </p>
  </div>
  </div>
+ );
+}
+
+export default function SignupPage() {
+ return (
+  <Suspense fallback={<div className="min-h-[80vh] flex items-center justify-center text-gray-500">Loading…</div>}>
+   <SignupPageContent />
+  </Suspense>
  );
 }

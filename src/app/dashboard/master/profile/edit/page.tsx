@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { requireAuth, requireDb } from "@/lib/firebase";
 import { doc, getDoc, setDoc, deleteField } from "firebase/firestore";
 import CityAutocomplete from "@/components/CityAutocomplete";
@@ -11,6 +11,9 @@ import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/catalog";
 import { ensureSelectedArray, deriveMirrors } from "@/lib/ensureLists";
 import MasterAvatarInput from "@/components/MasterAvatarInput";
 import type { TagOption } from "@/types/tags";
+import {
+  MASTER_LISTING_NEW_PATH,
+} from "@/lib/masterOnboarding";
 
 type MasterProfile = {
  uid: string;
@@ -43,8 +46,9 @@ const emptyProfile = (uid: string): MasterProfile => ({
  },
 });
 
-export default function EditProfilePage() {
+function EditProfilePageContent() {
  const router = useRouter();
+ const searchParams = useSearchParams();
  const auth = requireAuth();
  const user = auth.currentUser;
  const uid = useMemo(() => user?.uid ?? "", [user]);
@@ -57,6 +61,10 @@ export default function EditProfilePage() {
  const [saving, setSaving] = useState(false);
  const [error, setError] = useState<string | null>(null);
  const [avatarDisplayVersion, setAvatarDisplayVersion] = useState<number>(() => Date.now());
+ const [profileExistedAtLoad, setProfileExistedAtLoad] = useState(false);
+
+ const isOnboarding =
+  searchParams?.get("onboarding") === "1" || !profileExistedAtLoad;
 
  useEffect(() => {
  let cancelled = false;
@@ -71,6 +79,7 @@ export default function EditProfilePage() {
  const db = requireDb();
  const snap = await getDoc(doc(db, "profiles", uid));
  if (snap.exists()) {
+ if (!cancelled) setProfileExistedAtLoad(true);
  const data = snap.data() as any;
  if (cancelled) return;
 
@@ -130,6 +139,7 @@ export default function EditProfilePage() {
  : []
  );
  } else {
+ if (!cancelled) setProfileExistedAtLoad(false);
  if (cancelled) return;
  setForm(emptyProfile(uid));
  setCity(null);
@@ -299,7 +309,10 @@ function cleanPayload(data: any): any {
  setAvatarDisplayVersion(Date.now());
 
  alert("Profile updated successfully");
- router.replace("/dashboard/master/profile");
+ const firstTimeSetup = isOnboarding || !profileExistedAtLoad;
+ router.replace(
+  firstTimeSetup ? MASTER_LISTING_NEW_PATH : "/dashboard/master/profile"
+ );
  router.refresh();
  } catch (err: any) {
  console.error(err);
@@ -330,14 +343,27 @@ function cleanPayload(data: any): any {
     <div className="bg-white rounded-xl shadow-sm border border-pink-50 p-6 space-y-6 overflow-x-hidden max-w-full">
       {/* Title row */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Edit Profile</h1>
-        <a
-          href="/dashboard/master/profile"
-          className="text-sm text-pink-500 hover:text-pink-600"
-        >
-          ← Back to Profile
-        </a>
+        <h1 className="text-2xl font-semibold">
+          {isOnboarding ? "Create your profile" : "Edit Profile"}
+        </h1>
+        {!isOnboarding ? (
+          <a
+            href="/dashboard/master/profile"
+            className="text-sm text-pink-500 hover:text-pink-600"
+          >
+            ← Back to Profile
+          </a>
+        ) : null}
       </div>
+
+      {isOnboarding ? (
+        <div className="rounded-lg border border-pink-100 bg-pink-50/50 px-4 py-3 text-sm text-gray-700">
+          <p className="font-medium text-pink-800">Step 1 of 2: Create your master profile</p>
+          <p className="mt-1">
+            Add your name, city, services and languages so clients can find you.
+          </p>
+        </div>
+      ) : null}
 
       <form onSubmit={handleSave} className="space-y-6 max-w-full overflow-x-hidden">
  {error ? (
@@ -399,20 +425,9 @@ function cleanPayload(data: any): any {
  />
  </div>
 
- {/* phone */}
+ {/* Instagram */}
  <div className="space-y-1">
- <label className="text-sm font-medium">Phone</label>
- <input
- value={form.phone ?? ""}
- onChange={(e) => setField("phone", e.target.value)}
- className="w-full rounded-md border border-gray-200 bg-pink-50/40 px-3 py-2 focus:border-pink-400 focus:outline-none"
- placeholder="+1 ..."
- />
- </div>
-
- {/* socials */}
- <div className="space-y-2">
- <label className="text-sm font-medium">Social links</label>
+ <label className="text-sm font-medium">Instagram</label>
  <input
  value={form.socials?.instagram ?? ""}
  onChange={(e) =>
@@ -424,6 +439,26 @@ function cleanPayload(data: any): any {
  placeholder="https://instagram.com/..."
  className="w-full rounded-md border border-gray-200 bg-pink-50/40 px-3 py-2 focus:border-pink-400 focus:outline-none"
  />
+ </div>
+
+ <details className="rounded-lg border border-pink-200 bg-pink-50/30 overflow-hidden group">
+ <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-gray-700 list-none flex items-center justify-between hover:bg-pink-50/50 [&::-webkit-details-marker]:hidden">
+ <span>More options</span>
+ <span className="text-pink-500 text-xs group-open:rotate-180 transition-transform">▼</span>
+ </summary>
+ <div className="px-4 pb-4 pt-2 space-y-4 border-t border-pink-100">
+ {/* phone */}
+ <div className="space-y-1">
+ <label className="text-sm font-medium">Phone</label>
+ <input
+ value={form.phone ?? ""}
+ onChange={(e) => setField("phone", e.target.value)}
+ className="w-full rounded-md border border-gray-200 bg-pink-50/40 px-3 py-2 focus:border-pink-400 focus:outline-none"
+ placeholder="+1 ..."
+ />
+ </div>
+ <div className="space-y-1">
+ <label className="text-sm font-medium">Facebook</label>
  <input
  value={form.socials?.facebook ?? ""}
  onChange={(e) =>
@@ -435,6 +470,9 @@ function cleanPayload(data: any): any {
  placeholder="https://facebook.com/..."
  className="w-full rounded-md border border-gray-200 bg-pink-50/40 px-3 py-2 focus:border-pink-400 focus:outline-none"
  />
+ </div>
+ <div className="space-y-1">
+ <label className="text-sm font-medium">Website</label>
  <input
  value={form.socials?.website ?? ""}
  onChange={(e) =>
@@ -447,6 +485,8 @@ function cleanPayload(data: any): any {
  className="w-full rounded-md border border-gray-200 bg-pink-50/40 px-3 py-2 focus:border-pink-400 focus:outline-none"
  />
  </div>
+ </div>
+ </details>
 
  <div className="flex justify-end gap-3 pt-4 border-t">
  <a
@@ -467,5 +507,17 @@ function cleanPayload(data: any): any {
  </div>
  )}
  </div>
+ );
+}
+
+export default function EditProfilePage() {
+ return (
+  <Suspense
+   fallback={
+    <div className="max-w-3xl mx-auto py-10 px-4 text-sm text-gray-500">Loading…</div>
+   }
+  >
+   <EditProfilePageContent />
+  </Suspense>
  );
 }

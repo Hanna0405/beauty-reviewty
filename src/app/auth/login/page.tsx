@@ -12,8 +12,10 @@ import {
   sendPasswordResetEmail
 } from 'firebase/auth';
 import EnvProbe from '@/components/EnvProbe';
-import { auth, googleProvider } from '@/lib/firebase.client';
+import { auth, googleProvider, db } from '@/lib/firebase.client';
 import { ensureUserDoc } from '@/lib/users';
+import { doc, getDoc } from 'firebase/firestore';
+import { getMasterPostAuthRedirect } from '@/lib/masterOnboarding';
 
 export default function LoginPage() {
  const router = useRouter();
@@ -67,6 +69,13 @@ export default function LoginPage() {
  setForm((f) => ({ ...f, [name]: value }));
  };
 
+ async function resolvePostLoginRedirect(uid: string) {
+ if (!db) return '/';
+ const userSnap = await getDoc(doc(db, 'users', uid));
+ const role = userSnap.data()?.role as string | undefined;
+ return getMasterPostAuthRedirect(db, uid, role);
+ }
+
  const onSubmit = async (e: React.FormEvent) => {
  e.preventDefault();
  setErr(null);
@@ -74,7 +83,7 @@ export default function LoginPage() {
  try {
  const { user } = await signInWithEmailAndPassword(auth, form.email.trim(), form.password);
  await ensureUserDoc(user);
- router.push('/');
+ router.push(await resolvePostLoginRedirect(user.uid));
  } catch (e: any) {
  setErr(e?.message ?? 'Login failed');
  } finally {
@@ -88,7 +97,7 @@ export default function LoginPage() {
    try {
      const { user } = await signInWithPopup(auth, googleProvider);
      await ensureUserDoc(user);
-     router.push('/');
+     router.push(await resolvePostLoginRedirect(user.uid));
    } catch (e: any) {
      if (e?.code === 'auth/popup-closed-by-user' || e?.code === 'auth/cancelled-popup-request') {
        setErr('Sign-in cancelled');
@@ -140,7 +149,7 @@ export default function LoginPage() {
    try {
      const { user } = await confirmationResult.confirm(verificationCode);
      await ensureUserDoc(user);
-     router.push('/');
+     router.push(await resolvePostLoginRedirect(user.uid));
    } catch (e: any) {
      setErr(e?.message ?? 'Invalid verification code');
    } finally {

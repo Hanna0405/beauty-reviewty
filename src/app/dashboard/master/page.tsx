@@ -1,16 +1,41 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { doc, getDoc } from "firebase/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUnreadBookingNotifications } from "@/lib/notifications";
+import { db } from "@/lib/firebase";
+import { hasActiveMasterProfile, masterProfileEditUrl } from "@/lib/masterOnboarding";
 
 export default function MasterDashboardPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const { bookingRequestCount: unreadMasterBookings } =
     useUnreadBookingNotifications({
       mode: "master",
       userUid: user?.uid,
     });
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    let alive = true;
+    (async () => {
+      try {
+        const userSnap = await getDoc(doc(db, "users", user.uid));
+        if (userSnap.data()?.role !== "master") return;
+        const active = await hasActiveMasterProfile(db, user.uid);
+        if (!alive || active) return;
+        router.replace(masterProfileEditUrl(true));
+      } catch (err) {
+        console.warn("[MasterDashboard] Profile gate failed:", err);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [user?.uid, router]);
 
   return (
     <div className="space-y-6">

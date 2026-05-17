@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { doc, onSnapshot, deleteDoc, collection, query, where, getDocs, updateDoc, serverTimestamp } from "firebase/firestore";
+import { doc, onSnapshot, deleteDoc, collection, query, where, getDocs, updateDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { ref, listAll, deleteObject } from "firebase/storage";
 
 import { requireDb, requireStorage } from "@/lib/firebase";
@@ -73,22 +73,40 @@ export default function MasterProfilePage() {
  // Delete profile document
  await deleteDoc(doc(db, "profiles", user.uid));
  
- // Soft delete all masters for this user
+ // Soft delete masters doc(s) for this user
  try {
-  const mastersQuery = query(collection(db, "masters"), where("uid", "==", user.uid));
-  const mastersSnap = await getDocs(mastersQuery);
-  await Promise.all(
-   mastersSnap.docs.map((doc) =>
-    updateDoc(doc.ref, { deleted: true, deletedAt: serverTimestamp() })
-   )
+  const masterPayload = { deleted: true, deletedAt: serverTimestamp() };
+  const masterUpdates: Promise<unknown>[] = [
+   setDoc(doc(db, "masters", user.uid), masterPayload, { merge: true }),
+  ];
+  const mastersQuery = query(
+   collection(db, "masters"),
+   where("uid", "==", user.uid)
   );
+  const mastersSnap = await getDocs(mastersQuery);
+  mastersSnap.docs.forEach((masterDoc) => {
+   if (masterDoc.id !== user.uid) {
+    masterUpdates.push(updateDoc(masterDoc.ref, masterPayload));
+   }
+  });
+  await Promise.all(masterUpdates);
  } catch (err) {
   console.error("Error soft-deleting masters:", err);
  }
  
- // Soft delete all listings for this user (check multiple owner fields)
+ // Soft delete all listings for this user (check all owner field variants)
  try {
-  const ownerFields = ["masterUid", "ownerUid", "authorUid", "userUid", "profileId"];
+  const ownerFields = [
+   "ownerId",
+   "ownerUid",
+   "masterUid",
+   "masterId",
+   "authorUid",
+   "userUid",
+   "userId",
+   "profileId",
+   "profileUid",
+  ];
   const allListingDocs = new Map();
   
   for (const field of ownerFields) {

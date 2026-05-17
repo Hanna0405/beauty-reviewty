@@ -16,7 +16,6 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { matchesAllFilters } from "@/lib/filtering";
-import { shouldMasterBeVisibleInPublicSearch } from "@/lib/settings/masterVisibility";
 
 import type { TagOption } from "@/types/tags";
 
@@ -51,6 +50,77 @@ function includesAll(haystack: string[], needles: string[]) {
   if (!needles?.length) return true;
   if (!Array.isArray(haystack)) return false;
   return needles.every((k) => haystack.includes(k));
+}
+
+function readTimestampMs(data: Record<string, unknown>, keys: string[]): number {
+  for (const key of keys) {
+    const v = data[key];
+    if (v == null) continue;
+    if (
+      typeof v === "object" &&
+      v !== null &&
+      "toMillis" in v &&
+      typeof (v as { toMillis: () => number }).toMillis === "function"
+    ) {
+      return (v as { toMillis: () => number }).toMillis();
+    }
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+  }
+  return 0;
+}
+
+function sortListingsByRecency(items: any[]): any[] {
+  return [...items].sort((a, b) => {
+    const aMs = Math.max(
+      readTimestampMs(a, ["createdAt", "created_at"]),
+      readTimestampMs(a, ["updatedAt", "updated_at"])
+    );
+    const bMs = Math.max(
+      readTimestampMs(b, ["createdAt", "created_at"]),
+      readTimestampMs(b, ["updatedAt", "updated_at"])
+    );
+    return bMs - aMs;
+  });
+}
+
+/** Prefer live profile fields over stale denormalized master doc data. */
+function mergeMasterWithProfile(item: any, profile: any) {
+  // Same field as dashboard profile — never fall back to legacy photoURL on masters/listings
+  const profileAvatar = profile?.avatarUrl ?? null;
+  return {
+    ...item,
+    displayName: profile?.displayName || profile?.name || item.displayName,
+    avatarUrl: profileAvatar,
+    photoURL: profileAvatar,
+    city: profile?.city ?? item.city,
+    cityName: profile?.cityName ?? item.cityName,
+    services:
+      Array.isArray(profile?.services) && profile.services.length
+        ? profile.services
+        : item.services,
+    serviceKeys: profile?.serviceKeys?.length
+      ? profile.serviceKeys
+      : item.serviceKeys,
+    serviceNames: profile?.serviceNames?.length
+      ? profile.serviceNames
+      : item.serviceNames,
+    languages:
+      Array.isArray(profile?.languages) && profile.languages.length
+        ? profile.languages
+        : item.languages,
+    languageKeys: profile?.languageKeys?.length
+      ? profile.languageKeys
+      : item.languageKeys,
+    languageNames: profile?.languageNames?.length
+      ? profile.languageNames
+      : item.languageNames,
+  };
+}
+
+function isProfilePublic(profile: any): boolean {
+  const isPublicProfile =
+    profile?.isPublicProfile ?? profile?.isVisibleAsMaster ?? true;
+  return isPublicProfile !== false;
 }
 
 export type MasterFilters = {
@@ -207,29 +277,29 @@ export async function fetchMastersOnce(
     );
   });
 
-  // Filter by master visibility: exclude masters with isPublicProfile === false
-  // Note: This requires async checks, so we do it in a loop
+  // Visibility + merge latest profile fields (avatar, name, city, tags)
   const visibilityFiltered: any[] = [];
   for (const item of items) {
     const masterUid =
       item.uid || item.userId || item.ownerId || item.userUID || item.id;
-    if (masterUid) {
-      try {
-        const isVisible = await shouldMasterBeVisibleInPublicSearch(masterUid);
-        if (isVisible) {
-          visibilityFiltered.push(item);
-        }
-      } catch (error) {
-        // On error, include the item (backward compatible)
-        console.warn(
-          "[fetchMastersOnce] Error checking visibility for master:",
-          masterUid,
-          error
-        );
-        visibilityFiltered.push(item);
+    if (!masterUid) {
+      visibilityFiltered.push(item);
+      continue;
+    }
+    try {
+      const profileSnap = await getDoc(doc(db, "profiles", masterUid));
+      if (!profileSnap.exists()) {
+        continue;
       }
-    } else {
-      // If no UID found, include it (backward compatible)
+      const profile = profileSnap.data() as any;
+      if (!isProfilePublic(profile)) continue;
+      visibilityFiltered.push(mergeMasterWithProfile(item, profile));
+    } catch (error) {
+      console.warn(
+        "[fetchMastersOnce] Error loading profile for master:",
+        masterUid,
+        error
+      );
       visibilityFiltered.push(item);
     }
   }
@@ -329,12 +399,39 @@ export async function fetchListingsOnce(
     }
   }
 
-  // If you don't have createdAt, you can change to orderBy('title')
-  cons.push(orderBy("createdAt", "desc"));
-  if (cursor) cons.push(startAfter(cursor));
-  cons.push(limit(pageSize));
+  const buildQueryConstraints = (orderField?: "createdAt" | "updatedAt") => {
+    const qCons: QueryConstraint[] = [...cons];
+    if (orderField) qCons.push(orderBy(orderField, "desc"));
+    if (cursor && orderField) qCons.push(startAfter(cursor));
+    qCons.push(limit(pageSize));
+    return qCons;
+  };
 
-  const snap = await getDocs(query(colRef, ...cons));
+  // Unordered first page: Firestore orderBy(createdAt) omits docs without that field,
+  // which makes the total count (all docs) disagree with rendered cards.
+  let snap;
+  if (!cursor) {
+    snap = await getDocs(query(colRef, ...buildQueryConstraints()));
+  } else {
+    try {
+      snap = await getDocs(query(colRef, ...buildQueryConstraints("createdAt")));
+    } catch (primaryErr) {
+      console.warn(
+        "[fetchListingsOnce] createdAt query failed; trying updatedAt:",
+        primaryErr
+      );
+      try {
+        snap = await getDocs(query(colRef, ...buildQueryConstraints("updatedAt")));
+      } catch (secondaryErr) {
+        console.warn(
+          "[fetchListingsOnce] updatedAt query failed; using unordered fetch:",
+          secondaryErr
+        );
+        snap = await getDocs(query(colRef, ...buildQueryConstraints()));
+      }
+    }
+  }
+
   const fetchedCount = snap.docs.length;
   let items: any[] = snap.docs
     .map((d) => {
@@ -366,6 +463,60 @@ export async function fetchListingsOnce(
   items = items.filter((it) =>
     matchesAllFilters(it, filters as any, /*isMaster*/ false)
   );
+  items = sortListingsByRecency(items);
+
+  // Prefer live owner profile over stale denormalized listing fields
+  const ownerIds = [
+    ...new Set(
+      items
+        .map(
+          (l) =>
+            l.ownerId ||
+            l.ownerUid ||
+            l.masterUid ||
+            l.masterId ||
+            l.userId ||
+            l.uid
+        )
+        .filter(Boolean)
+    ),
+  ] as string[];
+  if (ownerIds.length > 0) {
+    const profileByUid = new Map<string, any>();
+    await Promise.all(
+      ownerIds.map(async (uid) => {
+        try {
+          const profileSnap = await getDoc(doc(db, "profiles", uid));
+          if (profileSnap.exists()) {
+            profileByUid.set(uid, profileSnap.data());
+          }
+        } catch (err) {
+          console.warn("[fetchListingsOnce] Failed to load owner profile:", uid, err);
+        }
+      })
+    );
+    items = items.map((listing) => {
+      const ownerUid =
+        listing.ownerId ||
+        listing.ownerUid ||
+        listing.masterUid ||
+        listing.masterId ||
+        listing.userId ||
+        listing.uid;
+      const profile = ownerUid ? profileByUid.get(ownerUid) : null;
+      if (!profile) return listing;
+      const profileAvatar = profile.avatarUrl ?? null;
+      return {
+        ...listing,
+        masterName: profile.displayName || profile.name || listing.masterName,
+        masterDisplayName:
+          profile.displayName || profile.name || listing.masterDisplayName,
+        masterAvatarUrl: profileAvatar,
+        masterPhotoURL: profileAvatar,
+      };
+    });
+  }
+
   const postFilterSkippedCount = fetchedCount - deletedSkippedCount - items.length;
 
   if (deletedSkippedCount > 0 || postFilterSkippedCount > 0) {
