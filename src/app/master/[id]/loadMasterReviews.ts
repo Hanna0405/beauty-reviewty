@@ -1,6 +1,10 @@
 import { cache } from "react";
 import { getAdminDb } from "@/lib/firebaseAdmins";
 import { serializeFirestoreDoc } from "@/lib/firestore/serializeForClient";
+import {
+  isApprovedMasterReviewForProfile,
+  isApprovedReviewStatus,
+} from "@/lib/reviews/masterReviewFilters";
 import type {
   ListingReview,
   ListingReviewsData,
@@ -8,16 +12,25 @@ import type {
 
 function dedupeReviews(reviews: ListingReview[]): ListingReview[] {
   const unique: ListingReview[] = [];
-  const seen = new Set<string>();
+  const seenIds = new Set<string>();
+  const seenSignatures = new Set<string>();
 
   for (const review of reviews) {
     const reviewId = review.id;
-    if (!reviewId) {
-      unique.push(review);
+    const signature = [
+      String(review.authorUid || ""),
+      String(review.rating || ""),
+      String(review.text || "").trim(),
+    ].join("|");
+
+    if (reviewId) {
+      if (seenIds.has(reviewId)) continue;
+      seenIds.add(reviewId);
+    } else if (signature && seenSignatures.has(signature)) {
       continue;
     }
-    if (seen.has(reviewId)) continue;
-    seen.add(reviewId);
+
+    if (signature) seenSignatures.add(signature);
     unique.push(review);
   }
 
@@ -35,35 +48,81 @@ function reviewTimestampMs(review: ListingReview): number {
 }
 
 export const loadMasterReviews = cache(
-  async (masterId: string): Promise<ListingReviewsData> => {
+  async (
+    masterId: string,
+    listingIds: string[] = [],
+    profileDocId?: string
+  ): Promise<ListingReviewsData> => {
     const merged: ListingReview[] = [];
 
     try {
       const db = getAdminDb();
 
-      const queries = [
+      const idVariants = [
+        masterId,
+        profileDocId && profileDocId !== masterId ? profileDocId : null,
+      ].filter(Boolean) as string[];
+
+      const queryPromises = idVariants.flatMap((id) => [
         db
           .collection("reviews")
           .where("subjectType", "==", "master")
-          .where("subjectId", "==", masterId)
+          .where("subjectId", "==", id)
           .get(),
-        db.collection("reviews").where("masterId", "==", masterId).get(),
-        db.collection("reviews").where("profileId", "==", masterId).get(),
-      ];
+        db.collection("reviews").where("masterId", "==", id).get(),
+        db.collection("reviews").where("profileId", "==", id).get(),
+        db
+          .collection("reviews")
+          .where("type", "==", "master")
+          .where("masterId", "==", id)
+          .get(),
+      ]);
 
-      for (const queryPromise of queries) {
+      for (const queryPromise of queryPromises) {
         try {
           const snap = await queryPromise;
           for (const docSnap of snap.docs) {
+            const data = docSnap.data() as Record<string, unknown>;
+            if (!isApprovedMasterReviewForProfile(data, idVariants)) continue;
             merged.push(
               serializeFirestoreDoc({
                 id: docSnap.id,
-                ...docSnap.data(),
+                ...data,
               }) as ListingReview
             );
           }
         } catch (error) {
           console.warn("[master/[id]] Failed to load reviews query:", error);
+        }
+      }
+
+      // Legacy listing-owned reviews (backward compatibility)
+      const uniqueListingIds = [...new Set(listingIds.filter(Boolean))];
+      for (const listingId of uniqueListingIds) {
+        try {
+          const legacySnap = await db
+            .collection("reviews")
+            .where("listingId", "==", listingId)
+            .get();
+          for (const docSnap of legacySnap.docs) {
+            const data = docSnap.data() as Record<string, unknown>;
+            if (!isApprovedReviewStatus(data)) continue;
+            merged.push(
+              serializeFirestoreDoc({
+                id: docSnap.id,
+                ...data,
+                masterId,
+                subjectType: "master",
+                subjectId: masterId,
+              }) as ListingReview
+            );
+          }
+        } catch (error) {
+          console.warn(
+            "[master/[id]] Failed to load legacy listing reviews:",
+            listingId,
+            error
+          );
         }
       }
 
@@ -75,10 +134,13 @@ export const loadMasterReviews = cache(
           .orderBy("createdAt", "desc")
           .get();
         for (const docSnap of subSnap.docs) {
+          const data = docSnap.data() as Record<string, unknown>;
+          if (!isApprovedReviewStatus(data)) continue;
           merged.push(
             serializeFirestoreDoc({
               id: docSnap.id,
-              ...docSnap.data(),
+              ...data,
+              masterId,
             }) as ListingReview
           );
         }

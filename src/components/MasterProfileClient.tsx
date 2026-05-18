@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   doc,
   getDoc,
@@ -18,11 +19,19 @@ import { Chips } from "./UiChips";
 import MapPreview from "./MapPreview";
 import PublicListingCard from "@/app/master/PublicListingCard";
 import ShareIconButton from "@/components/ShareIconButton";
+import Stars from "@/app/masters/components/Stars";
+import { ReviewsSection } from "@/components/ReviewsSection";
+import { mapServerReviewToClient } from "@/lib/reviewty/mapServerReviewToClient";
+import type { ReviewDoc } from "@/lib/reviews/types";
 
 type Props = {
   id: string;
   initialMaster?: MasterProfile | null;
   initialListings?: Listing[];
+  reviewSubjectId?: string;
+  initialReviews?: Array<Record<string, unknown> & { id: string }>;
+  initialAvgRating?: number;
+  initialTotalReviews?: number;
 };
 
 type Profile = {
@@ -145,12 +154,23 @@ export default function MasterProfileClient({
   id,
   initialMaster = null,
   initialListings,
+  reviewSubjectId,
+  initialReviews = [],
+  initialAvgRating = 0,
+  initialTotalReviews = 0,
 }: Props) {
   const hasInitial = Boolean(initialMaster);
   const [loading, setLoading] = useState(!hasInitial);
   const [master, setMaster] = useState<MasterProfile | null>(initialMaster);
   const [listings, setListings] = useState<Listing[]>(initialListings ?? []);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    const onSubmitted = () => router.refresh();
+    window.addEventListener("reviewty:reviewSubmitted", onSubmitted);
+    return () => window.removeEventListener("reviewty:reviewSubmitted", onSubmitted);
+  }, [router]);
 
   useEffect(() => {
     if (hasInitial) return;
@@ -235,6 +255,21 @@ export default function MasterProfileClient({
     return <div className="p-6 text-sm text-red-600">Error: {error}</div>;
   if (!master) return <div className="p-6 text-sm">Master not found</div>;
 
+  const resolvedReviewSubjectId =
+    reviewSubjectId ||
+    String(
+      (master as any).uid ||
+        (master as any).userId ||
+        (master as any).ownerId ||
+        (master as any).userUID ||
+        master.id ||
+        id
+    );
+
+  const initialReviewDocs: ReviewDoc[] = initialReviews.map((review) =>
+    mapServerReviewToClient(review, resolvedReviewSubjectId)
+  );
+
   const cityLabel = formatCity(master.city, master.cityName);
   const lat = master.city?.lat;
   const lng = master.city?.lng;
@@ -245,8 +280,36 @@ export default function MasterProfileClient({
     (master as any).aboutMe ||
     (master as any).description;
 
+  const listingsSection = (
+    <section className="mt-6 min-w-0" aria-labelledby="listings-heading">
+      <h2 id="listings-heading" className="text-lg font-semibold">
+        Listings
+      </h2>
+
+      {loading && listings.length === 0 && (
+        <p className="mt-2 text-sm opacity-80">Loading listings…</p>
+      )}
+
+      {!loading && error && (
+        <p className="mt-2 text-sm text-red-600">{error}</p>
+      )}
+
+      {!loading && !error && listings.length === 0 && (
+        <p className="mt-2 text-sm opacity-80">No listings yet.</p>
+      )}
+
+      {listings.length > 0 && (
+        <div className="mt-3 grid w-full min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {listings.map((lst: any) => (
+            <PublicListingCard key={lst.id} listing={lst} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6">
+    <div className="mx-auto max-w-4xl min-w-0 overflow-x-hidden px-4 py-6">
       <a href="/masters" className="text-sm underline">
         &larr; Back to Masters
       </a>
@@ -345,48 +408,45 @@ export default function MasterProfileClient({
         </div>
       </div>
 
+      {initialTotalReviews > 0 ? (
+        <div className="mt-4 flex min-w-0 flex-wrap items-center gap-2 rounded-xl border bg-white/60 px-4 py-3">
+          <Stars value={initialAvgRating} />
+          <span className="text-sm text-gray-700">
+            / 5 · {initialTotalReviews} review
+            {initialTotalReviews === 1 ? "" : "s"}
+          </span>
+        </div>
+      ) : null}
+
+      <ReviewsSection
+        listingId={resolvedReviewSubjectId}
+        subjectType="master"
+        initialItems={initialReviewDocs}
+        alternateSubjectId={id}
+        layout="split"
+        hideHeaderSummary
+        initialVisibleCount={2}
+        expandButtonLabel="Show more reviews"
+        leadingSections={listingsSection}
+      />
+
       {about ? (
-        <div className="mt-4 rounded-xl border bg-white/60 p-4">
+        <div className="mt-8 min-w-0 rounded-xl border bg-white/60 p-4">
           <div className="text-base font-semibold">About the master</div>
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-800">
+          <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-gray-800">
             {about}
           </p>
         </div>
       ) : null}
 
       {lat != null && lng != null ? (
-        <div className="mt-4">
+        <div className="mt-4 min-w-0 overflow-hidden">
           <MapPreview lat={lat} lng={lng} />
           {cityLabel && (
             <div className="mt-2 text-sm text-gray-600">{cityLabel}</div>
           )}
         </div>
       ) : null}
-
-      {/* Listings */}
-      <div className="mt-6">
-        <h2 className="text-lg font-semibold">Listings</h2>
-
-        {loading && (
-          <p className="mt-2 text-sm opacity-80">Loading listings…</p>
-        )}
-
-        {!loading && error && (
-          <p className="mt-2 text-sm text-red-600">{error}</p>
-        )}
-
-        {!loading && !error && listings.length === 0 && (
-          <p className="mt-2 text-sm opacity-80">No listings yet.</p>
-        )}
-
-        {!loading && !error && listings.length > 0 && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {listings.map((lst: any) => (
-              <PublicListingCard key={lst.id} listing={lst} />
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

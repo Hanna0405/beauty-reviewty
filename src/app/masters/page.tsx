@@ -12,8 +12,20 @@ import { fetchMastersOnce, fetchListingsOnce, fetchMastersTotalCount, fetchListi
 import { includesAll } from "@/lib/filters/matchers";
 import { selectedToKeys, docServiceKeysDeep, docLanguageKeysDeep, extractCityKey, normalizeCitySelection, toKey, docCityKeyDeep, toRegionKey } from "@/lib/filters/normalize";
 import dynamicImport from 'next/dynamic';
-import { collection, getDocs, query, where, type Firestore, type DocumentData } from "firebase/firestore";
+import { collection, getDocs, limit, query, where, type Firestore, type DocumentData } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { getMasterProfileId } from "@/lib/listings/getMasterProfileId";
+import {
+  aggregateRatingsByMaster,
+  aliasMasterRatings,
+  buildListingOwnerMap,
+  lookupMasterRating,
+} from "@/lib/reviews/aggregateByMaster";
+import {
+  getReviewSubjectType,
+  isApprovedMasterReviewForFeed,
+  isApprovedReviewStatus,
+} from "@/lib/reviews/masterReviewFilters";
 
 const MastersMapNoSSR = dynamicImport(() => import('@/components/mapComponents').then(m => m.MastersMap), { ssr: false });
 
@@ -275,57 +287,110 @@ function PageContent() {
     }
   }, [loadingMoreListings, hasMoreListings, listingsCursor, mergeUniqueById]);
 
-  // Load reviews for listings after listings are loaded
-  useEffect(() => {
-    if (!allListings.length || initialLoad) return;
+  const loadAllReviews = useCallback(async () => {
     if (!isFirestoreDb(db)) {
       console.warn("[Masters] Firestore DB unavailable for reviews fetch. Using empty fallback.");
       setAllReviews([]);
       return;
     }
-    
+
+    const merged = new Map<string, any>();
+    const addReview = (docSnap: { id: string; data: () => Record<string, unknown> }) => {
+      const data = docSnap.data();
+      if (!isApprovedReviewStatus(data)) return;
+      const subjectType = getReviewSubjectType(data);
+      const countsForMaster =
+        isApprovedMasterReviewForFeed(data) ||
+        Boolean(data.listingId) ||
+        subjectType === "listing";
+      if (!countsForMaster) return;
+      if (!merged.has(docSnap.id)) {
+        merged.set(docSnap.id, { id: docSnap.id, ...data });
+      }
+    };
+
+    try {
+      const masterQueries = [
+        query(
+          collection(db, "reviews"),
+          where("subjectType", "==", "master"),
+          where("status", "==", "approved"),
+          limit(500)
+        ),
+        query(
+          collection(db, "reviews"),
+          where("subjectType", "==", "master"),
+          limit(500)
+        ),
+      ];
+
+      for (const masterQuery of masterQueries) {
+        try {
+          const snap = await getDocs(masterQuery);
+          snap.docs.forEach(addReview);
+        } catch (error) {
+          console.warn("[Masters] Failed to load master reviews:", error);
+        }
+      }
+
+      try {
+        const recentSnap = await getDocs(
+          query(collection(db, "reviews"), limit(400))
+        );
+        recentSnap.docs.forEach((docSnap) => addReview(docSnap));
+      } catch (error) {
+        console.warn("[Masters] Failed to load recent reviews fallback:", error);
+      }
+
+      const listingIds = allListings.map((l) => l.id || l._id).filter(Boolean);
+      for (let i = 0; i < listingIds.length; i += 10) {
+        const batch = listingIds.slice(i, i + 10);
+        try {
+          const q1 = query(
+            collection(db, "reviews"),
+            where("subjectType", "==", "listing"),
+            where("subjectId", "in", batch)
+          );
+          const snap1 = await getDocs(q1);
+          snap1.docs.forEach(addReview);
+
+          const q2 = query(collection(db, "reviews"), where("listingId", "in", batch));
+          const snap2 = await getDocs(q2);
+          snap2.docs.forEach(addReview);
+        } catch (batchError) {
+          console.warn("[Masters] Failed to load listing reviews batch:", batchError);
+        }
+      }
+
+      setAllReviews(Array.from(merged.values()));
+    } catch (error) {
+      console.warn("[Masters] Reviews load error:", error);
+    }
+  }, [allListings]);
+
+  // Load reviews for masters + listings once initial catalog is ready
+  useEffect(() => {
+    if (initialLoad) return;
     let cancelled = false;
     (async () => {
-      try {
-        // Collect all listing IDs
-        const listingIds = allListings.map(l => l.id || l._id).filter(Boolean);
-        if (listingIds.length === 0) return;
-
-        // Fetch reviews for these listings (split into batches if needed)
-        const reviewsBatch: any[] = [];
-        for (let i = 0; i < listingIds.length; i += 10) {
-          const batch = listingIds.slice(i, i + 10);
-          try {
-            // Try new schema first (subjectId for listings)
-            const q1 = query(collection(db, 'reviews'), where('subjectType', '==', 'listing'), where('subjectId', 'in', batch));
-            const snap1 = await getDocs(q1);
-            reviewsBatch.push(...snap1.docs.map(d => ({ id: d.id, ...d.data() })));
-            
-            // Also try legacy schema (listingId)
-            const q2 = query(collection(db, 'reviews'), where('listingId', 'in', batch));
-            const snap2 = await getDocs(q2);
-            // Avoid duplicates
-            const existingIds = new Set(reviewsBatch.map(r => r.id));
-            snap2.docs.forEach(d => {
-              if (!existingIds.has(d.id)) {
-                reviewsBatch.push({ id: d.id, ...d.data() });
-              }
-            });
-          } catch (batchError) {
-            console.warn('[Masters] Failed to load reviews batch:', batchError);
-          }
-        }
-
-        if (!cancelled) {
-          setAllReviews(reviewsBatch);
-        }
-      } catch (error) {
-        console.warn('[Masters] Reviews load error:', error);
-      }
+      await loadAllReviews();
+      if (cancelled) return;
     })();
-    
-    return () => { cancelled = true; };
-  }, [allListings, initialLoad]);
+    return () => {
+      cancelled = true;
+    };
+  }, [allListings, initialLoad, loadAllReviews]);
+
+  useEffect(() => {
+    if (initialLoad) return;
+    const onSubmitted = () => {
+      loadAllReviews().catch((error) => {
+        console.warn("[Masters] Failed to refresh reviews after submit:", error);
+      });
+    };
+    window.addEventListener("reviewty:reviewSubmitted", onSubmitted);
+    return () => window.removeEventListener("reviewty:reviewSubmitted", onSubmitted);
+  }, [initialLoad, loadAllReviews]);
 
   // Normalize UI selections to KEYS (shared for masters & listings) - defined early before any useMemo
   const selectedServiceKeys = selectedToKeys(selectedServices as any);
@@ -344,93 +409,46 @@ function PageContent() {
     queryCitySlug ||
     null;
 
-  // Compute listing ratings from reviews
+  const listingOwnerMap = useMemo(
+    () => buildListingOwnerMap(allListings),
+    [allListings]
+  );
+
+  const masterRatings = useMemo(() => {
+    const base = aggregateRatingsByMaster(allReviews, listingOwnerMap);
+    return aliasMasterRatings(base, allMasters);
+  }, [allReviews, listingOwnerMap, allMasters]);
+
   const enhancedListings = useMemo(() => {
-    // Group reviews by listingId (support both new schema subjectId and legacy listingId)
-    const reviewsByListing = new Map<string, any[]>();
-    allReviews.forEach((review) => {
-      // New schema: subjectId when subjectType === 'listing'
-      // Legacy: listingId
-      const listingId = (review.subjectType === 'listing' ? review.subjectId : null) || review.listingId;
-      if (!listingId) return;
-      if (!reviewsByListing.has(listingId)) {
-        reviewsByListing.set(listingId, []);
-      }
-      reviewsByListing.get(listingId)!.push(review);
-    });
-
-    // Enhance ALL listings with computed ratings - always start from full dataset
     return allListings.map((listing) => {
-      const listingId = listing.id || listing._id;
-      const reviews = listingId ? reviewsByListing.get(listingId) || [] : [];
-      
-      // Compute rating from reviews
-      const computedRating = reviews.length > 0
-        ? reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length
-        : null;
-      const computedReviewsCount = reviews.length;
+      const masterKey = getMasterProfileId(listing);
+      const masterRating = masterKey
+        ? lookupMasterRating(masterRatings, { id: masterKey, uid: masterKey, masterId: masterKey })
+        : lookupMasterRating(masterRatings, listing);
 
-      // Prefer existing rating, fallback to computed
-      const finalRating = listing.averageRating ?? listing.rating ?? listing.avgRating ?? listing.stars ?? computedRating;
-      const finalCount = listing.ratingCount ?? listing.reviewsCount ?? listing.totalReviews ?? listing.reviews?.length ?? computedReviewsCount;
+      const finalRating =
+        masterRating?.rating ??
+        listing.averageRating ??
+        listing.rating ??
+        listing.avgRating ??
+        listing.stars ??
+        null;
+      const finalCount =
+        masterRating?.count ??
+        listing.ratingCount ??
+        listing.reviewsCount ??
+        listing.totalReviews ??
+        0;
 
       return {
         ...listing,
-        computedRating,
-        computedReviewsCount,
         finalRating,
         finalCount,
+        masterAggregateRating: masterRating?.rating ?? null,
+        masterAggregateCount: masterRating?.count ?? 0,
       };
     });
-  }, [allListings, allReviews]);
-
-  // Compute master ratings from ALL enhanced listings (not filtered) - ensures ratings always computed from full dataset
-  const masterRatings = useMemo(() => {
-    const ratings = new Map<string, { rating: number | null; count: number }>();
-    
-    // Group listings by master - use ALL enhanced listings
-    const listingsByMaster = new Map<string, any[]>();
-    enhancedListings.forEach((listing) => {
-      // Try multiple field names to link listing to master
-      const masterId = listing.masterId || listing.ownerId || listing.userId || listing.uid || listing.userUID || listing.ownerUid || listing.profileUid || listing.masterUid || listing.userUid || listing.authorUid;
-      if (!masterId) return;
-      
-      if (!listingsByMaster.has(masterId)) {
-        listingsByMaster.set(masterId, []);
-      }
-      listingsByMaster.get(masterId)!.push(listing);
-    });
-    
-    // Compute aggregated rating for each master
-    listingsByMaster.forEach((listings, masterId) => {
-      const rated = listings.filter((l) => {
-        const r = l.finalRating;
-        return typeof r === "number";
-      });
-      
-      if (!rated.length) {
-        ratings.set(masterId, { rating: null, count: 0 });
-        return;
-      }
-      
-      let totalWeighted = 0;
-      let totalReviews = 0;
-      
-      rated.forEach((l) => {
-        const r = l.finalRating;
-        const c = l.finalCount;
-        totalWeighted += r * c;
-        totalReviews += c;
-      });
-      
-      ratings.set(masterId, {
-        rating: totalWeighted / totalReviews,
-        count: totalReviews,
-      });
-    });
-    
-    return ratings;
-  }, [enhancedListings]);
+  }, [allListings, masterRatings]);
 
   // Filter masters - ALWAYS start from allMasters (full dataset), matching /reviewty pattern
   const filteredMastersFinal = useMemo(() => {
@@ -470,8 +488,7 @@ function PageContent() {
     // RATING FILTER - match /reviewty behavior: if minRating is null, show all
     if (minRating != null && minRating > 0) {
       filtered = filtered.filter(m => {
-        const masterId = m.id || m.uid;
-        const ratingData = masterId ? masterRatings.get(masterId) : null;
+        const ratingData = lookupMasterRating(masterRatings, m);
         const r = ratingData?.rating;
         if (typeof r !== "number") return false;
         return r >= minRating;
@@ -632,9 +649,15 @@ function PageContent() {
                   <h2 className="text-base font-semibold mb-3">Masters ({filteredMastersFinal.length})</h2>
                   <div className="grid w-full min-w-0 grid-cols-1 gap-3 md:grid-cols-2">
                     {filteredMastersFinal.map(m => {
-                      const masterId = m.id || m.uid;
-                      const ratingData = masterId ? masterRatings.get(masterId) : null;
-                      return <MasterCard key={m.id} master={m} rating={ratingData?.rating} reviewCount={ratingData?.count} />;
+                      const ratingData = lookupMasterRating(masterRatings, m);
+                      return (
+                        <MasterCard
+                          key={m.id || m.uid}
+                          master={m}
+                          rating={ratingData?.rating ?? undefined}
+                          reviewCount={ratingData?.count ?? 0}
+                        />
+                      );
                     })}
                   </div>
                   {hasMoreMasters && (

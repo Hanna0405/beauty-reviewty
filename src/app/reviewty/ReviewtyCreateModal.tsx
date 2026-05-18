@@ -3,21 +3,13 @@ import { useEffect, useState } from "react";
 import {
   addDoc,
   collection,
-  doc,
-  getDoc,
   serverTimestamp,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  updateDoc,
-  where,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { createReviewViaApi } from "@/lib/reviews/createClient";
 import type { ReviewPhoto } from "@/lib/reviews/types";
+import { saveExistingMasterReview } from "@/lib/reviewty/saveExistingMasterReview";
 import type { CommunityMaster } from "@/types/community";
 import AutocompleteList from "@/components/AutocompleteList";
 import CityAutocomplete from "@/components/CityAutocomplete";
@@ -27,6 +19,10 @@ import { ensureKeyObject } from "@/lib/filters/normalize";
 import type { CityNorm } from "@/lib/city";
 import type { TagOption } from "@/types/tags";
 import { cityToDisplay } from "@/lib/city/format";
+import {
+  loadActiveMasterSearchOptions,
+  type MasterSearchOption,
+} from "@/lib/reviewty/masterSearchOptions";
 
 function slugifyCityName(name: string) {
   return name
@@ -116,16 +112,7 @@ export default function ReviewtyCreateModal({
   // listing id selected
   const [listingId, setListingId] = useState("");
   const [listingQuery, setListingQuery] = useState("");
-  const [listingOpts, setListingOpts] = useState<
-    {
-      id: string;
-      title: string;
-      city?: string;
-      services?: string[];
-      photoUrl?: string;
-      type?: string;
-    }[]
-  >([]);
+  const [listingOpts, setListingOpts] = useState<MasterSearchOption[]>([]);
   const [loadingListings, setLoadingListings] = useState(false);
   // minimal community master
   const [cm, setCM] = useState<Partial<CommunityMaster>>({
@@ -146,52 +133,22 @@ export default function ReviewtyCreateModal({
   const [photoWarning, setPhotoWarning] = useState(false);
 
   useEffect(() => {
-    let off = false;
+    let cancelled = false;
     async function load() {
       setLoadingListings(true);
       try {
-        const q = query(
-          collection(db, "listings"),
-          orderBy("updatedAt", "desc"),
-          limit(100)
-        );
-        const snap = await getDocs(q);
-        if (off) return;
-        const rows = snap.docs.map((d) => {
-          const x: any = d.data();
-          return {
-            id: d.id,
-            title: x.title || "Untitled",
-            city: cityToDisplay(x.city),
-            services: Array.isArray(x.services) ? x.services : [],
-            photoUrl: x?.photos?.[0]?.url || "",
-          };
-        });
-        
-        // ALSO include publicCards
-        const publicCardsSnap = await getDocs(collection(db, "publicCards"));
-        const publicCards = publicCardsSnap.docs.map((d) => ({
-          id: d.id,
-          title: d.data().masterName || d.data().name || d.data().title || "Untitled",
-          city: d.data().city?.formatted || d.data().city || "",
-          photoUrl: d.data().photoUrl || d.data().photos?.[0] || "",
-          type: "publicCard",
-        }));
-        
-        // merge both
-        const combined = [
-          ...rows.map((x) => ({ ...x, type: "listing" })),
-          ...publicCards,
-        ];
-        
-        setListingOpts(combined);
+        const masters = await loadActiveMasterSearchOptions(100);
+        if (!cancelled) setListingOpts(masters);
+      } catch (error) {
+        console.warn("[ReviewtyCreateModal] Failed to load masters:", error);
+        if (!cancelled) setListingOpts([]);
       } finally {
-        if (!off) setLoadingListings(false);
+        if (!cancelled) setLoadingListings(false);
       }
     }
     load();
     return () => {
-      off = true;
+      cancelled = true;
     };
   }, []);
 
@@ -443,249 +400,35 @@ export default function ReviewtyCreateModal({
 
       if (mode === "listing" && listingId) {
         const selectedMaster = listingOpts.find((o) => o.id === listingId) || null;
-        console.log("selectedMaster", selectedMaster); // added for debug
-        
+
         if (!selectedMaster) {
           alert("Master not found");
           return;
         }
-        
-        // we added type to search options
-        if (selectedMaster.type === "publicCard") {
-          const payload = {
-            rating: Number(rating) || 0,
-            text: text || "",
-            photos: (uploadedPhotos || []).map((p: any) => p?.url).filter(Boolean),
-            authorUid: user?.uid || null,
-            authorName: user?.displayName || "Verified client",
-            createdAt: serverTimestamp(),
-          };
-          
-          // try main collection for public cards
-          try {
-            await addDoc(
-              collection(db, "publicCards", selectedMaster.id, "reviews"),
-              payload
-            );
-          } catch (e) {
-            // fallback: some projects keep public cards in "reviewty/{slug}"
-            await addDoc(
-              collection(db, "reviewty", selectedMaster.id, "reviews"),
-              payload
-            );
-          }
-          
-          // ALSO save to publicReviews collection with publicCardSlug for cross-linking
-          try {
-            await addDoc(collection(db, "publicReviews"), {
-              publicCardSlug: selectedMaster.id,
-              rating: Number(rating) || 0,
-              text: text || "",
-              photos: (uploadedPhotos || []).map((p: any) => p?.url).filter(Boolean),
-              authorUid: user?.uid || null,
-              authorName: user?.displayName || "Verified client",
-              createdAt: serverTimestamp(),
-            });
-          } catch (err) {
-            console.warn("extra save to publicReviews failed", err);
-          }
-          
-          // Update public card statistics
-          try {
-            // Load all reviews for this public card from all sources
-            const allReviews: any[] = [];
-            
-            // 1) publicCards/{id}/reviews
-            try {
-              const q1 = query(collection(db, "publicCards", selectedMaster.id, "reviews"));
-              const s1 = await getDocs(q1);
-              s1.forEach((d) => allReviews.push(d.data()));
-            } catch (_) {}
-            
-            // 2) reviewty/{id}/reviews
-            try {
-              const q2 = query(collection(db, "reviewty", selectedMaster.id, "reviews"));
-              const s2 = await getDocs(q2);
-              s2.forEach((d) => allReviews.push(d.data()));
-            } catch (_) {}
-            
-            // 3) publicReviews collection
-            try {
-              const q3 = query(
-                collection(db, "publicReviews"),
-                where("publicCardSlug", "==", selectedMaster.id)
-              );
-              const s3 = await getDocs(q3);
-              s3.forEach((d) => allReviews.push(d.data()));
-            } catch (_) {}
-            
-            // Calculate new avgRating and totalReviews
-            const validRatings = allReviews
-              .map((r: any) => Number(r.rating))
-              .filter((r) => !Number.isNaN(r) && r > 0);
-            const newTotalReviews = validRatings.length;
-            const newAvgRating = newTotalReviews > 0
-              ? validRatings.reduce((sum, r) => sum + r, 0) / newTotalReviews
-              : 0;
-            
-            // Update public card document
-            const cardRef = doc(db, "publicCards", selectedMaster.id);
-            await updateDoc(cardRef, {
-              avgRating: newAvgRating,
-              totalReviews: newTotalReviews,
-            });
-          } catch (err) {
-            console.warn("failed to update public card statistics", err);
-          }
-          
-          alert("Thank you! Your review has been submitted.");
-          // Cleanup and close modal
-          setOpen(false);
-          setListingId("");
-          setCM({});
-          setFiles([]);
-          setText("");
-          setRating(5);
-          setCity(null);
-          setSelectedServices([]);
-          setSelectedLanguages([]);
-          return;
-        }
-        
-        // default: listing
-        const snap = await getDoc(doc(db, "listings", listingId));
-        if (!snap.exists()) return alert("Listing not found");
-        const data = snap.data() as any;
 
-        // Normalize services/languages from listing data to robust strings
-        const toStr = (v: any) => {
-          if (!v) return "";
-          if (typeof v === "string") return v;
-          if (typeof v === "object") return v.name || v.title || v.key || "";
-          return String(v);
-        };
+        console.log("[Reviewty] Existing master submit — selected", {
+          id: selectedMaster.id,
+          uid: selectedMaster.uid,
+          profileId: selectedMaster.profileId,
+          displayName: selectedMaster.title,
+        });
 
-        const normSvc = Array.isArray(data.services) ? data.services.map(toStr).filter(Boolean) : [];
-        const normLang = Array.isArray(data.languages) ? data.languages.map(toStr).filter(Boolean) : [];
-
-        const docData = {
-          // Master info (for filtering)
-          masterId: listingId,
-          masterDisplay: data.title || data.displayName || "Unknown master",
-          masterCity: cityToDisplay(data.city) || "",
-          masterServices: normSvc,
-          masterLanguages: normLang,
-          masterKeywords: [
-            data.title?.toLowerCase(),
-            cityToDisplay(data.city)?.toLowerCase(),
-            ...normSvc.map((s: string) => s.toLowerCase()),
-            ...normLang.map((l: string) => l.toLowerCase()),
-          ].filter(Boolean),
-
-          // Review content
-          rating: Number(rating) || 0,
+        const reviewId = await saveExistingMasterReview({
+          selectedMaster,
+          rating: Number(rating) || 5,
           text: text || "",
           photos: uploadedPhotos,
+          authorUid: user.uid,
+          authorName: user.displayName || "Verified client",
+        });
 
-          // Master reference
-          masterRef: { type: "listing", id: listingId },
+        console.log("[Reviewty] Existing master submit — success", {
+          reviewId,
+          masterId: selectedMaster.id,
+          collection: "reviews",
+        });
 
-          // Legacy flow - explicitly set clientUid to null
-          clientUid: null,
-
-          // Housekeeping
-          createdAt: serverTimestamp(),
-          source: "existing-master",
-        };
-
-        // Write to Firestore in "reviews" collection
-        const colRef = collection(db, "reviews");
-        await addDoc(colRef, docData);
-
-        // Also save to root reviews in API-friendly format for /api/reviews/list (type=listing)
-        if (mode === "listing" && listingId) {
-          const selectedMaster = listingOpts.find((o) => o.id === listingId) || null;
-          const rootReviewPayload = {
-            // what the API uses:
-            type: "listing",
-            listingId: listingId,
-            // add popular aliases so backend can match:
-            listingID: listingId,
-            targetId: listingId,
-            objectId: listingId,
-            // moderation/status field (most APIs filter by this):
-            status: "approved",
-            // author info
-            authorUid: user?.uid || null,
-            authorName: user?.displayName || "Verified client",
-            // content
-            rating: Number(rating) || 0,
-            text: text || "",
-            photos: (uploadedPhotos || []).map((p: any) => p?.url).filter(Boolean),
-            // optional display fields taken from selectedMaster
-            masterName: selectedMaster?.title || "",
-            city: selectedMaster?.city || "",
-            createdAt: serverTimestamp(),
-          };
-          try {
-            await addDoc(collection(db, "reviews"), rootReviewPayload);
-          } catch (err) {
-            console.warn("extra save to root reviews failed", err);
-          }
-        }
-
-        // --- extra save for master-specific reviews ---
-        if (mode === "listing") {
-          const m: any = selectedMaster;
-          const reviewPayload = {
-            rating: Number(rating) || 0,
-            text: text || "",
-            photos: uploadedPhotos,
-            authorUid: user?.uid || null,
-            authorName: user?.displayName || "Verified client",
-            createdAt: serverTimestamp(),
-          };
-
-          try {
-            // 0) listings/{id}/reviews (autocomplete returns { id, title, city, ... })
-            if (m?.id) {
-              await addDoc(
-                collection(db, "listings", m.id, "reviews"),
-                reviewPayload
-              );
-            }
-
-            // 1) publicCards/{publicCardId}/reviews (if available in future)
-            const publicCardId =
-              m?.publicCardId || m?.publicCardSlug || m?.publicCard || m?.cardId || null;
-            if (publicCardId) {
-              await addDoc(
-                collection(db, "publicCards", publicCardId, "reviews"),
-                reviewPayload
-              );
-            }
-
-            // 2) reviewtyMasters/{reviewtyMasterId}/reviews
-            if (m?.reviewtyMasterId) {
-              await addDoc(
-                collection(db, "reviewtyMasters", m.reviewtyMasterId, "reviews"),
-                reviewPayload
-              );
-            } else {
-              // 3) fallback to masters/{uid}/reviews
-              const masterUid = m?.uid || m?.userId || m?.masterId || m?.ownerId || null;
-              if (masterUid) {
-                await addDoc(
-                  collection(db, "masters", masterUid, "reviews"),
-                  reviewPayload
-                );
-              }
-            }
-          } catch (err) {
-            console.warn("extra save for existing master failed", err);
-          }
-        }
-
+        window.dispatchEvent(new CustomEvent("reviewty:reviewSubmitted"));
         alert("Thank you! Your review has been submitted.");
       } else {
         // Community mode: Create public card
@@ -752,9 +495,19 @@ export default function ReviewtyCreateModal({
             </p>
             <AutocompleteList
               value={listingQuery}
+              selectedId={listingId || null}
               onSelect={(opt) => {
                 setListingId(opt.id);
-                setListingQuery(`${opt.title} — ${cityToDisplay(opt.city)}`);
+                const cityLabel = opt.city || "—";
+                const servicesLabel = (opt.services || [])
+                  .filter(Boolean)
+                  .slice(0, 3)
+                  .join(", ");
+                setListingQuery(
+                  servicesLabel
+                    ? `${opt.title} — ${cityLabel} (${servicesLabel})`
+                    : `${opt.title} — ${cityLabel}`
+                );
               }}
               options={listingOpts}
               placeholder="e.g.: Anna Nails Toronto"

@@ -9,6 +9,7 @@ export async function createReviewViaApi(input: {
   rating: number;
   text?: string;
   photos?: ReviewPhoto[];
+  source?: string;
 }) {
   const auth = getAuth();
   const user = auth.currentUser;
