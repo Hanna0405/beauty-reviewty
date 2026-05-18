@@ -17,8 +17,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     (profile?.ownerId as string | undefined) ||
     (profile?.userUID as string | undefined) ||
     decodedId;
+  const listingIds = listings.map((l) => String(l.id || "")).filter(Boolean);
+  const profileDocId = profile?.id ? String(profile.id) : decodedId;
   const [reviews, relatedMasters] = await Promise.all([
-    loadMasterReviews(String(reviewMasterId)),
+    loadMasterReviews(String(reviewMasterId), listingIds, profileDocId),
     profile
       ? loadRelatedMasterLinks({ profile, pageId: decodedId })
       : Promise.resolve({ nearby: [], similarServices: [] }),
@@ -41,6 +43,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         id={decodedId}
         initialMaster={profile}
         initialListings={listings}
+        reviewSubjectId={String(reviewMasterId)}
+        initialReviews={reviews.reviews}
+        initialAvgRating={reviews.avgRating}
+        initialTotalReviews={reviews.totalReviews}
       />
       <div className="mx-auto max-w-4xl min-w-0 px-4 pb-8">
         <RelatedMastersSections {...relatedMasters} />

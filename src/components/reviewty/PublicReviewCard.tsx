@@ -22,6 +22,7 @@ type PublicReviewCardProps = {
   masterServices?: string[];
   authorName?: string;
   createdAt?: any;
+  profileHref?: string | null;
 };
 
 export default function PublicReviewCard({
@@ -41,11 +42,13 @@ export default function PublicReviewCard({
   masterServices,
   authorName,
   createdAt,
+  profileHref,
 }: PublicReviewCardProps) {
   // Compute final slug from candidates
   const finalSlug = slugCandidate1 || slugCandidate2 || slugCandidate3 || "";
 
-  const href = finalSlug ? `/reviewty/${finalSlug}` : null;
+  const href =
+    profileHref || (finalSlug ? `/reviewty/${finalSlug}` : null);
   const cardContent = (
     <>
       {/* Rating and Location */}

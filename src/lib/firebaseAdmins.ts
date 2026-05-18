@@ -1,4 +1,5 @@
 import { getApps, initializeApp, cert, App } from "firebase-admin/app";
+import { getAuth, Auth } from "firebase-admin/auth";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
 import { getStorage, Storage } from "firebase-admin/storage";
 import { Bucket } from "@google-cloud/storage";
@@ -72,6 +73,10 @@ export function getAdminDb(): Firestore {
   const app = getAdminApp();
   _db = getFirestore(app);
   return _db;
+}
+
+export function getAdminAuth(): Auth {
+  return getAuth(getAdminApp());
 }
 
 export function getAdminStorage(): Storage {

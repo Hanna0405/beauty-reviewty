@@ -1,41 +1,73 @@
 import { NextResponse } from 'next/server';
-import { adminDb, adminAuth } from '@/lib/firebaseAdmin';
+import type { CollectionReference } from 'firebase-admin/firestore';
+import { getAdminAuth, getAdminDb } from '@/lib/firebaseAdmins';
+import {
+  isApprovedMasterReviewForProfile,
+} from '@/lib/reviews/masterReviewFilters';
 
 export const dynamic = 'force-dynamic';
+
+async function mergeMasterReviews(col: CollectionReference, id: string) {
+  const merged = new Map<string, Record<string, unknown>>();
+
+  const queries = [
+    col.where('subjectType', '==', 'master').where('subjectId', '==', id).limit(200),
+    col.where('masterId', '==', id).limit(200),
+    col.where('profileId', '==', id).limit(200),
+  ];
+
+  for (const q of queries) {
+    try {
+      const snap = await q.get();
+      snap.docs.forEach((d) => {
+        if (!merged.has(d.id)) {
+          merged.set(d.id, { id: d.id, ...d.data() });
+        }
+      });
+    } catch (error) {
+      console.warn('[api/reviews/list] master query failed:', error);
+    }
+  }
+
+  return Array.from(merged.values()).filter((item) =>
+    isApprovedMasterReviewForProfile(item, [id])
+  );
+}
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const type = searchParams.get('type');
     const id = searchParams.get('id');
-    console.log("[api/reviews/list] query =", searchParams.toString());
     if (type !== 'master' && type !== 'listing') {
       return NextResponse.json({ ok: false, error: 'Invalid type' }, { status: 400 });
     }
     if (!id) return NextResponse.json({ ok: false, error: 'Missing id' }, { status: 400 });
 
-    const col = adminDb.collection('reviews');
-    // New schema: equality-only (no orderBy)
-    let snaps = await col
-      .where('subjectType', '==', type)
-      .where('subjectId', '==', id)
-      .limit(200)
-      .get();
+    const col = getAdminDb().collection('reviews');
+    let items: any[] = [];
 
-    // Legacy fallback (no orderBy)
-    if (snaps.empty) {
-      const legacyField = type === 'master' ? 'masterId' : 'listingId';
-      snaps = await col.where(legacyField, '==', id).limit(200).get();
+    if (type === 'master') {
+      items = await mergeMasterReviews(col, id);
+    } else {
+      let snaps = await col
+        .where('subjectType', '==', type)
+        .where('subjectId', '==', id)
+        .limit(200)
+        .get();
+
+      if (snaps.empty) {
+        snaps = await col.where('listingId', '==', id).limit(200).get();
+      }
+
+      items = snaps.docs.map((d) => ({ id: d.id, ...d.data() }));
     }
 
-    const items = snaps.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-
-    // Build a uid -> author map using Auth (displayName, photoURL)
     const seen = new Map<string, { name: string | null; photoURL: string | null }>();
     async function getAuthor(uid: string) {
       if (seen.has(uid)) return seen.get(uid)!;
       try {
-        const u = await adminAuth.getUser(uid);
+        const u = await getAdminAuth().getUser(uid);
         const info = { name: u.displayName || null, photoURL: u.photoURL || null };
         seen.set(uid, info);
         return info;
@@ -46,7 +78,6 @@ export async function GET(req: Request) {
       }
     }
 
-    // Enrich items with author + createdAtISO
     await Promise.all(items.map(async (it: any) => {
       const a = await getAuthor(String(it.authorUid || ''));
       const ts = it?.createdAt?.seconds ?? it?.updatedAt?.seconds ?? 0;
@@ -60,14 +91,11 @@ export async function GET(req: Request) {
       const bu = b?.updatedAt?.seconds ?? b?.createdAt?.seconds ?? 0;
       return bu - au;
     });
-    console.log("[api/reviews/list] result count =", items.length);
-    console.log("[api/reviews/list] sample =", items[0]);
+
     return NextResponse.json({ ok: true, items });
   } catch (e: any) {
     console.error('[api/reviews/list] error', e);
-    // Never force users to create indexes for equality lookups:
     const msg = typeof e?.message === 'string' ? e.message : 'Internal error';
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
-

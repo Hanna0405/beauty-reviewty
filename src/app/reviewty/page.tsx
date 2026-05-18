@@ -16,6 +16,11 @@ import ReviewtyCreateModal from "./ReviewtyCreateModal";
 import Filters, { type ReviewtyFilters } from "./Filters";
 import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/catalog";
 import PublicReviewCard from "@/components/reviewty/PublicReviewCard";
+import {
+  mapReviewDocToFeedCard,
+  sortFeedCards,
+} from "@/lib/reviewty/mapReviewToFeedCard";
+import { isApprovedMasterReviewForFeed } from "@/lib/reviews/masterReviewFilters";
 
 // Helper function to calculate stats from reviews
 function calcStats(reviews: any[]) {
@@ -353,7 +358,72 @@ export default function ReviewtyPage() {
         };
       });
 
-      setPublicCards(itemsWithStats);
+      const masterReviewMap = new Map<string, ReviewDoc>();
+
+      const addMasterReviewDoc = (
+        docSnap: { id: string; data: () => Record<string, unknown> }
+      ) => {
+        const data = docSnap.data();
+        if (!isApprovedMasterReviewForFeed(data)) return;
+        if (masterReviewMap.has(docSnap.id)) return;
+        masterReviewMap.set(
+          docSnap.id,
+          mapReviewDocToFeedCard(docSnap.id, data) as ReviewDoc
+        );
+      };
+
+      const masterQueries = [
+        query(
+          collection(db, "reviews"),
+          where("subjectType", "==", "master"),
+          where("status", "==", "approved"),
+          limit(200)
+        ),
+        query(
+          collection(db, "reviews"),
+          where("subjectType", "==", "master"),
+          limit(200)
+        ),
+      ];
+
+      for (const masterQuery of masterQueries) {
+        try {
+          const masterSnap = await getDocs(masterQuery);
+          masterSnap.docs.forEach(addMasterReviewDoc);
+        } catch (err) {
+          console.warn("[reviewty] failed to load master reviews query", err);
+        }
+      }
+
+      // Fallback: recent reviews with masterId (no composite index required)
+      try {
+        const recentSnap = await getDocs(
+          query(collection(db, "reviews"), limit(300))
+        );
+        recentSnap.docs.forEach(addMasterReviewDoc);
+      } catch (err) {
+        console.warn("[reviewty] failed to load recent master reviews", err);
+      }
+
+      const masterFeedItems = sortFeedCards(
+        Array.from(masterReviewMap.values()),
+        (item) => (item as ReviewDoc & { _sortMs?: number })._sortMs ?? 0
+      );
+
+      const combined = sortFeedCards(
+        [...itemsWithStats, ...masterFeedItems],
+        (item) => {
+          const withSort = item as ReviewDoc & { _sortMs?: number };
+          if (typeof withSort._sortMs === "number") return withSort._sortMs;
+          const createdAt = item.createdAt as { toMillis?: () => number } | null;
+          if (createdAt && typeof createdAt.toMillis === "function") {
+            return createdAt.toMillis();
+          }
+          return 0;
+        }
+      );
+
+      setPublicCards(combined);
     } catch (err) {
       console.error("[reviewty] failed to load reviews", err);
     } finally {
@@ -364,6 +434,14 @@ export default function ReviewtyPage() {
   // Load all public cards once on mount
   useEffect(() => {
     loadReviews();
+  }, []);
+
+  useEffect(() => {
+    const onSubmitted = () => {
+      loadReviews();
+    };
+    window.addEventListener("reviewty:reviewSubmitted", onSubmitted);
+    return () => window.removeEventListener("reviewty:reviewSubmitted", onSubmitted);
   }, []);
 
   // Apply client-side filters whenever filters or publicCards change
@@ -681,6 +759,12 @@ export default function ReviewtyPage() {
                       masterServices={review.masterServices}
                       authorName={review.authorName}
                       createdAt={review.createdAt}
+                      profileHref={
+                        review.masterId &&
+                        review.source !== "publicCard"
+                          ? `/master/${review.masterId}`
+                          : null
+                      }
                     />
                   </li>
                 );
