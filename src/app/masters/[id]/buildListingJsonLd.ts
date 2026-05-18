@@ -2,10 +2,13 @@ import {
   pickFirstImage,
   cityLabel,
   serviceLabel,
-  ratingValue,
-  reviewsCountValue,
+  titleLabel,
   type ListingLike,
 } from "@/lib/listings/presenters";
+import {
+  buildReviewsSchema,
+  type ReviewsStats,
+} from "@/lib/seo/jsonLdReviews";
 
 const BASE_URL = "https://beautyreviewty.com";
 
@@ -185,30 +188,6 @@ function readAreaServed(
   return address?.addressLocality || cityLabel(listing) || undefined;
 }
 
-function readAggregateRating(
-  listing: ListingLike
-): Record<string, string | number> | null {
-  const rating = ratingValue(listing);
-  const reviewCount = reviewsCountValue(listing);
-
-  if (
-    rating == null ||
-    !Number.isFinite(rating) ||
-    rating <= 0 ||
-    reviewCount <= 0
-  ) {
-    return null;
-  }
-
-  return {
-    "@type": "AggregateRating",
-    ratingValue: Math.round(rating * 10) / 10,
-    reviewCount,
-    bestRating: 5,
-    worstRating: 1,
-  };
-}
-
 function normalizeExternalUrl(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -264,41 +243,60 @@ function readSameAs(
 export function buildListingJsonLd(
   id: string,
   listing: ListingLike,
-  profile?: Record<string, unknown> | null
+  profile?: Record<string, unknown> | null,
+  reviewsData?: ReviewsStats | null
 ): JsonLdObject | null {
-  const name = masterDisplayName(listing, profile);
+  const listingName = titleLabel(listing);
+  const providerName = masterDisplayName(listing, profile);
   const services = readServices(listing);
   const address = readAddress(listing, profile);
   const areaServed = readAreaServed(listing, address);
   const image = pickFirstImage(listing);
   const description = readDescription(
     listing,
-    name,
+    providerName,
     areaServed || cityLabel(listing),
     services
   );
-  const aggregateRating = readAggregateRating(listing);
+  const { aggregateRating, review: reviewItems } = buildReviewsSchema(
+    reviewsData ?? undefined
+  );
   const sameAs = readSameAs(listing, profile);
 
   const jsonLd: JsonLdObject = {
     "@context": "https://schema.org",
-    "@type": "BeautySalon",
-    name,
+    "@type": "Service",
+    name: listingName,
     url: `${BASE_URL}/masters/${id}`,
+    provider: {
+      "@type": "HealthAndBeautyBusiness",
+      name: providerName,
+    },
   };
 
   if (description) jsonLd.description = description;
   if (image) jsonLd.image = image;
   if (address) {
-    jsonLd.address = {
-      "@type": "PostalAddress",
-      ...address,
+    jsonLd.areaServed = areaServed || cityLabel(listing);
+    jsonLd.provider = {
+      ...(jsonLd.provider as Record<string, unknown>),
+      address: {
+        "@type": "PostalAddress",
+        ...address,
+      },
     };
+  } else if (areaServed) {
+    jsonLd.areaServed = areaServed;
   }
-  if (areaServed) jsonLd.areaServed = areaServed;
   if (services.length > 0) jsonLd.serviceType = services;
   if (aggregateRating) jsonLd.aggregateRating = aggregateRating;
-  if (sameAs.length > 0) jsonLd.sameAs = sameAs;
+  if (reviewItems.length > 0) jsonLd.review = reviewItems;
+  if (sameAs.length > 0) {
+    jsonLd.provider = {
+      ...(jsonLd.provider as Record<string, unknown>),
+      sameAs,
+    };
+  }
 
   return jsonLd;
 }
