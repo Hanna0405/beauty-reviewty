@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import {
-  pickFirstImage,
   cityLabel,
   serviceLabel,
   languagesLabel,
@@ -11,6 +10,22 @@ import { loadMasterListingPageData } from "./loadMasterListingPageData";
 const SITE = "BeautyReviewty";
 const BASE_URL = "https://beautyreviewty.com";
 const MAX_DESCRIPTION_LENGTH = 160;
+
+export type PublicListingMetadataPaths = {
+  canonicalPath?: string;
+  ogImagePath?: string;
+};
+
+function buildOgImages(ogImagePath: string, alt: string) {
+  return [
+    {
+      url: ogImagePath,
+      width: 1200,
+      height: 630,
+      alt,
+    },
+  ];
+}
 
 function trimToMaxLength(text: string, max: number): string {
   if (text.length <= max) return text;
@@ -130,14 +145,19 @@ function buildDescription(
   );
 }
 
-export async function buildMasterListingMetadata(id: string): Promise<Metadata> {
-  const canonicalPath = `/masters/${id}`;
+export async function buildMasterListingMetadata(
+  id: string,
+  paths?: PublicListingMetadataPaths
+): Promise<Metadata> {
+  const canonicalPath = paths?.canonicalPath ?? `/masters/${id}`;
+  const ogImagePath = paths?.ogImagePath ?? `/masters/${id}/opengraph-image`;
   const canonicalUrl = `${BASE_URL}${canonicalPath}`;
   const { listing, profile } = await loadMasterListingPageData(id);
 
   if (!listing) {
     const fallbackTitle = `Beauty Master | ${SITE}`;
     const fallbackDescription = `View beauty professional profiles, photos, reviews, and contact details on ${SITE}.`;
+    const ogImages = buildOgImages(ogImagePath, fallbackTitle);
 
     return {
       title: { absolute: fallbackTitle },
@@ -148,6 +168,13 @@ export async function buildMasterListingMetadata(id: string): Promise<Metadata> 
         title: fallbackTitle,
         description: fallbackDescription,
         url: canonicalUrl,
+        images: ogImages,
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: fallbackTitle,
+        description: fallbackDescription,
+        images: ogImages.map((image) => image.url),
       },
     };
   }
@@ -165,29 +192,24 @@ export async function buildMasterListingMetadata(id: string): Promise<Metadata> 
     languages,
     listingTitle
   );
-  const image = pickFirstImage(listing);
-
-  const openGraph: NonNullable<Metadata["openGraph"]> = {
-    type: "profile",
-    title,
-    description,
-    url: canonicalUrl,
-  };
-
-  if (image) {
-    openGraph.images = [{ url: image }];
-  }
+  const ogImages = buildOgImages(ogImagePath, title);
 
   return {
     title: { absolute: title },
     description,
     alternates: { canonical: canonicalPath },
-    openGraph,
+    openGraph: {
+      type: "profile",
+      title,
+      description,
+      url: canonicalUrl,
+      images: ogImages,
+    },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      ...(image ? { images: [image] } : {}),
+      images: ogImages.map((image) => image.url),
     },
   };
 }

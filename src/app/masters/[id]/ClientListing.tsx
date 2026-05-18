@@ -14,9 +14,9 @@ import {
  toStringSafe,
 } from "@/lib/normalize";
 import { masterId } from "@/lib/listings/presenters";
+import type { ClientListingInitialData } from "./types";
+import type { ListingReview } from "./loadListingReviews";
 
-// Используй ту же инициализацию Firestore, что у тебя уже есть.
-// В твоём проекте судя по импорту — '@/lib/firebase-client' экспортирует db.
 import {
  collection,
  doc,
@@ -28,15 +28,39 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 
-export default function ClientListing({ id }: { id: string }) {
-  const [listing, setListing] = useState<any | null>(null);
+function reviewDateLabel(createdAt: unknown): string | null {
+  if (!createdAt || typeof createdAt !== "object") return null;
+  const value = createdAt as { toDate?: () => Date; _seconds?: number };
+  if (typeof value.toDate === "function") {
+    return value.toDate().toLocaleDateString();
+  }
+  if (typeof value._seconds === "number") {
+    return new Date(value._seconds * 1000).toLocaleDateString();
+  }
+  return null;
+}
+
+type Props = {
+  id: string;
+  initial?: ClientListingInitialData | null;
+};
+
+export default function ClientListing({ id, initial = null }: Props) {
+  const hasInitial = Boolean(initial?.listing);
+  const [listing, setListing] = useState<any | null>(initial?.listing ?? null);
   const [open, setOpen] = useState(false);
-  const [allReviews, setAllReviews] = useState<any[]>([]);
-  const [avgRating, setAvgRating] = useState(0);
-  const [totalReviews, setTotalReviews] = useState(0);
-  const [masterProfileData, setMasterProfileData] = useState<any>(null);
+  const [allReviews, setAllReviews] = useState<ListingReview[]>(
+    initial?.reviews ?? []
+  );
+  const [avgRating, setAvgRating] = useState(initial?.avgRating ?? 0);
+  const [totalReviews, setTotalReviews] = useState(initial?.totalReviews ?? 0);
+  const [masterProfileData, setMasterProfileData] = useState<any>(
+    initial?.profile ?? null
+  );
 
   useEffect(() => {
+    if (hasInitial) return;
+
     let alive = true;
     (async () => {
       try {
@@ -45,9 +69,8 @@ export default function ClientListing({ id }: { id: string }) {
         const listingData = { id, ...(snap.data() || {}) };
         setListing(listingData);
 
-        // load reviews from subcollection (old source)
         const masterReviewsRef = collection(db, "masters", id, "reviews");
-        let masterReviews: any[] = [];
+        let masterReviews: ListingReview[] = [];
         try {
           const masterReviewsSnap = await getDocs(
             query(masterReviewsRef, orderBy("createdAt", "desc"))
@@ -55,13 +78,12 @@ export default function ClientListing({ id }: { id: string }) {
           masterReviews = masterReviewsSnap.docs.map((d) => ({
             id: d.id,
             ...d.data(),
-          }));
+          })) as ListingReview[];
         } catch (e) {
           console.warn("Failed to load master subcollection reviews", e);
         }
 
-        // load reviews from root collection (new source from "Existing master")
-        let rootReviews: any[] = [];
+        let rootReviews: ListingReview[] = [];
         try {
           const rootReviewsRef = collection(db, "reviews");
           const rootReviewsSnap = await getDocs(
@@ -74,20 +96,16 @@ export default function ClientListing({ id }: { id: string }) {
           rootReviews = rootReviewsSnap.docs.map((d) => ({
             id: d.id,
             ...d.data(),
-          }));
+          })) as ListingReview[];
         } catch (e) {
           console.warn("Failed to load root reviews", e);
         }
 
-        // merge reviews
-        const allReviews = [...rootReviews, ...masterReviews];
-        
-        // Deduplicate reviews by id
-        const uniqueReviews: any[] = [];
+        const mergedReviews = [...rootReviews, ...masterReviews];
+        const uniqueReviews: ListingReview[] = [];
         const seen = new Set<string>();
-        for (const r of allReviews) {
+        for (const r of mergedReviews) {
           if (!r.id) {
-            // Reviews without id are allowed (shouldn't happen, but safe fallback)
             uniqueReviews.push(r);
             continue;
           }
@@ -96,27 +114,27 @@ export default function ClientListing({ id }: { id: string }) {
             uniqueReviews.push(r);
           }
         }
-        
-        // calculate unified stats
-        const totalReviews = uniqueReviews.length;
-        const avgRating =
-          totalReviews > 0
-            ? uniqueReviews.reduce((s, r) => s + (Number(r.rating) || 0), 0) / totalReviews
+
+        const reviewTotal = uniqueReviews.length;
+        const reviewAvg =
+          reviewTotal > 0
+            ? uniqueReviews.reduce((s, r) => s + (Number(r.rating) || 0), 0) /
+              reviewTotal
             : 0;
-        
-        // sort by creation date (new first)
+
         const sortedReviews = [...uniqueReviews].sort((a, b) => {
-          const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
-          const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+          const ta =
+            (a.createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
+          const tb =
+            (b.createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
           return tb - ta;
         });
-        
+
         if (!alive) return;
         setAllReviews(sortedReviews);
-        setAvgRating(avgRating);
-        setTotalReviews(totalReviews);
-        
-        // Load master profile data to get workingHours
+        setAvgRating(reviewAvg);
+        setTotalReviews(reviewTotal);
+
         const mId = masterId(listingData);
         if (mId) {
           try {
@@ -133,13 +151,12 @@ export default function ClientListing({ id }: { id: string }) {
       }
     })();
     return () => { alive = false; };
-  }, [id]);
+  }, [id, hasInitial]);
 
   if (!listing) {
     return <div className="p-6 text-sm text-gray-500">Loading…</div>;
   }
 
-  // Extract data for components with normalization
   const photos: string[] = normalizePhotos(listing?.photos ?? listing?.images ?? []);
   const title = toStringSafe(listing?.title ?? listing?.name, "Service");
   const city = normalizeCity(listing?.city ?? listing?.cityName);
@@ -147,7 +164,7 @@ export default function ClientListing({ id }: { id: string }) {
   const priceMax = toNumberSafe(listing?.priceMax ?? listing?.maxPrice);
   const languages = normalizeLanguages(listing?.languages ?? listing?.langs ?? []);
   const mId = masterId(listing);
-  
+
   const handleBook = () => setOpen(true);
 
   return (
@@ -156,12 +173,10 @@ export default function ClientListing({ id }: { id: string }) {
       className="container mx-auto px-4 py-5 lg:py-8"
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left: gallery */}
         <div className="lg:col-span-7">
           <ListingGallery photos={photos} title={title} />
         </div>
 
-        {/* Right: details */}
         <div className="lg:col-span-5">
           <ListingDetails
             title={title}
@@ -176,36 +191,36 @@ export default function ClientListing({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* Reviews below */}
       <section className="mt-8 lg:mt-12">
         <h2 className="text-xl font-semibold mb-4">Reviews</h2>
-        
-        {/* header */}
+
         <div className="flex items-center gap-2 text-sm text-gray-500">
           <span>★ {avgRating.toFixed(1)} / 5</span>
           <span>· {totalReviews} review{totalReviews === 1 ? "" : "s"}</span>
         </div>
 
-        {/* Add review form */}
         <ReviewsSection listingId={listing.id} subjectType="listing" />
 
-        {/* list */}
         <div className="mt-4 space-y-3">
           {allReviews.map((r) => (
-            <div key={r.id} className="border rounded-lg p-4 bg-white shadow-sm">
+            <div key={String(r.id)} className="border rounded-lg p-4 bg-white shadow-sm">
               <div className="flex items-center gap-2 mb-2">
                 <div className="text-yellow-400">
-                  {'★'.repeat(Math.round(r.rating || 0))}
-                  {'☆'.repeat(5 - Math.round(r.rating || 0))}
+                  {'★'.repeat(Math.round(Number(r.rating) || 0))}
+                  {'☆'.repeat(5 - Math.round(Number(r.rating) || 0))}
                 </div>
-                <span className="text-sm font-medium">{r.authorName || 'Verified client'}</span>
-                {r.createdAt?.toDate && (
+                <span className="text-sm font-medium">
+                  {String(r.authorName || 'Verified client')}
+                </span>
+                {reviewDateLabel(r.createdAt) ? (
                   <span className="text-xs text-gray-500">
-                    · {r.createdAt.toDate().toLocaleDateString()}
+                    · {reviewDateLabel(r.createdAt)}
                   </span>
-                )}
+                ) : null}
               </div>
-              {r.text && <p className="text-gray-800 text-sm mb-2">{r.text}</p>}
+              {r.text ? (
+                <p className="text-gray-800 text-sm mb-2">{String(r.text)}</p>
+              ) : null}
               {Array.isArray(r.photos) && r.photos.length > 0 && (
                 <div className="flex gap-2 flex-wrap mt-2">
                   {r.photos.map((url: string, idx: number) => (

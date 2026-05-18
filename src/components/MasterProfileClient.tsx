@@ -19,7 +19,11 @@ import MapPreview from "./MapPreview";
 import PublicListingCard from "@/app/master/PublicListingCard";
 import ShareIconButton from "@/components/ShareIconButton";
 
-type Props = { id: string };
+type Props = {
+  id: string;
+  initialMaster?: MasterProfile | null;
+  initialListings?: Listing[];
+};
 
 type Profile = {
   id: string;
@@ -137,13 +141,20 @@ async function fetchListingsForMaster(
   return [] as Listing[];
 }
 
-export default function MasterProfileClient({ id }: Props) {
-  const [loading, setLoading] = useState(true);
-  const [master, setMaster] = useState<MasterProfile | null>(null);
-  const [listings, setListings] = useState<Listing[]>([]);
+export default function MasterProfileClient({
+  id,
+  initialMaster = null,
+  initialListings,
+}: Props) {
+  const hasInitial = Boolean(initialMaster);
+  const [loading, setLoading] = useState(!hasInitial);
+  const [master, setMaster] = useState<MasterProfile | null>(initialMaster);
+  const [listings, setListings] = useState<Listing[]>(initialListings ?? []);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (hasInitial) return;
+
     let cancelled = false;
 
     async function load() {
@@ -217,7 +228,7 @@ export default function MasterProfileClient({ id }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, hasInitial]);
 
   if (loading) return <div className="p-6 text-sm text-gray-600">Loading…</div>;
   if (error)
