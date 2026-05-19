@@ -1,4 +1,5 @@
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 import { db } from "@/lib/firebase/client";
 import type { ReviewPhoto } from "@/lib/reviews/types";
 import type { MasterSearchOption } from "@/lib/reviewty/masterSearchOptions";
@@ -67,5 +68,37 @@ export async function saveExistingMasterReview(
     collection: REVIEWS_COLLECTION,
   });
 
+  void triggerReviewNotificationEmail({
+    masterUid: String(selectedMaster.uid || masterId).trim(),
+    profilePathId: String(selectedMaster.profileId || masterId).trim(),
+    masterName,
+    rating: numericRating,
+    text: reviewText,
+  });
+
   return docRef.id;
+}
+
+async function triggerReviewNotificationEmail(input: {
+  masterUid: string;
+  profilePathId: string;
+  masterName: string;
+  rating: number;
+  text: string;
+}): Promise<void> {
+  try {
+    const user = getAuth().currentUser;
+    if (!user) return;
+    const token = await user.getIdToken();
+    await fetch("/api/reviews/notify-master", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(input),
+    });
+  } catch {
+    // Best-effort; review is already saved
+  }
 }
