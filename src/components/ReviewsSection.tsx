@@ -5,6 +5,7 @@ import { deleteReview } from '@/lib/reviews';
 import { uploadReviewPhotos } from '@/lib/reviews/uploadReviewPhotos';
 import { probeStorageRules } from '@/lib/reviews/probeStorageRules';
 import { createReviewViaApi } from '@/lib/reviews/createClient';
+import { fireConfettiBurst } from '@/lib/ui/confetti';
 import { fetchReviews } from '@/lib/reviews/fetchList';
 import type { ReviewDoc, ReviewSubject } from '@/lib/reviews/types';
 import ReviewPhotos from '@/components/reviews/ReviewPhotos';
@@ -59,6 +60,10 @@ function AddReviewForm({ subject, onCreated }: { subject: { type: 'master'|'list
    rating: Number(rating),
    text: text.trim(),
    photos: photoUrls.map(url => ({ url, path: url })),
+ });
+
+ void fireConfettiBurst().catch((err) => {
+   console.warn('[Reviews] Confetti failed:', err);
  });
  
  setText('');

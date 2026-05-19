@@ -2,6 +2,12 @@
 
 import Link from "next/link";
 import { ChangeEvent, FormEvent, memo, useEffect, useMemo, useRef, useState } from "react";
+import SkincareLuckyMoment from "@/components/skincare-checker/SkincareLuckyMoment";
+import {
+  markSkincareLuckyMomentShown,
+  pickLuckyMessage,
+  shouldShowSkincareLuckyMoment,
+} from "@/lib/skincare/luckyMoment";
 
 const SKIN_TYPES = [
   "Dry",
@@ -462,6 +468,9 @@ export default function SkincareCheckerPage() {
   const [ocrErrorText, setOcrErrorText] = useState("");
   /** UI-only; product type overrides stay in state when collapsed */
   const [advancedOptionsOpen, setAdvancedOptionsOpen] = useState(false);
+  const [luckyOpen, setLuckyOpen] = useState(false);
+  const [luckyMessage, setLuckyMessage] = useState("");
+  const luckyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
   const resultCardRef = useRef<HTMLElement | null>(null);
@@ -489,6 +498,12 @@ export default function SkincareCheckerPage() {
     () => buildScoreExplanationView(shownResult, lastScoredFor),
     [shownResult, lastScoredFor]
   );
+
+  useEffect(() => {
+    return () => {
+      if (luckyTimerRef.current) clearTimeout(luckyTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!whyScoreOpen) return;
@@ -769,6 +784,15 @@ export default function SkincareCheckerPage() {
         skinGoals: [...skinGoals],
         productTypeOverride,
       });
+
+      if (luckyTimerRef.current) clearTimeout(luckyTimerRef.current);
+      luckyTimerRef.current = setTimeout(() => {
+        luckyTimerRef.current = null;
+        if (!shouldShowSkincareLuckyMoment()) return;
+        markSkincareLuckyMomentShown();
+        setLuckyMessage(pickLuckyMessage());
+        setLuckyOpen(true);
+      }, 450);
 
       const bodyOverride =
         productTypeOverride === "auto" ? "" : productTypeOverride;
@@ -1495,6 +1519,12 @@ export default function SkincareCheckerPage() {
           }
         }
       `}</style>
+
+      <SkincareLuckyMoment
+        open={luckyOpen}
+        message={luckyMessage}
+        onClose={() => setLuckyOpen(false)}
+      />
     </main>
   );
 }

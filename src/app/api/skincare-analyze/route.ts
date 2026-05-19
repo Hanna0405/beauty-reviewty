@@ -233,6 +233,95 @@ function parseBodySkinGoals(v: unknown): string[] {
     .map((s) => s.trim());
 }
 
+/** Stable default; override with OPENAI_SKINCARE_MODEL if needed */
+const SKINCARE_ANALYZE_MODEL =
+  process.env.OPENAI_SKINCARE_MODEL?.trim() || "gpt-4o-mini";
+
+const DEFAULT_DISCLAIMER =
+  "AI skincare analysis is for educational purposes only and does not replace advice from a dermatologist or qualified professional.";
+
+function logSkincareAnalyzeError(context: string, error: unknown) {
+  if (process.env.NODE_ENV === "development") {
+    const err = error as {
+      message?: string;
+      status?: number;
+      code?: string;
+      type?: string;
+      param?: string;
+      error?: { message?: string; code?: string; type?: string };
+      cause?: unknown;
+    };
+    console.error(`[skincare-analyze] ${context}`, {
+      message: err?.message ?? String(error),
+      status: err?.status,
+      code: err?.code,
+      type: err?.type,
+      param: err?.param,
+      apiMessage: err?.error?.message,
+      apiCode: err?.error?.code,
+      apiType: err?.error?.type,
+      cause:
+        err?.cause instanceof Error
+          ? err.cause.message
+          : err?.cause != null
+            ? String(err.cause)
+            : undefined,
+    });
+  } else {
+    console.error(
+      `[skincare-analyze] ${context}`,
+      error instanceof Error ? error.message : error
+    );
+  }
+}
+
+function buildFallbackAnalysis(
+  score: number,
+  skinType: string,
+  skinGoals: string[],
+  productType: ProductType,
+  productTypeConfidence: ProductTypeConfidence
+): SkincareAnalyzeResponse {
+  const scoreLabel = scoreToLabel(score);
+  const status = scoreToStatus(score);
+  const skinHint = skinType ? ` for ${skinType} skin` : "";
+  const goalsHint =
+    skinGoals.length > 0
+      ? ` with goals like ${skinGoals.slice(0, 2).join(" and ")}`
+      : "";
+
+  return {
+    score,
+    scoreLabel,
+    summary: `This formula scores ${score}/10${skinHint}${goalsHint} based on ingredient fit. Full AI commentary is temporarily unavailable — the score still reflects your profile.`,
+    status,
+    statusText:
+      score >= 7
+        ? "Likely a solid match for your profile"
+        : score >= 5
+          ? "Mixed fit — review actives carefully"
+          : "May not suit your current profile",
+    bestFor: skinType
+      ? [shortChip(`${skinType} skin`)]
+      : chipStringArray(["Check ingredient fit"], 1),
+    notIdealFor: [],
+    productType,
+    productTypeConfidence,
+    scoreExplanation: {
+      skinFit: skinType
+        ? `Scoring weighs how these ingredients typically behave on ${skinType} skin.`
+        : "Scoring weighs common ingredient behavior when skin type is not specified.",
+      goalFit:
+        skinGoals.length > 0
+          ? `Your selected goals (${skinGoals.join(", ")}) are included in the fit score.`
+          : "Add skin goals for a more tailored breakdown when the service is available.",
+      helpfulIngredients: [],
+      cautionIngredients: [],
+    },
+    disclaimer: DEFAULT_DISCLAIMER,
+  };
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
@@ -280,7 +369,11 @@ export async function POST(request: Request) {
       overrideLine,
     ].join("\n");
 
-    const client = new OpenAI({ apiKey });
+    const client = new OpenAI({
+      apiKey,
+      timeout: 55_000,
+      maxRetries: 1,
+    });
     const systemPrompt = [
       "You are a skincare ingredient assistant for BeautyReviewty. Analyze ingredients in a balanced, non-alarming way.",
       "Do not diagnose medical conditions. Do not give medical advice. Use action-based, educational beauty language.",
@@ -325,23 +418,42 @@ ${userContext}
 Ingredients:
 ${ingredients}`;
 
-    const completion = await client.chat.completions.create({
-      model: "gpt-4.1-mini",
-      temperature: 0.2,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    });
+    let partial: ReturnType<typeof sanitizeFastAnalysis>;
+    try {
+      const completion = await client.chat.completions.create({
+        model: SKINCARE_ANALYZE_MODEL,
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+      });
 
-    const content = completion.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error("Empty model response");
+      const content = completion.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error("Empty model response");
+      }
+
+      const parsed = extractJsonObject(content) as Record<string, unknown>;
+      partial = sanitizeFastAnalysis(parsed);
+    } catch (openAiError) {
+      logSkincareAnalyzeError(
+        `OpenAI request failed (model=${SKINCARE_ANALYZE_MODEL})`,
+        openAiError
+      );
+      const fallbackType = forcedProductType ?? "unknown";
+      return NextResponse.json(
+        buildFallbackAnalysis(
+          personalizedScore,
+          skinType,
+          skinGoals,
+          fallbackType,
+          forcedProductType ? "high" : "low"
+        )
+      );
     }
 
-    const parsed = extractJsonObject(content) as Record<string, unknown>;
-    const partial = sanitizeFastAnalysis(parsed);
     let productType = partial.productType;
     let productTypeConfidence = partial.productTypeConfidence;
     if (forcedProductType) {
@@ -371,7 +483,7 @@ ${ingredients}`;
 
     return NextResponse.json(payload);
   } catch (error) {
-    console.error("[skincare-analyze] error", error);
+    logSkincareAnalyzeError("unexpected error", error);
     return NextResponse.json(
       { error: "Unable to analyze right now. Please try again later." },
       { status: 500 }
