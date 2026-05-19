@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { Timestamp } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminDb } from '@/lib/firebaseAdmins';
 import { stripUndefined } from '@/lib/object-helpers';
+import { notifyMasterOfNewReview } from '@/lib/reviews/notifyMasterOfNewReview';
 
 type ReviewPhoto = { url: string; path: string };
 type ReviewSubjectType = 'master' | 'listing';
@@ -259,6 +260,20 @@ export async function POST(req: Request) {
           .add(subReviewPayload);
       } catch (err) {
         console.warn('[api/reviews/create] master subcollection write failed', err);
+      }
+
+      try {
+        await notifyMasterOfNewReview({
+          masterUid: String(reviewPayload.masterId),
+          masterName: String(reviewPayload.masterName || 'Master'),
+          profilePathId: String(
+            reviewPayload.profileId || reviewPayload.masterId
+          ),
+          rating,
+          text: textStr,
+        });
+      } catch (emailErr) {
+        console.error('[api/reviews/create] review notification email error', emailErr);
       }
     }
 
