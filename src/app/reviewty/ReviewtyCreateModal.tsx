@@ -23,6 +23,7 @@ import {
   loadActiveMasterSearchOptions,
   type MasterSearchOption,
 } from "@/lib/reviewty/masterSearchOptions";
+import { fireConfettiBurst } from "@/lib/ui/confetti";
 
 function slugifyCityName(name: string) {
   return name
@@ -361,6 +362,10 @@ export default function ReviewtyCreateModal({
       const colRef = collection(db, "publicCards");
       await addDoc(colRef, docData);
 
+      void fireConfettiBurst().catch((err) => {
+        console.warn("[Reviewty] Confetti failed:", err);
+      });
+
       // Success: clear form and close modal
       setCM({ displayName: "", city: "", services: [] });
       setCity(null);
@@ -426,6 +431,10 @@ export default function ReviewtyCreateModal({
           reviewId,
           masterId: selectedMaster.id,
           collection: "reviews",
+        });
+
+        void fireConfettiBurst().catch((err) => {
+          console.warn("[Reviewty] Confetti failed:", err);
         });
 
         window.dispatchEvent(new CustomEvent("reviewty:reviewSubmitted"));

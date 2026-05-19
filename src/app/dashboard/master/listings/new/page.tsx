@@ -15,6 +15,7 @@ import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/catalog";
 import type { TagOption } from "@/types/tags";
 import ListingPhotos from "@/components/ListingPhotos";
 import { MapContainer } from "@/components/mapComponents";
+import { fireConfettiBurst } from "@/lib/ui/confetti";
 
 interface PhotoData {
   url: string;
@@ -179,7 +180,14 @@ export default function NewListingPage() {
       console.info("[BR][NewListing] Saved successfully:", id);
       setSuccessId(id);
 
-      // Redirect after successful save
+      try {
+        await fireConfettiBurst();
+      } catch (confettiErr) {
+        console.warn("[NewListing] Confetti failed:", confettiErr);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 750));
+
       router.push("/dashboard/master/listings");
     } catch (err: any) {
       console.error(err);
