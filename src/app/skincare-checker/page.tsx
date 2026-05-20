@@ -5,9 +5,11 @@ import { ChangeEvent, FormEvent, memo, useEffect, useMemo, useRef, useState } fr
 import SkincareLuckyMoment from "@/components/skincare-checker/SkincareLuckyMoment";
 import {
   markSkincareLuckyMomentShown,
+  parseLuckyMessageFromSearch,
   pickLuckyMessage,
   shouldShowSkincareLuckyMoment,
 } from "@/lib/skincare/luckyMoment";
+import { currentPathname, trackEvent } from "@/lib/analytics/trackEvent";
 
 const SKIN_TYPES = [
   "Dry",
@@ -55,6 +57,8 @@ type AlternativePick = {
   priceTier: "budget" | "mid-range" | "premium";
   imageUrl?: string;
   productUrl?: string;
+  productId?: string;
+  affiliateSource?: string;
 };
 
 /** Matches POST /api/skincare-analyze (fast path). Optional fields support demo fallbacks. */
@@ -321,6 +325,17 @@ const SKIN_GOAL_EMOJI: Partial<Record<(typeof SKIN_GOAL_OPTIONS)[number], string
   "Anti-aging": "⏳",
 };
 
+function trackBetterAlternativeClick(alt: AlternativePick) {
+  trackEvent({
+    event: "click_better_alternative",
+    source_page: currentPathname(),
+    product_name: alt.productName || null,
+    product_id: alt.productId ?? null,
+    affiliate_source: alt.affiliateSource || null,
+    product_url: alt.productUrl || null,
+  });
+}
+
 const AlternativeCard = memo(function AlternativeCard({ alt }: { alt: AlternativePick }) {
   const [imgFailed, setImgFailed] = useState(false);
   const showImg = Boolean(alt.imageUrl?.trim()) && !imgFailed;
@@ -387,6 +402,7 @@ const AlternativeCard = memo(function AlternativeCard({ alt }: { alt: Alternativ
           href={alt.productUrl}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() => trackBetterAlternativeClick(alt)}
           className="mt-2 flex w-full items-center justify-center rounded-md border border-rose-200/60 bg-rose-50/50 py-1.5 text-center text-[11px] font-semibold text-rose-800 shadow-sm hover:bg-rose-100/80"
         >
           View
@@ -394,6 +410,7 @@ const AlternativeCard = memo(function AlternativeCard({ alt }: { alt: Alternativ
       ) : (
         <button
           type="button"
+          onClick={() => trackBetterAlternativeClick(alt)}
           className="mt-2 w-full rounded-md border border-rose-200/60 bg-rose-50/50 py-1.5 text-center text-[11px] font-semibold text-rose-800 shadow-sm"
         >
           View
@@ -470,6 +487,8 @@ export default function SkincareCheckerPage() {
   const [advancedOptionsOpen, setAdvancedOptionsOpen] = useState(false);
   const [luckyOpen, setLuckyOpen] = useState(false);
   const [luckyMessage, setLuckyMessage] = useState("");
+  const [luckyMessageId, setLuckyMessageId] = useState<string | null>(null);
+  const sharedLuckyMessageHandled = useRef(false);
   const luckyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
@@ -477,6 +496,7 @@ export default function SkincareCheckerPage() {
   const hasAutoScrolledToResultRef = useRef(false);
   const ocrInFlightRef = useRef(false);
   const analyzeInFlightRef = useRef(false);
+  const uploadStartedLockRef = useRef(false);
 
   const shownResult = useMemo(() => analysis ?? demoResult, [analysis]);
   const { score: outOfTen, label: bandLabel } = useMemo(
@@ -503,6 +523,16 @@ export default function SkincareCheckerPage() {
     return () => {
       if (luckyTimerRef.current) clearTimeout(luckyTimerRef.current);
     };
+  }, []);
+
+  useEffect(() => {
+    if (sharedLuckyMessageHandled.current) return;
+    sharedLuckyMessageHandled.current = true;
+    const entry = parseLuckyMessageFromSearch(window.location.search);
+    if (!entry) return;
+    setLuckyMessageId(entry.id);
+    setLuckyMessage(entry.text);
+    setLuckyOpen(true);
   }, []);
 
   useEffect(() => {
@@ -634,6 +664,33 @@ export default function SkincareCheckerPage() {
     hasAutoScrolledToResultRef.current = true;
   }, [analysis]);
 
+  useEffect(() => {
+    if (!analysis) return;
+    trackEvent({
+      event: "skincare_analysis_completed",
+      source_page: currentPathname(),
+      skin_type: skinType,
+      goal: skinGoals.length > 0 ? skinGoals.join(", ") : null,
+      score:
+        typeof analysis.score === "number" && !Number.isNaN(analysis.score)
+          ? analysis.score
+          : null,
+    });
+  }, [analysis, skinType, skinGoals]);
+
+  function trackUploadStarted(method: "camera" | "gallery") {
+    if (uploadStartedLockRef.current) return;
+    uploadStartedLockRef.current = true;
+    trackEvent({
+      event: "upload_started",
+      source_page: currentPathname(),
+      upload_method: method,
+    });
+    window.setTimeout(() => {
+      uploadStartedLockRef.current = false;
+    }, 800);
+  }
+
   function toggleSkinType(value: (typeof SKIN_TYPES)[number]) {
     setSkinType((cur) => (cur === value ? null : value));
   }
@@ -651,11 +708,13 @@ export default function SkincareCheckerPage() {
 
   function openCameraInput() {
     setShowPhotoChoice(false);
+    trackUploadStarted("camera");
     cameraInputRef.current?.click();
   }
 
   function openGalleryInput() {
     setShowPhotoChoice(false);
+    trackUploadStarted("gallery");
     galleryInputRef.current?.click();
   }
 
@@ -790,7 +849,9 @@ export default function SkincareCheckerPage() {
         luckyTimerRef.current = null;
         if (!shouldShowSkincareLuckyMoment()) return;
         markSkincareLuckyMomentShown();
-        setLuckyMessage(pickLuckyMessage());
+        const picked = pickLuckyMessage();
+        setLuckyMessageId(picked.id);
+        setLuckyMessage(picked.text);
         setLuckyOpen(true);
       }, 450);
 
@@ -1523,6 +1584,7 @@ export default function SkincareCheckerPage() {
       <SkincareLuckyMoment
         open={luckyOpen}
         message={luckyMessage}
+        messageId={luckyMessageId}
         onClose={() => setLuckyOpen(false)}
       />
     </main>

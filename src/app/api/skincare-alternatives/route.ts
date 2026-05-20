@@ -14,6 +14,8 @@ type AlternativePick = {
   priceTier: "budget" | "mid-range" | "premium";
   imageUrl: string;
   productUrl: string;
+  productId?: string;
+  affiliateSource?: string;
 };
 
 type AnalyzeProductType =
@@ -335,6 +337,8 @@ function rankAndPick(
     priceTier: row.p.priceTier,
     imageUrl: row.p.imageUrl || "",
     productUrl: row.p.productUrl || "",
+    productId: row.p.id,
+    affiliateSource: row.p.affiliateSource || "",
   }));
 }
 

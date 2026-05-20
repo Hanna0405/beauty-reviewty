@@ -94,7 +94,7 @@ export default function RootLayout({
                   <FaTiktok />
                 </a>
                 <a
-                  href="#"
+                  href="https://www.facebook.com/share/1DpMGgJYKQ/?mibextid=wwXIfr"
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="Facebook"
