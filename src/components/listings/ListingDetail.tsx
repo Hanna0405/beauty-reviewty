@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { SafeText } from '@/lib/safeText';
+import { listingLocationLabel } from '@/lib/neighborhood/display';
 import Modal from '@/components/ui/Modal';
 import BookingForm from '@/components/booking/BookingForm';
 import { ReviewsSection } from '@/components/ReviewsSection';
@@ -164,7 +165,11 @@ export default function ListingDetail({ listing }: { listing: Listing }) {
           <h1 className="text-3xl font-semibold"><SafeText value={listing.title} /></h1>
           <div className="flex flex-wrap gap-2 items-center text-sm">
             {listing.status && <span className="px-2 py-1 rounded-full bg-green-100 text-green-700"><SafeText value={listing.status} /></span>}
-            {listing.city && <span className="text-gray-600"><SafeText value={listing.cityName ?? listing.city} /></span>}
+            {(listing.city || listing.cityName) && (
+              <span className="text-gray-600">
+                <SafeText value={listingLocationLabel(listing) || (listing.cityName ?? listing.city)} />
+              </span>
+            )}
           </div>
 
           {listing.services?.length ? (

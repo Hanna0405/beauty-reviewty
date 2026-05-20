@@ -6,9 +6,9 @@ import ListingDetails from '@/components/ListingDetails';
 import { ReviewsSection } from '@/components/ReviewsSection';
 import Modal from '@/components/ui/Modal';
 import BookingForm from '@/components/booking/BookingForm';
+import { listingLocationLabel } from "@/lib/neighborhood/display";
 import {
  normalizePhotos,
- normalizeCity,
  normalizeLanguages,
  toNumberSafe,
  toStringSafe,
@@ -159,7 +159,7 @@ export default function ClientListing({ id, initial = null }: Props) {
 
   const photos: string[] = normalizePhotos(listing?.photos ?? listing?.images ?? []);
   const title = toStringSafe(listing?.title ?? listing?.name, "Service");
-  const city = normalizeCity(listing?.city ?? listing?.cityName);
+  const city = listingLocationLabel(listing) || toStringSafe(listing?.cityName ?? listing?.city, "");
   const priceMin = toNumberSafe(listing?.priceMin ?? listing?.minPrice);
   const priceMax = toNumberSafe(listing?.priceMax ?? listing?.maxPrice);
   const languages = normalizeLanguages(listing?.languages ?? listing?.langs ?? []);

@@ -1,3 +1,6 @@
+import { getNeighborhoodFromDoc } from "@/lib/neighborhood/parse";
+import type { NeighborhoodValue } from "@/lib/neighborhood/types";
+
 export type PhotoItem = { url: string; path: string };
 
 export function asArray<T = any>(v: any, fallback: T[] = []): T[] {
@@ -37,6 +40,8 @@ export function normalizeListing(raw: any) {
     city = null;
   }
 
+  const neighborhood: NeighborhoodValue | null = getNeighborhoodFromDoc(raw);
+
   return {
     id: raw?.id || '',
     title: String(raw?.title || ''),
@@ -48,6 +53,9 @@ export function normalizeListing(raw: any) {
     city,
     cityKey: typeof raw?.cityKey === 'string' ? raw.cityKey : (city?.slug || null),
     cityName: typeof raw?.cityName === 'string' ? raw.cityName : (city?.formatted || null),
+    neighborhood,
+    neighborhoodName: neighborhood?.name ?? null,
+    neighborhoodKey: neighborhood?.slug ?? null,
     photos,
   };
 }

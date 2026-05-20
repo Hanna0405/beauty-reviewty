@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import { useEffect, useState, Suspense, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import CityAutocomplete from "@/components/CityAutocomplete";
+import CityWithNeighborhoodFields from "@/components/location/CityWithNeighborhoodFields";
 import MultiSelectAutocompleteV2 from "@/components/inputs/MultiSelectAutocompleteV2";
 import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/catalog";
 import ListingCard from "../masters/components/ListingCard";
@@ -14,6 +14,7 @@ import { includesAll } from "@/lib/filters/matchers";
 import { selectedToKeys, docServiceKeysDeep, docLanguageKeysDeep, cityKeyMatches, docCityKeyDeep, normalizeCitySelection, toKey, ensureKeyObject } from "@/lib/filters/normalize";
 import type { TagOption } from "@/types/tags";
 import type { CityNorm } from "@/lib/city";
+import { filterByCityThenNeighborhood } from "@/lib/neighborhood/filter";
 import dynamicImport from 'next/dynamic';
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -26,6 +27,7 @@ function PageContent() {
   // Get URL search params for city
   const searchParams = useSearchParams();
   const urlCity = searchParams?.get("city") || undefined;
+  const urlNeighborhood = searchParams?.get("neighborhood")?.trim().toLowerCase() || undefined;
 
   // Full dataset loaded once
   const [allListings, setAllListings] = useState<any[]>([]);
@@ -39,6 +41,7 @@ function PageContent() {
   const [selectedServices, setSelectedServices] = useState<TagOption[]>([]);
   const [selectedLanguages, setSelectedLanguages] = useState<TagOption[]>([]);
   const [selectedCity, setSelectedCity] = useState<any | null>(null);
+  const [selectedNeighborhoodKey, setSelectedNeighborhoodKey] = useState<string | null>(null);
   const [minRating, setMinRating] = useState<number | undefined>(undefined);
 
   // Map center and marker state
@@ -66,15 +69,29 @@ function PageContent() {
     setSelectedLanguages(norm);
   }, []);
 
-  const handleCityChange = useCallback((next: any) => {
-    const norm = normalizeCitySelection(next);
-    // Preserve the full city object with lat/lng if available
-    if (next && typeof next.lat === 'number' && typeof next.lng === 'number') {
-      setSelectedCity({ ...norm, lat: next.lat, lng: next.lng });
-    } else {
-      setSelectedCity(norm);
-    }
-  }, []);
+  const handleLocationChange = useCallback(
+    ({
+      city: nextCity,
+      neighborhoodKey,
+    }: {
+      city: any | null;
+      neighborhoodKey: string | null;
+      neighborhoodName: string | null;
+    }) => {
+      const norm = normalizeCitySelection(nextCity);
+      if (
+        nextCity &&
+        typeof nextCity.lat === "number" &&
+        typeof nextCity.lng === "number"
+      ) {
+        setSelectedCity({ ...norm, lat: nextCity.lat, lng: nextCity.lng });
+      } else {
+        setSelectedCity(norm);
+      }
+      setSelectedNeighborhoodKey(neighborhoodKey);
+    },
+    []
+  );
 
   // Update map center and marker when city filter changes
   useEffect(() => {
@@ -172,40 +189,13 @@ function PageContent() {
 
   let filteredListings = allListings;
 
-  // City filtering
-  if (selectedCity || urlCity) {
-    const selectedName = normalizeCityVal(
-      selectedCity?.formatted ||
-      selectedCity?.city ||
-      ""
-    );
-    const selectedSlug = (cityKey || "").toLowerCase();
+  const effectiveNeighborhoodKey =
+    selectedNeighborhoodKey || urlNeighborhood || null;
 
-    filteredListings = filteredListings.filter((l: any) => {
-      const itemSlug =
-        l.cityKey ||
-        l.citySlug ||
-        l.city?.slug ||
-        "";
-      const itemName = normalizeCityVal(
-        l.cityName ||
-        l.city?.formatted ||
-        l.city ||
-        ""
-      );
-
-      // 1) slug match
-      if (selectedSlug && itemSlug && itemSlug.toLowerCase() === selectedSlug) {
-        return true;
-      }
-      // 2) name match (first-word style)
-      if (selectedName && itemName) {
-        if (itemName.startsWith(selectedName)) return true;
-        if (itemName.includes(selectedName)) return true;
-      }
-      return false;
-    });
-  }
+  filteredListings = filterByCityThenNeighborhood(filteredListings, {
+    cityKey: cityKey || urlCity || null,
+    neighborhoodKey: effectiveNeighborhoodKey,
+  });
 
   // Apply other filters
   filteredListings = filteredListings
@@ -315,15 +305,14 @@ function PageContent() {
         {/* Sidebar filters (vertical) - hidden on mobile, shown on desktop */}
         <aside className="hidden rounded-lg border p-4 md:block">
           <div className="flex w-full flex-col gap-4">
-            {/* City */}
-            <div>
-              <label className="mb-1 block text-sm font-medium">City</label>
-              <CityAutocomplete 
-                value={selectedCity}
-                onChange={handleCityChange}
-                placeholder="Select city"
-              />
-            </div>
+            <CityWithNeighborhoodFields
+              city={selectedCity}
+              neighborhoodKey={selectedNeighborhoodKey}
+              neighborhoodMode="filter"
+              cityLabel="City"
+              cityPlaceholder="Select city"
+              onChange={handleLocationChange}
+            />
 
             {/* Services */}
             <MultiSelectAutocompleteV2
@@ -363,6 +352,7 @@ function PageContent() {
                 setSelectedLanguages([]);
                 setMinRating(undefined);
                 setSelectedCity(null);
+                setSelectedNeighborhoodKey(null);
               }}
               className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
               Clear all ✖︎
@@ -437,15 +427,14 @@ function PageContent() {
             </div>
             <div className="flex-1 p-4">
               <div className="flex w-full flex-col gap-4">
-                {/* City */}
-                <div>
-                  <label className="mb-1 block text-sm font-medium">City</label>
-                  <CityAutocomplete 
-                    value={selectedCity}
-                    onChange={handleCityChange}
-                    placeholder="Select city"
-                  />
-                </div>
+                <CityWithNeighborhoodFields
+                  city={selectedCity}
+                  neighborhoodKey={selectedNeighborhoodKey}
+                  neighborhoodMode="filter"
+                  cityLabel="City"
+                  cityPlaceholder="Select city"
+                  onChange={handleLocationChange}
+                />
 
                 {/* Services */}
                 <MultiSelectAutocompleteV2
@@ -485,6 +474,7 @@ function PageContent() {
                     setSelectedLanguages([]);
                     setMinRating(undefined);
                     setSelectedCity(null);
+                    setSelectedNeighborhoodKey(null);
                   }}
                   className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50">
                   Clear all ✖︎

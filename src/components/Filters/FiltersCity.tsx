@@ -1,33 +1,34 @@
 "use client";
+
 import React from "react";
-import CityAutocomplete from "@/components/CityAutocomplete";
+import CityWithNeighborhoodFields from "@/components/location/CityWithNeighborhoodFields";
+import type { LocationSelection } from "@/lib/neighborhood/locationSelection";
 import type { CityNorm } from "@/lib/city";
 
 interface FiltersCityProps {
-  value: CityNorm | null;
-  onChange: (value: CityNorm | null) => void;
+  city: CityNorm | null;
+  neighborhoodKey?: string | null;
+  onChange: (value: LocationSelection) => void;
   placeholder?: string;
+  cityLabel?: string;
 }
 
-export function FiltersCity({ value, onChange, placeholder = "Select city" }: FiltersCityProps) {
-  try {
-    return (
-      <CityAutocomplete
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-      />
-    );
-  } catch (error) {
-    console.error("[FiltersCity] Error rendering city filter:", error);
-    // Always render the component even on error - don't show "Oops!" message
-    return (
-      <CityAutocomplete
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-      />
-    );
-  }
+/** City filter with optional Toronto neighborhood (cityKey first, then neighborhoodKey). */
+export function FiltersCity({
+  city,
+  neighborhoodKey = null,
+  onChange,
+  placeholder = "Select city",
+  cityLabel = "City",
+}: FiltersCityProps) {
+  return (
+    <CityWithNeighborhoodFields
+      city={city}
+      neighborhoodKey={neighborhoodKey}
+      neighborhoodMode="filter"
+      cityLabel={cityLabel}
+      cityPlaceholder={placeholder}
+      onChange={onChange}
+    />
+  );
 }
-

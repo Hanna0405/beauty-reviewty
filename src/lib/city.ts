@@ -1,5 +1,7 @@
 // @ts-nocheck
 'use client';
+import { isAcceptedCityPlace } from '@/lib/city/placeValidation';
+
 export type CityNorm = {
   city: string;
   state?: string;
@@ -37,9 +39,16 @@ export function toCitySlug(city: string, countryCode?: string, stateCode?: strin
   return (countryCode === 'CA' || countryCode === 'US') ? `${base}${cc}${sc}` : `${base}${cc}`;
 }
 export function normalizePlace(place: google.maps.places.PlaceResult) {
-  if (!place || !place.address_components || !place.geometry?.location || !place.place_id) return null;
+  if (!place || !place.address_components || !place.geometry?.location || !place.place_id) {
+    return null;
+  }
+
+  if (!isAcceptedCityPlace(place)) return null;
+
   const ac = place.address_components;
-  const city = get(ac, 'locality') || get(ac, 'postal_town') || place.name || '';
+  const city = get(ac, 'locality') || get(ac, 'postal_town') || '';
+  if (!city.trim()) return null;
+
   const state = get(ac, 'administrative_area_level_1');
   const stateCode = getShort(ac, 'administrative_area_level_1');
   const country = get(ac, 'country') || '';

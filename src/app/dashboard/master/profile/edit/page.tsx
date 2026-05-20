@@ -4,8 +4,9 @@ import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { requireAuth, requireDb } from "@/lib/firebase";
 import { doc, getDoc, setDoc, deleteField } from "firebase/firestore";
-import CityAutocomplete from "@/components/CityAutocomplete";
+import CityWithNeighborhoodFields from "@/components/location/CityWithNeighborhoodFields";
 import type { CityNorm } from "@/lib/city";
+import { neighborhoodFieldsFromSelection } from "@/lib/neighborhood/locationSelection";
 import MultiSelectAutocompleteV2 from "@/components/inputs/MultiSelectAutocompleteV2";
 import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/catalog";
 import { ensureSelectedArray, deriveMirrors } from "@/lib/ensureLists";
@@ -55,6 +56,8 @@ function EditProfilePageContent() {
 
  const [form, setForm] = useState<MasterProfile>(emptyProfile(uid));
  const [city, setCity] = useState<CityNorm | null>(null);
+ const [neighborhoodKey, setNeighborhoodKey] = useState<string | null>(null);
+ const [neighborhoodName, setNeighborhoodName] = useState<string | null>(null);
  const [services, setServices] = useState<TagOption[]>([]);
  const [languages, setLanguages] = useState<TagOption[]>([]);
  const [loading, setLoading] = useState(true);
@@ -103,21 +106,23 @@ function EditProfilePageContent() {
 
  // init city
  setCity(
- safe.city
+ data.cityName || data.city
  ? {
- formatted: safe.city,
- city: safe.city,
- slug: "",
- state: "",
- stateCode: "",
- country: "",
- countryCode: "",
- lat: 0,
- lng: 0,
- placeId: "",
+ formatted: data.cityName || data.city,
+ city: data.city || data.cityName,
+ slug: data.cityKey || "",
+ state: data.state || "",
+ stateCode: data.admin1Code || data.stateCode || "",
+ country: data.country || "",
+ countryCode: data.countryCode || "",
+ lat: data.cityLat || 0,
+ lng: data.cityLng || 0,
+ placeId: data.placeId || "",
  }
  : null
  );
+ setNeighborhoodKey(data.neighborhoodKey || null);
+ setNeighborhoodName(data.neighborhoodName || null);
 
  // init services/languages for our new selects
  setServices(
@@ -257,6 +262,14 @@ function EditProfilePageContent() {
  rawDataMasters.cityLng = city.lng || 0;
  rawDataMasters.countryCode = city.countryCode || "";
  rawDataMasters.admin1Code = city.stateCode || "";
+ Object.assign(
+   rawDataProfiles,
+   neighborhoodFieldsFromSelection({ neighborhoodKey, neighborhoodName })
+ );
+ Object.assign(
+   rawDataMasters,
+   neighborhoodFieldsFromSelection({ neighborhoodKey, neighborhoodName })
+ );
  } else if (form.city && form.city.trim()) {
  rawDataProfiles.city = form.city.trim();
  rawDataMasters.city = form.city.trim();
@@ -395,11 +408,17 @@ function cleanPayload(data: any): any {
 
  {/* city */}
  <div className="space-y-1">
- <label className="text-sm font-medium">City *</label>
- <CityAutocomplete
- value={city}
- onChange={setCity}
- placeholder="Start typing your city"
+ <CityWithNeighborhoodFields
+ city={city}
+ neighborhoodKey={neighborhoodKey}
+ neighborhoodName={neighborhoodName}
+ cityLabel="City *"
+ cityPlaceholder="Start typing your city"
+ onChange={({ city: c, neighborhoodKey: k, neighborhoodName: n }) => {
+ setCity(c);
+ setNeighborhoodKey(k);
+ setNeighborhoodName(n);
+ }}
  />
  </div>
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { getListingCoverUrl } from "@/lib/listingCover";
 import { safeImageSrc } from "@/lib/safeImage";
 import ShareIconButton from "@/components/ShareIconButton";
+import { listingLocationLabel } from "@/lib/neighborhood/display";
 
 export default function PublicListingCard({ listing }: { listing: any }) {
   const rawCover = getListingCoverUrl(listing);
@@ -15,7 +16,7 @@ export default function PublicListingCard({ listing }: { listing: any }) {
 
   const title = listing.title || listing.name || "Untitled listing";
 
-  const cityLabel = listing.cityName || listing.city || "";
+  const cityLabel = listingLocationLabel(listing) || "";
 
   const listingId =
     listing.id || listing.listingId || listing.listingID || listing.slug || "";

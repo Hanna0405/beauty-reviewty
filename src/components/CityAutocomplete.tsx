@@ -94,15 +94,26 @@ export default function CityAutocomplete({
       const Google = (window as any).google as typeof google;
 
       const ac = new Google.maps.places.Autocomplete(inputRef.current!, {
-        types: ["(cities)"],
-        fields: ["place_id", "address_components", "geometry.location", "name"],
+        // locality = cities/towns only (not neighborhoods like Yorkville / Downtown Toronto)
+        types: ["locality"],
+        fields: [
+          "place_id",
+          "address_components",
+          "geometry.location",
+          "name",
+          "types",
+        ],
       });
 
       ac.addListener("place_changed", () => {
         console.log("[BR] CityAutocomplete: Place changed event fired");
         const place = ac.getPlace();
         const norm = normalizePlace(place);
-        if (!norm) return;
+        if (!norm) {
+          setSelected(null);
+          setRaw("");
+          return;
+        }
         setSelected(norm);
         setRaw(norm.formatted);
         onChange(norm);

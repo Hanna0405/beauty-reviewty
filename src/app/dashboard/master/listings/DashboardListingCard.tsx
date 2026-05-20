@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { safeImageSrc } from "@/lib/safeImage";
 import { getListingCoverUrl } from "@/lib/listingCover";
+import { listingLocationLabel } from "@/lib/neighborhood/display";
 
 export interface DashboardListingCardProps {
   listing: any; // we can refine later
@@ -21,7 +22,7 @@ export default function DashboardListingCard({
 
   const title = listing.title || listing.name || "Untitled listing";
 
-  const cityLabel = listing.cityName || listing.city || listing.location || "";
+  const cityLabel = listingLocationLabel(listing) || listing.location || "";
 
   const listingId =
     listing.id || listing.listingId || listing.listingID || listing.slug || "";

@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
-import CityAutocomplete from "@/components/CityAutocomplete";
+import CityWithNeighborhoodFields from "@/components/location/CityWithNeighborhoodFields";
 import type { CityNorm } from "@/lib/city";
+import { neighborhoodFieldsFromSelection } from "@/lib/neighborhood/locationSelection";
 import MultiSelectAutocompleteV2 from "@/components/inputs/MultiSelectAutocompleteV2";
 import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/catalog";
 import type { TagOption } from "@/types/tags";
@@ -20,6 +21,8 @@ type ProfileForm = {
   city: CityNorm | null;
   cityName: string;
   cityKey: string;
+  neighborhoodKey: string;
+  neighborhoodName: string;
   role: 'master' | 'client';
   services: TagOption[];
   serviceKeys: string[];
@@ -60,6 +63,8 @@ export default function ProfileEditClient() {
     city: null,
     cityName: "",
     cityKey: "",
+    neighborhoodKey: "",
+    neighborhoodName: "",
     role: 'client',
     services: [],
     serviceKeys: [],
@@ -130,6 +135,8 @@ export default function ProfileEditClient() {
           city: profile.city || null,
           cityName: profile.cityName || "",
           cityKey: profile.cityKey || "",
+          neighborhoodKey: profile.neighborhoodKey || "",
+          neighborhoodName: profile.neighborhoodName || "",
           role: profile.role || (profile.isMaster ? 'master' : 'client'),
           services: convertToTagOptions(profile.services || []),
           serviceKeys: profile.serviceKeys || [],
@@ -249,6 +256,10 @@ export default function ProfileEditClient() {
         city: form.city ?? null,
         cityName: form.cityName || '',
         cityKey: form.cityKey || '',
+        ...neighborhoodFieldsFromSelection({
+          neighborhoodKey: form.neighborhoodKey || null,
+          neighborhoodName: form.neighborhoodName || null,
+        }),
         services: form.services,
         serviceKeys: form.serviceKeys,
         serviceNames: form.serviceNames,
@@ -406,18 +417,22 @@ export default function ProfileEditClient() {
 
         {/* City */}
         <div className="space-y-1">
-          <label className="text-sm font-medium">City</label>
-          <CityAutocomplete
-            value={form.city}
-            onChange={(city: CityNorm | null) => {
-              setForm(prev => ({
+          <CityWithNeighborhoodFields
+            city={form.city}
+            neighborhoodKey={form.neighborhoodKey || null}
+            neighborhoodName={form.neighborhoodName || null}
+            cityLabel="City"
+            cityPlaceholder="Select your city"
+            onChange={({ city, neighborhoodKey, neighborhoodName }) => {
+              setForm((prev) => ({
                 ...prev,
-                city: city,
-                cityName: city ? city.formatted : '',
-                cityKey: city ? city.slug : '',
+                city,
+                cityName: city ? city.formatted : "",
+                cityKey: city ? city.slug : "",
+                neighborhoodKey: neighborhoodKey || "",
+                neighborhoodName: neighborhoodName || "",
               }));
             }}
-            placeholder="Select your city"
           />
           {(!form.city || !form.cityKey) && (
             <p className="text-xs text-gray-500">Select a city from the dropdown (typing only selects predictions).</p>

@@ -26,6 +26,7 @@ import {
   isApprovedMasterReviewForFeed,
   isApprovedReviewStatus,
 } from "@/lib/reviews/masterReviewFilters";
+import { filterByCityThenNeighborhood } from "@/lib/neighborhood/filter";
 
 const MastersMapNoSSR = dynamicImport(() => import('@/components/mapComponents').then(m => m.MastersMap), { ssr: false });
 
@@ -40,11 +41,13 @@ function PageContent() {
   // Get URL search params for city fallback
   const searchParams = useSearchParams();
   const urlCity = searchParams?.get("city")?.toLowerCase() || undefined;
+  const urlNeighborhood = searchParams?.get("neighborhood")?.trim().toLowerCase() || undefined;
 
   // Controlled state for filters - use null for "Any" to match /reviewty pattern
   const [selectedServices, setSelectedServices] = useState<any[]>([]);
   const [selectedLanguages, setSelectedLanguages] = useState<any[]>([]);
   const [selectedCity, setSelectedCity] = useState<any | null>(null);
+  const [selectedNeighborhoodKey, setSelectedNeighborhoodKey] = useState<string | null>(null);
   const [minRating, setMinRating] = useState<number | null>(null); // null = "Any", matching /reviewty
   const [name, setName] = useState<string>('');
   
@@ -128,8 +131,11 @@ function PageContent() {
   type MasterFiltersValue = {
     city?: string;
     cityPlaceId?: string;
+    cityKey?: string;
     lat?: number;
     lng?: number;
+    neighborhoodKey?: string | null;
+    neighborhoodName?: string | null;
     services: any[];
     languages: any[];
     minRating?: number | null;
@@ -139,19 +145,21 @@ function PageContent() {
     if (newFilters.services !== undefined) handleServicesChange(newFilters.services);
     if (newFilters.languages !== undefined) handleLanguagesChange(newFilters.languages);
     if (newFilters.city !== undefined) {
-      if ((newFilters as any).cityPlaceId || newFilters.city) {
-        // Preserve any lat/lng that might be in the filter object
+      if ((newFilters as any).cityPlaceId || newFilters.city || newFilters.cityKey) {
         handleCityChange({
           formatted: newFilters.city,
           placeId: (newFilters as any).cityPlaceId,
-          cityKey: (newFilters as any).cityKey,
+          slug: newFilters.cityKey,
+          cityKey: newFilters.cityKey,
           lat: (newFilters as any).lat,
           lng: (newFilters as any).lng,
         });
       } else {
-        // City was cleared
         handleCityChange(null);
       }
+    }
+    if (newFilters.neighborhoodKey !== undefined) {
+      setSelectedNeighborhoodKey(newFilters.neighborhoodKey ?? null);
     }
     if (newFilters.minRating !== undefined) setMinRating(newFilters.minRating ?? null);
     if (newFilters.name !== undefined) setName(newFilters.name);
@@ -409,6 +417,9 @@ function PageContent() {
     queryCitySlug ||
     null;
 
+  const effectiveNeighborhoodKey =
+    selectedNeighborhoodKey || urlNeighborhood || null;
+
   const listingOwnerMap = useMemo(
     () => buildListingOwnerMap(allListings),
     [allListings]
@@ -454,18 +465,10 @@ function PageContent() {
   const filteredMastersFinal = useMemo(() => {
     let filtered = [...allMasters];
 
-    // CITY FILTER
-    if (effectiveCitySlug) {
-      const normalizedSlug = normalizeCityVal(effectiveCitySlug);
-      filtered = filtered.filter((m: any) => {
-        const itemSlug = m.cityKey || m.citySlug || m.city?.slug || "";
-        const itemName = m.cityName || m.city?.formatted || m.city || "";
-        return (
-          normalizeCityVal(itemSlug) === normalizedSlug ||
-          normalizeCityVal(itemName).startsWith(normalizedSlug.split("-")[0])
-        );
-      });
-    }
+    filtered = filterByCityThenNeighborhood(filtered, {
+      cityKey: effectiveCitySlug,
+      neighborhoodKey: effectiveNeighborhoodKey,
+    });
 
     // SERVICES FILTER
     if (selectedServiceKeys.length > 0) {
@@ -496,24 +499,16 @@ function PageContent() {
     }
 
     return filtered;
-  }, [allMasters, effectiveCitySlug, selectedServiceKeys, selectedLanguageKeys, name, minRating, masterRatings]);
+  }, [allMasters, effectiveCitySlug, effectiveNeighborhoodKey, selectedServiceKeys, selectedLanguageKeys, name, minRating, masterRatings]);
 
   // Filter listings - ALWAYS start from enhancedListings (full dataset with ratings), matching /reviewty pattern
   const filteredListingsWithRatings = useMemo(() => {
     let filtered = [...enhancedListings];
 
-    // CITY FILTER
-    if (effectiveCitySlug) {
-      const normalizedSlug = normalizeCityVal(effectiveCitySlug);
-      filtered = filtered.filter((l: any) => {
-        const itemSlug = l.cityKey || l.citySlug || l.city?.slug || "";
-        const itemName = l.cityName || l.city?.formatted || l.city || "";
-        return (
-          normalizeCityVal(itemSlug) === normalizedSlug ||
-          normalizeCityVal(itemName).startsWith(normalizedSlug.split("-")[0])
-        );
-      });
-    }
+    filtered = filterByCityThenNeighborhood(filtered, {
+      cityKey: effectiveCitySlug,
+      neighborhoodKey: effectiveNeighborhoodKey,
+    });
 
     // SERVICES FILTER
     if (selectedServiceKeys.length > 0) {
@@ -535,7 +530,7 @@ function PageContent() {
     }
 
     return filtered;
-  }, [enhancedListings, effectiveCitySlug, selectedServiceKeys, selectedLanguageKeys, minRating]);
+  }, [enhancedListings, effectiveCitySlug, effectiveNeighborhoodKey, selectedServiceKeys, selectedLanguageKeys, minRating]);
   
   const hasResults = filteredMastersFinal.length > 0 || filteredListingsWithRatings.length > 0;
   
@@ -593,9 +588,11 @@ function PageContent() {
           <MasterFilters
             value={{
               city: selectedCity?.formatted,
-              cityPlaceId: selectedCity?.cityKey,
+              cityPlaceId: selectedCity?.placeId,
+              cityKey: selectedCity?.slug || selectedCity?.cityKey,
               lat: selectedCity?.lat,
               lng: selectedCity?.lng,
+              neighborhoodKey: selectedNeighborhoodKey,
               services: selectedServices,
               languages: selectedLanguages,
               minRating: minRating,

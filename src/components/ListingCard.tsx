@@ -4,6 +4,7 @@ import { SafeText } from '@/lib/safeText';
 import { normalizeImageUrl } from '@/lib/normalizeImageUrl';
 import { useEffect, useState } from 'react';
 import { resolveGsUrl } from '@/lib/resolveGsUrl';
+import { listingLocationLabel } from '@/lib/neighborhood/display';
 
 type Props = {
   listing: any; // expects { id, title, city, services, languages, photos?, rating? }
@@ -41,7 +42,7 @@ export default function ListingCard({ listing }: Props) {
           <h3 className="truncate font-medium">{listing.title ?? 'Listing'}</h3>
           <Link href={`/listing/${String(listing.id)}`} className="text-sm underline">Open</Link>
         </div>
-        <div className="text-sm text-gray-600"><SafeText value={listing.cityName ?? listing?.city?.name ?? listing?.city} /></div>
+        <div className="text-sm text-gray-600"><SafeText value={listingLocationLabel(listing) || listing.cityName} /></div>
         <div className="mt-1 line-clamp-1 text-sm"><SafeText value={listing.serviceNames ?? listing?.services} /></div>
         <div className="text-xs text-gray-500"><SafeText value={listing.languageNames ?? listing?.languages} /></div>
         {typeof listing.rating === 'number' && <div className="text-xs">Rating: {listing.rating}★</div>}
