@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 
-import { GoogleTagManager } from "@next/third-parties/google";
+import {
+  GoogleTagManagerNoscript,
+  GoogleTagManagerScript,
+} from "@/components/analytics/GoogleTagManager";
 
 import { AuthProvider } from "@/context/AuthContext";
 
@@ -62,8 +65,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <GoogleTagManagerScript />
+      </head>
       <body>
-        <GoogleTagManager gtmId="GTM-P3W8GS97" />
+        <GoogleTagManagerNoscript />
         <SwRegister />
         <InstallAppBanner />
         <AuthProvider>
