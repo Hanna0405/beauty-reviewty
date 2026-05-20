@@ -10,6 +10,8 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase.client";
 import type { User } from "firebase/auth";
+import { neighborhoodFieldsForSave } from "@/lib/neighborhood/parse";
+import type { NeighborhoodValue } from "@/lib/neighborhood/types";
 
 export type Photo = {
   url: string;
@@ -53,6 +55,9 @@ export type NewListing = {
   serviceNames?: string[];
   languageKeys?: string[];
   languageNames?: string[];
+  neighborhood?: NeighborhoodValue | null;
+  neighborhoodName?: string;
+  neighborhoodKey?: string;
 };
 
 type AppUser = { uid: string; email: string | null };
@@ -68,6 +73,19 @@ function normalizeCity(c: string | CityObj | any): CityObj {
 export async function createListing(user: User | AppUser, data: NewListing) {
   // Safeguard: Filter out signed URLs before saving
   const safePhotos = filterSignedUrls(data.photos ?? []);
+
+  const neighborhoodFields =
+    data.neighborhoodName?.trim() || data.neighborhoodKey?.trim()
+      ? neighborhoodFieldsForSave(
+          data.neighborhood ??
+            (data.neighborhoodName?.trim()
+              ? {
+                  name: data.neighborhoodName.trim(),
+                  slug: data.neighborhoodKey?.trim() || "",
+                }
+              : null)
+        )
+      : {};
 
   const payload = {
     title: (data.title ?? "").trim(),
@@ -85,6 +103,7 @@ export async function createListing(user: User | AppUser, data: NewListing) {
     serviceNames: data.serviceNames || [],
     languageKeys: data.languageKeys || [],
     languageNames: data.languageNames || [],
+    ...neighborhoodFields,
     ownerId: user.uid, // required by rules
     ownerUid: user.uid, // extra safety (some rules check this)
     createdAt: serverTimestamp(),
@@ -108,6 +127,21 @@ export async function updateListing(
   // Safeguard: Filter out signed URLs before saving
   const safePhotos = data.photos ? filterSignedUrls(data.photos) : undefined;
 
+  let neighborhoodFields: Record<string, unknown> = {};
+  if (data.neighborhood !== undefined || data.neighborhoodName !== undefined) {
+    const value =
+      data.neighborhood ??
+      (data.neighborhoodName?.trim()
+        ? {
+            name: data.neighborhoodName.trim(),
+            slug: data.neighborhoodKey?.trim() || "",
+          }
+        : null);
+    neighborhoodFields = value
+      ? neighborhoodFieldsForSave(value)
+      : { neighborhoodName: "", neighborhoodKey: "" };
+  }
+
   const payload = {
     title: data.title?.trim(),
     city: data.city ? normalizeCity(data.city) : undefined,
@@ -124,6 +158,7 @@ export async function updateListing(
     serviceNames: data.serviceNames,
     languageKeys: data.languageKeys,
     languageNames: data.languageNames,
+    ...neighborhoodFields,
     updatedAt: serverTimestamp(),
     ownerId: existing.ownerId, // keep owner
     ownerUid: existing.ownerUid, // keep owner

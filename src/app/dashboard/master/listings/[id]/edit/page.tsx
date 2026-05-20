@@ -5,8 +5,9 @@ import { doc, getDoc } from "firebase/firestore";
 import { requireDb, auth } from "@/lib/firebase/client";
 import { updateListing } from "@/lib/firestore-listings";
 import { toDisplayText } from "@/lib/safeText";
-import CityAutocomplete from "@/components/CityAutocomplete";
+import CityWithNeighborhoodFields from "@/components/location/CityWithNeighborhoodFields";
 import type { CityNorm } from "@/lib/city";
+import { neighborhoodFieldsFromSelection } from "@/lib/neighborhood/locationSelection";
 import MultiSelectAutocompleteV2 from "@/components/inputs/MultiSelectAutocompleteV2";
 import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/catalog";
 import type { TagOption } from "@/types/tags";
@@ -36,6 +37,8 @@ export default function EditListingPage() {
 
  const [title, setTitle] = useState("");
   const [city, setCity] = useState<CityNorm | null>(null);
+  const [neighborhoodKey, setNeighborhoodKey] = useState<string | null>(null);
+  const [neighborhoodName, setNeighborhoodName] = useState<string | null>(null);
  const [services, setServices] = useState<TagOption[]>([]);
  const [languages, setLanguages] = useState<TagOption[]>([]);
  const [priceMin, setPriceMin] = useState<string>("");
@@ -88,8 +91,10 @@ export default function EditListingPage() {
           };
 
           setTitle(safe.title);
-          setCity(safe.city);
-          setServices(convertToTagOptions(safe.services));
+            setCity(safe.city);
+            setNeighborhoodKey(safe.neighborhoodKey);
+            setNeighborhoodName(safe.neighborhoodName);
+            setServices(convertToTagOptions(safe.services));
           setLanguages(convertToTagOptions(safe.languages));
           setPriceMin(safe.minPrice ? String(safe.minPrice) : "");
           setPriceMax(safe.maxPrice ? String(safe.maxPrice) : "");
@@ -117,8 +122,10 @@ export default function EditListingPage() {
           };
 
           setTitle(safe.title);
-          setCity(safe.city);
-          setServices(convertToTagOptions(safe.services));
+            setCity(safe.city);
+            setNeighborhoodKey(safe.neighborhoodKey);
+            setNeighborhoodName(safe.neighborhoodName);
+            setServices(convertToTagOptions(safe.services));
           setLanguages(convertToTagOptions(safe.languages));
           setPriceMin(safe.minPrice ? String(safe.minPrice) : "");
           setPriceMax(safe.maxPrice ? String(safe.maxPrice) : "");
@@ -184,6 +191,7 @@ export default function EditListingPage() {
   // Add string mirrors for safe rendering
   cityKey: city?.slug || '', // slug for Firestore queries
   cityName: city?.formatted || '', // easy string for UI
+  ...neighborhoodFieldsFromSelection({ neighborhoodKey, neighborhoodName }),
   serviceKeys: serviceKeys,
   serviceNames: serviceNames,
   languageKeys: languageKeys,
@@ -235,10 +243,17 @@ export default function EditListingPage() {
         </div>
 
         <div>
-          <CityAutocomplete
-            value={city}
-            onChange={setCity}
-            placeholder="Start typing your city"
+          <CityWithNeighborhoodFields
+            city={city}
+            neighborhoodKey={neighborhoodKey}
+            neighborhoodName={neighborhoodName}
+            cityLabel="City *"
+            cityPlaceholder="Start typing your city"
+            onChange={({ city: c, neighborhoodKey: k, neighborhoodName: n }) => {
+              setCity(c);
+              setNeighborhoodKey(k);
+              setNeighborhoodName(n);
+            }}
           />
           {errors.city && <p className="text-red-500 text-sm mt-1">{errors.city}</p>}
         </div>

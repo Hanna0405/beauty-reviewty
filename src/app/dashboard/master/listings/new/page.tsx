@@ -8,8 +8,9 @@ import {
 } from "@/lib/masterOnboarding";
 import { createListing } from "@/lib/firestore-listings";
 import { toDisplayText } from "@/lib/safeText";
-import CityAutocomplete from "@/components/CityAutocomplete";
+import CityWithNeighborhoodFields from "@/components/location/CityWithNeighborhoodFields";
 import type { CityNorm } from "@/lib/city";
+import { neighborhoodFieldsFromSelection } from "@/lib/neighborhood/locationSelection";
 import MultiSelectAutocompleteV2 from "@/components/inputs/MultiSelectAutocompleteV2";
 import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/catalog";
 import type { TagOption } from "@/types/tags";
@@ -36,6 +37,8 @@ export default function NewListingPage() {
 
   const [title, setTitle] = useState("");
   const [city, setCity] = useState<CityNorm | null>(null);
+  const [neighborhoodKey, setNeighborhoodKey] = useState<string | null>(null);
+  const [neighborhoodName, setNeighborhoodName] = useState<string | null>(null);
   const [services, setServices] = useState<TagOption[]>([]);
   const [languages, setLanguages] = useState<TagOption[]>([]);
   const [priceMin, setPriceMin] = useState<string>("");
@@ -86,6 +89,8 @@ export default function NewListingPage() {
   }, [
     title,
     city,
+    neighborhoodKey,
+    neighborhoodName,
     services,
     languages,
     priceMin,
@@ -165,6 +170,7 @@ export default function NewListingPage() {
         // Add string mirrors for safe rendering
         cityKey: city?.slug || "", // slug for Firestore queries
         cityName: city?.formatted || "", // easy string for UI
+        ...neighborhoodFieldsFromSelection({ neighborhoodKey, neighborhoodName }),
         serviceKeys: serviceKeys,
         serviceNames: serviceNames,
         languageKeys: languageKeys,
@@ -304,10 +310,17 @@ export default function NewListingPage() {
               </div>
 
               <div>
-                <CityAutocomplete
-                  value={city}
-                  onChange={setCity}
-                  placeholder="Start typing your city"
+                <CityWithNeighborhoodFields
+                  city={city}
+                  neighborhoodKey={neighborhoodKey}
+                  neighborhoodName={neighborhoodName}
+                  cityLabel="City *"
+                  cityPlaceholder="Start typing your city"
+                  onChange={({ city: c, neighborhoodKey: k, neighborhoodName: n }) => {
+                    setCity(c);
+                    setNeighborhoodKey(k);
+                    setNeighborhoodName(n);
+                  }}
                 />
                 {errors.city && (
                   <p className="text-red-500 text-sm mt-1">{errors.city}</p>

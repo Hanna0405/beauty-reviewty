@@ -1,9 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import CityAutocomplete from '@/components/CityAutocomplete';
+import CityWithNeighborhoodFields from '@/components/location/CityWithNeighborhoodFields';
 import MultiSelectAutocompleteV2 from '@/components/inputs/MultiSelectAutocompleteV2';
-import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from '@/constants/catalog'; // ← use shared options
+import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from '@/constants/catalog';
 import { ensureKeyObject } from '@/lib/filters/normalize';
 import type { CityNorm } from '@/lib/city';
 import type { TagOption } from '@/types/tags';
@@ -12,8 +12,11 @@ type Props = {
   value: { 
     city?: string; 
     cityPlaceId?: string;
+    cityKey?: string;
     lat?: number;
     lng?: number;
+    neighborhoodKey?: string | null;
+    neighborhoodName?: string | null;
     services: TagOption[]; 
     languages: TagOption[]; 
     minRating?: number | null; 
@@ -27,54 +30,83 @@ export default function MasterFilters({ value, onChange, showName }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [city, setCity] = useState<CityNorm | null>(null);
+  const [neighborhoodKey, setNeighborhoodKey] = useState<string | null>(
+    value.neighborhoodKey ?? null
+  );
+  const [neighborhoodName, setNeighborhoodName] = useState<string | null>(
+    value.neighborhoodName ?? null
+  );
   const [services, setServices] = useState<TagOption[]>(value.services ?? []);
   const [languages, setLanguages] = useState<TagOption[]>(value.languages ?? []);
   const [minRating, setMinRating] = useState<number | null>(value.minRating ?? null);
   const [name, setName] = useState<string>(value.name ?? '');
 
-  // Handle city selection with URL updates
-  function onCityPicked(c: CityNorm | null) {
-    const sp = new URLSearchParams(window.location.search);
-    if (c?.slug) sp.set('city', c.slug); else sp.delete('city');
+  function syncUrl(c: CityNorm | null, hoodKey: string | null) {
+    const sp = new URLSearchParams(searchParams?.toString() || window.location.search);
+    if (c?.slug) sp.set('city', c.slug);
+    else sp.delete('city');
+    if (hoodKey) sp.set('neighborhood', hoodKey);
+    else sp.delete('neighborhood');
     router.push(`?${sp.toString()}`);
-    setCity(c);
   }
 
   useEffect(() => { 
     onChange({ 
       city: city?.formatted, 
       cityPlaceId: city?.placeId,
+      cityKey: city?.slug,
       lat: city?.lat,
       lng: city?.lng,
+      neighborhoodKey,
+      neighborhoodName,
       services, 
       languages, 
       minRating, 
       name 
     }); 
-  }, [city, services, languages, minRating, name, onChange]);
+  }, [city, neighborhoodKey, neighborhoodName, services, languages, minRating, name, onChange]);
 
   const clearAll = () => {
-    onChange({ city: undefined, cityPlaceId: undefined, lat: undefined, lng: undefined, services: [], languages: [], minRating: null, name: '' });
-    // sync local states so inputs reflect immediately
+    onChange({
+      city: undefined,
+      cityPlaceId: undefined,
+      cityKey: undefined,
+      lat: undefined,
+      lng: undefined,
+      neighborhoodKey: null,
+      neighborhoodName: null,
+      services: [],
+      languages: [],
+      minRating: null,
+      name: '',
+    });
     setCity(null);
+    setNeighborhoodKey(null);
+    setNeighborhoodName(null);
     setServices([]);
     setLanguages([]);
     setMinRating(null);
     setName('');
+    syncUrl(null, null);
   };
 
   return (
     <div className="flex w-full flex-col gap-4">
-      <div>
-        <label className="mb-1 block text-sm font-medium">City</label>
-        <CityAutocomplete 
-          value={city}
-          onChange={onCityPicked}
-          placeholder="Select city"
-        />
-      </div>
+      <CityWithNeighborhoodFields
+        city={city}
+        neighborhoodKey={neighborhoodKey}
+        neighborhoodName={neighborhoodName}
+        neighborhoodMode="filter"
+        cityLabel="City"
+        cityPlaceholder="Select city"
+        onChange={({ city: nextCity, neighborhoodKey: key, neighborhoodName: hoodName }) => {
+          setCity(nextCity);
+          setNeighborhoodKey(key);
+          setNeighborhoodName(hoodName);
+          syncUrl(nextCity, key);
+        }}
+      />
 
-      {/* Services — SAME dataset & UX as New Listing */}
       <MultiSelectAutocompleteV2
         label="Services"
         options={SERVICE_OPTIONS}
@@ -86,7 +118,6 @@ export default function MasterFilters({ value, onChange, showName }: Props) {
         placeholder="Search services…"
       />
 
-      {/* Languages — SAME dataset & UX as New Listing */}
       <MultiSelectAutocompleteV2
         label="Languages"
         options={LANGUAGE_OPTIONS}
@@ -116,7 +147,6 @@ export default function MasterFilters({ value, onChange, showName }: Props) {
         </div>
       )}
 
-      {/* Clear all */}
       <button
         type="button"
         onClick={clearAll}

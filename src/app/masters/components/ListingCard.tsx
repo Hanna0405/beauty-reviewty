@@ -11,13 +11,14 @@ import {
   ratingValue,
   reviewsCountValue,
 } from "@/lib/listings/presenters";
+import { listingLocationLabel } from "@/lib/neighborhood/display";
 import { getMasterProfileId } from "@/lib/listings/getMasterProfileId";
 
 export default function ListingCard({ item }: { item: any }) {
   const id = item?.id || item?._id;
   const img = pickFirstImage(item);
   const title = titleLabel(item);
-  const city = cityLabel(item);
+  const city = listingLocationLabel(item) || cityLabel(item);
   const service = serviceLabel(item);
   const langs = languagesLabel(item);
   const rating = ratingValue(item);
