@@ -1,15 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   buildLuckyShareText,
-  LUCKY_SHARE_URL,
+  buildLuckyShareUrl,
+  getLuckyShareBaseUrl,
 } from "@/lib/skincare/luckyMoment";
 import { fireConfettiBurst } from "@/lib/ui/confetti";
 
 type Props = {
   open: boolean;
   message: string;
+  messageId: string | null;
   onClose: () => void;
 };
 
@@ -128,14 +130,65 @@ function PinkUnderline({ className }: { className?: string }) {
   );
 }
 
-export default function SkincareLuckyMoment({ open, message, onClose }: Props) {
-  const [shareNote, setShareNote] = useState("");
+export default function SkincareLuckyMoment({
+  open,
+  message,
+  messageId,
+  onClose,
+}: Props) {
+  const [shareToast, setShareToast] = useState<string | null>(null);
+  const [shareToastVisible, setShareToastVisible] = useState(false);
+  const shareToastTimersRef = useRef<{
+    show?: ReturnType<typeof setTimeout>;
+    hide?: ReturnType<typeof setTimeout>;
+    clear?: ReturnType<typeof setTimeout>;
+  }>({});
   const [phase, setPhase] = useState<AnimPhase>("idle");
+
+  const clearShareToastTimers = useCallback(() => {
+    const t = shareToastTimersRef.current;
+    if (t.show) clearTimeout(t.show);
+    if (t.hide) clearTimeout(t.hide);
+    if (t.clear) clearTimeout(t.clear);
+    shareToastTimersRef.current = {};
+  }, []);
+
+  const dismissShareToast = useCallback(() => {
+    clearShareToastTimers();
+    setShareToastVisible(false);
+    shareToastTimersRef.current.clear = setTimeout(() => {
+      setShareToast(null);
+      shareToastTimersRef.current.clear = undefined;
+    }, 320);
+  }, [clearShareToastTimers]);
+
+  const showShareToast = useCallback(
+    (text: string) => {
+      clearShareToastTimers();
+      setShareToast(text);
+      setShareToastVisible(false);
+      shareToastTimersRef.current.show = setTimeout(() => {
+        setShareToastVisible(true);
+        shareToastTimersRef.current.show = undefined;
+      }, 16);
+      shareToastTimersRef.current.hide = setTimeout(() => {
+        dismissShareToast();
+        shareToastTimersRef.current.hide = undefined;
+      }, 2000);
+    },
+    [clearShareToastTimers, dismissShareToast],
+  );
+
+  useEffect(() => {
+    return () => clearShareToastTimers();
+  }, [clearShareToastTimers]);
 
   useEffect(() => {
     if (!open) {
       setPhase("idle");
-      setShareNote("");
+      clearShareToastTimers();
+      setShareToast(null);
+      setShareToastVisible(false);
       return;
     }
 
@@ -163,16 +216,19 @@ export default function SkincareLuckyMoment({ open, message, onClose }: Props) {
   }, [open, message, onClose]);
 
   const handleShare = useCallback(async () => {
-    const fullText = buildLuckyShareText(message);
+    const shareUrl = messageId
+      ? buildLuckyShareUrl(messageId)
+      : getLuckyShareBaseUrl();
+    const fullText = buildLuckyShareText(message, messageId);
 
     if (typeof navigator !== "undefined" && navigator.share) {
       try {
         await navigator.share({
           title: "A rare BeautyReviewty moment",
           text: fullText,
-          url: LUCKY_SHARE_URL,
+          url: shareUrl,
         });
-        setShareNote("Shared!");
+        showShareToast("Shared successfully ✨");
         return;
       } catch (err) {
         if ((err as Error)?.name === "AbortError") return;
@@ -182,7 +238,7 @@ export default function SkincareLuckyMoment({ open, message, onClose }: Props) {
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(fullText);
-        setShareNote("Message copied ✨");
+        showShareToast("Link copied ✨");
         return;
       }
     } catch {
@@ -199,11 +255,11 @@ export default function SkincareLuckyMoment({ open, message, onClose }: Props) {
       textArea.select();
       document.execCommand("copy");
       document.body.removeChild(textArea);
-      setShareNote("Message copied ✨");
+      showShareToast("Link copied ✨");
     } catch {
-      setShareNote("Could not copy — try a screenshot");
+      showShareToast("Unable to share");
     }
-  }, [message]);
+  }, [message, messageId, showShareToast]);
 
   if (!open) return null;
 
@@ -359,7 +415,7 @@ export default function SkincareLuckyMoment({ open, message, onClose }: Props) {
         </p>
 
         <div
-          className={`mt-2.5 flex w-full max-w-[16.5rem] flex-col items-center gap-1 transition-all duration-500 ${
+          className={`relative mt-2.5 flex w-full max-w-[16.5rem] flex-col items-center transition-all duration-500 ${
             showButton
               ? "translate-y-0 opacity-100"
               : "pointer-events-none translate-y-3 opacity-0"
@@ -372,8 +428,16 @@ export default function SkincareLuckyMoment({ open, message, onClose }: Props) {
           >
             Share this moment ✨
           </button>
-          {shareNote ? (
-            <p className="text-xs text-rose-100/90">{shareNote}</p>
+          {shareToast ? (
+            <p
+              role="status"
+              aria-live="polite"
+              className={`lucky-share-toast hw pointer-events-none absolute left-1/2 bottom-full z-50 mb-2 whitespace-nowrap text-[0.8rem] font-normal leading-tight text-rose-50 sm:text-[0.84rem] ${
+                shareToastVisible ? "lucky-share-toast-visible" : ""
+              }`}
+            >
+              {shareToast}
+            </p>
           ) : null}
         </div>
       </div>
@@ -789,6 +853,27 @@ export default function SkincareLuckyMoment({ open, message, onClose }: Props) {
           transform: translateY(0) scale(0.98);
           box-shadow: 0 1px 0 rgba(190, 24, 93, 0.14),
             0 3px 10px rgba(236, 72, 153, 0.22);
+        }
+
+        .lucky-share-toast {
+          padding: 0.4rem 0.85rem;
+          border-radius: 9999px;
+          background: linear-gradient(
+            165deg,
+            rgba(255, 228, 236, 0.96) 0%,
+            rgba(251, 207, 232, 0.94) 100%
+          );
+          color: #9d174d;
+          border: 1px solid rgba(255, 255, 255, 0.55);
+          box-shadow: 0 2px 10px rgba(190, 24, 93, 0.18),
+            0 0 18px rgba(244, 114, 182, 0.22);
+          opacity: 0;
+          transform: translateX(-50%) translateY(4px);
+          transition: opacity 0.35s ease, transform 0.35s ease;
+        }
+        .lucky-share-toast-visible {
+          opacity: 1;
+          transform: translateX(-50%) translateY(0);
         }
 
         .handwritten-quote {

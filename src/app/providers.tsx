@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
+import SkincareCheckerClickTracker from "@/components/analytics/SkincareCheckerClickTracker";
 
 // Dynamically import AuthProvider to prevent server-side execution
 const AuthProvider = dynamic(() => import("@/contexts/AuthContext").then(mod => ({ default: mod.AuthProvider })), {
@@ -19,5 +20,10 @@ export default function Providers({ children }: { children: React.ReactNode }) {
    return <>{children}</>;
  }
 
- return <AuthProvider>{children}</AuthProvider>;
+ return (
+   <AuthProvider>
+     <SkincareCheckerClickTracker />
+     {children}
+   </AuthProvider>
+ );
 }
