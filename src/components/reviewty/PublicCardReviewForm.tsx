@@ -5,6 +5,10 @@ import { db } from "@/lib/firebase/client"; // IMPORTANT: use the same client-si
 import { addDoc, collection, serverTimestamp, getDocs, query, where, doc, updateDoc } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import {
+  prepareReviewPhotoFile,
+  PHOTO_PROCESS_ERROR,
+} from "@/lib/images/prepareReviewPhoto";
 // If you already have a photo uploader component/hook used in "Add review", import and reuse it instead of the simple placeholder below.
 
 const isServer = typeof window === "undefined";
@@ -41,10 +45,19 @@ export default function PublicCardReviewForm({ publicCardSlug }: Props) {
       const photoUrls: string[] = [];
 
       for (let i = 0; i < files.length; i++) {
-        const f = files[i];
+        let f: File;
+        try {
+          f = await prepareReviewPhotoFile(files[i]);
+        } catch (err) {
+          alert(err instanceof Error ? err.message : PHOTO_PROCESS_ERROR);
+          setSubmitting(false);
+          return;
+        }
         const path = `publicReviews/${uid}/${Date.now()}_${i}_${f.name}`;
         const fileRef = ref(storage, path);
-        await uploadBytes(fileRef, f);
+        await uploadBytes(fileRef, f, {
+          contentType: f.type || "image/jpeg",
+        });
         const url = await getDownloadURL(fileRef);
         photoUrls.push(url);
       }

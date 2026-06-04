@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
   createUserWithEmailAndPassword, 
   updateProfile,
-  signInWithPopup,
   signInWithPhoneNumber,
   RecaptchaVerifier,
   ConfirmationResult
@@ -15,6 +14,8 @@ import { setDoc, doc, serverTimestamp } from "firebase/firestore";
 import { auth, db, googleProvider } from "@/lib/firebase.client";
 import { ensureUserDoc } from "@/lib/users";
 import { masterProfileEditUrl } from "@/lib/masterOnboarding";
+import { signInWithGoogleCompatible } from "@/lib/auth/googleSignIn";
+import { useGoogleRedirectResult } from "@/lib/auth/useGoogleRedirectResult";
 
 type Role = "master" | "client";
 
@@ -60,6 +61,27 @@ export default function SignupPage() {
 
  const canSubmit = form.displayName.trim().length >= 2 && /\S+@\S+\.\S+/.test(form.email) && form.password.length >= 6;
 
+ const finishGoogleSignIn = useCallback(
+  async (user: { uid: string }, role: Role) => {
+   await ensureUserDoc(user, role);
+   router.push(role === "master" ? masterProfileEditUrl(true) : "/");
+  },
+  [router]
+ );
+
+ useGoogleRedirectResult(auth, async (credential) => {
+  setLoading(true);
+  setErr(null);
+  try {
+   await finishGoogleSignIn(credential.user, form.role);
+  } catch (e: unknown) {
+   const message = e instanceof Error ? e.message : "Google sign-in failed";
+   setErr(message);
+  } finally {
+   setLoading(false);
+  }
+ });
+
  async function onSubmit(e: React.FormEvent) {
  e.preventDefault();
  if (!canSubmit) return setErr("Please fill all fields correctly");
@@ -97,16 +119,15 @@ export default function SignupPage() {
    setErr(null);
    setLoading(true);
    try {
-     const { user } = await signInWithPopup(auth, googleProvider);
-     await ensureUserDoc(user, form.role);
-     router.push(
-      form.role === "master" ? masterProfileEditUrl(true) : "/"
-     );
-   } catch (e: any) {
-     if (e?.code === 'auth/popup-closed-by-user' || e?.code === 'auth/cancelled-popup-request') {
-       setErr('Sign-in cancelled');
+     const result = await signInWithGoogleCompatible(auth, googleProvider);
+     if (result.kind === "redirect-started") return;
+     await finishGoogleSignIn(result.credential.user, form.role);
+   } catch (e: unknown) {
+     const err = e as { code?: string; message?: string };
+     if (err?.code === "auth/popup-closed-by-user" || err?.code === "auth/cancelled-popup-request") {
+       setErr("Sign-in cancelled");
      } else {
-       setErr(e?.message ?? 'Google sign-in failed');
+       setErr(err?.message ?? "Google sign-in failed");
      }
    } finally {
      setLoading(false);

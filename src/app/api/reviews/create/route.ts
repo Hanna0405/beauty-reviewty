@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { Timestamp } from 'firebase-admin/firestore';
 import { getAdminAuth, getAdminDb } from '@/lib/firebaseAdmins';
 import { stripUndefined } from '@/lib/object-helpers';
+import { getMasterProfileId } from '@/lib/listings/getMasterProfileId';
+import type { ListingLike } from '@/lib/listings/getMasterProfileId';
 import { notifyMasterOfNewReview } from '@/lib/reviews/notifyMasterOfNewReview';
 
 type ReviewPhoto = { url: string; path: string };
@@ -87,6 +89,36 @@ async function loadMasterProfile(subjectId: string) {
   return null;
 }
 
+async function resolveListingOwner(
+  listingId: string,
+  listingData: Record<string, unknown>
+) {
+  const rawOwnerId = getMasterProfileId(listingData as ListingLike);
+  if (!rawOwnerId) return null;
+
+  const listingName = String(
+    listingData.title || listingData.masterName || listingData.displayName || ''
+  ).trim();
+
+  const profileResult = await loadMasterProfile(rawOwnerId);
+  if (profileResult) {
+    const profile = profileResult.data;
+    return {
+      masterUid: resolveMasterUid(profile, rawOwnerId),
+      profilePathId: profileResult.id,
+      masterName: String(
+        profile.displayName || profile.name || listingName || 'Master'
+      ).trim(),
+    };
+  }
+
+  return {
+    masterUid: rawOwnerId,
+    profilePathId: rawOwnerId,
+    masterName: listingName || 'Master',
+  };
+}
+
 export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get('authorization') || '';
@@ -126,15 +158,25 @@ export async function POST(req: Request) {
     let reviewPayload: Record<string, unknown>;
 
     if (subject.type === 'listing') {
-      const refPath = `listings/${subject.id}`;
-      const exists = await getAdminDb().doc(refPath).get();
-      if (!exists.exists) return bad('Referenced listing not found');
+      const listingId = subject.id;
+      const listingSnap = await getAdminDb().collection('listings').doc(listingId).get();
+      if (!listingSnap.exists) return bad('Referenced listing not found');
+
+      const listingData = listingSnap.data() as Record<string, unknown>;
+      const listingOwner = await resolveListingOwner(listingId, listingData);
 
       reviewPayload = {
         subject,
         subjectType: subject.type,
-        subjectId: subject.id,
-        listingId: subject.id,
+        subjectId: listingId,
+        listingId,
+        ...(listingOwner
+          ? {
+              masterId: listingOwner.masterUid,
+              profileId: listingOwner.profilePathId,
+              masterName: listingOwner.masterName,
+            }
+          : {}),
         authorUid,
         authorName: decoded.name || 'Verified client',
         rating,
@@ -251,30 +293,47 @@ export async function POST(req: Request) {
       subjectType: reviewPayload.subjectType,
     });
 
-    if (subject.type === 'master' && reviewPayload.masterId) {
+    const resolvedMasterId = reviewPayload.masterId
+      ? String(reviewPayload.masterId)
+      : null;
+
+    if (subject.type === 'master' && resolvedMasterId) {
       try {
         await getAdminDb()
           .collection('masters')
-          .doc(String(reviewPayload.masterId))
+          .doc(resolvedMasterId)
           .collection('reviews')
           .add(subReviewPayload);
       } catch (err) {
         console.warn('[api/reviews/create] master subcollection write failed', err);
       }
+    }
 
+    if (resolvedMasterId) {
+      if (subject.type === 'listing') {
+        console.log('[api/reviews/create] listing review notification attempted', {
+          listingId: subject.id,
+          masterId: resolvedMasterId,
+        });
+      }
       try {
         await notifyMasterOfNewReview({
-          masterUid: String(reviewPayload.masterId),
+          masterUid: resolvedMasterId,
           masterName: String(reviewPayload.masterName || 'Master'),
           profilePathId: String(
-            reviewPayload.profileId || reviewPayload.masterId
+            reviewPayload.profileId || resolvedMasterId
           ),
           rating,
           text: textStr,
         });
       } catch (emailErr) {
-        console.error('[api/reviews/create] review notification email error', emailErr);
+        console.error('[api/reviews/create] review notification error', emailErr);
       }
+    } else if (subject.type === 'listing') {
+      console.log(
+        '[api/reviews/create] listing review notification skipped: no masterId',
+        { listingId: subject.id }
+      );
     }
 
     return NextResponse.json({ ok: true, id: doc.id });

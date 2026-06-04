@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
 signUpEmail,
 signInEmail,
 } from '@/lib/authClient';
 import { signInWithGoogle } from '@/lib/auth-helpers';
+import { useGoogleRedirectResult } from '@/lib/auth/useGoogleRedirectResult';
+import { auth } from '@/lib/firebase.client';
 import type { UserRole } from '@/types';
 import { masterProfileEditUrl } from '@/lib/masterOnboarding';
 
@@ -21,6 +23,19 @@ const [name, setName] = useState('');
 const [password, setPassword] = useState('');
 const [busy, setBusy] = useState(false);
 const [err, setErr] = useState<string | null>(null);
+
+useGoogleRedirectResult(auth, useCallback(async () => {
+ setBusy(true);
+ setErr(null);
+ try {
+  router.push('/dashboard');
+ } catch (e: unknown) {
+  const message = e instanceof Error ? e.message : 'Google sign-in failed';
+  setErr(message);
+ } finally {
+  setBusy(false);
+ }
+}, [router]));
 
 const goToDashboard = (r: UserRole | null) => {
 if (r === 'master') router.replace(masterProfileEditUrl(true));
@@ -52,11 +67,13 @@ async function handleGoogle() {
 setBusy(true);
 setErr(null);
 try {
-await signInWithGoogle();
-// при успехе можно редиректнуть пользователя:
+const result = await signInWithGoogle();
+if (result.kind === "redirect-started") return;
 router.push("/dashboard");
-} catch (e: any) {
-console.error("Google sign-in error:", e);
+} catch (e: unknown) {
+if (process.env.NODE_ENV === "development") {
+ console.warn("Google sign-in error:", e);
+}
 setErr("Google sign-in failed. Please try again.");
 } finally {
 setBusy(false);

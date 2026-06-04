@@ -14,9 +14,21 @@
     "deploy:indexes": "firebase deploy --only firestore:indexes",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",
-    "e2e:update": "playwright test --update-snapshots"
+    "e2e:update": "playwright test --update-snapshots",
+    "cap:sync": "npx cap sync",
+    "cap:ios": "npx cap open ios",
+    "cap:android": "npx cap open android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/browser": "^8.0.3",
+    "@capacitor/cli": "^8.3.4",
+    "@capacitor/core": "^8.3.4",
+    "@capacitor/ios": "^8.3.4",
+    "@capacitor/keyboard": "^8.0.3",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.2",
     "@googlemaps/js-api-loader": "^1.16.10",
     "@headlessui/react": "^2.2.7",
     "@hookform/resolvers": "^5.2.1",

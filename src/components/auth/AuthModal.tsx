@@ -105,7 +105,8 @@ export default function AuthModal({ open, onClose }: Props) {
  async function doGoogle() {
  setLoading(true);
  try {
- await signInWithGoogle();
+ const result = await signInWithGoogle();
+ if (result.kind === "redirect-started") return;
  const auth = requireAuth();
  const fbUser = auth.currentUser;
  const db = requireDb();

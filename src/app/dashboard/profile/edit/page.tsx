@@ -13,7 +13,7 @@ import {
  getFirestore,
 } from "firebase/firestore";
 import { getAuth, updateProfile } from "firebase/auth";
-import { uploadImage } from "@/lib/upload-image";
+import { mapUploadApiError, uploadViaApi } from "@/lib/upload-image";
 
 // Try to use our CityAutocomplete if present; otherwise fallback will be used.
 let CityAutocomplete: React.ComponentType<{
@@ -128,33 +128,33 @@ export default function EditProfilePage() {
 
 const onAvatarChange = async (file: File | null) => {
 if (!file) return;
-
-const formData = new FormData();
-formData.append('file', file);
-formData.append('scope', 'profile'); // Specify this is a profile avatar
-
-const res = await fetch('/api/upload', { method: 'POST', body: formData });
-const data = await res.json();
-
-if (!res.ok || !data?.ok || !data?.url) {
-console.error('[Avatar Upload] failed:', data);
-alert('Failed to upload avatar');
-return;
+if (!uid) {
+ alert('Please sign in again before uploading a photo.');
+ return;
 }
 
-const url = String(data.url);
-const path = String(data.path || `profiles/${user?.uid}/avatar.jpg`);
+try {
+ const data = await uploadViaApi({ file, scope: 'profile', id: uid });
+ const url = String(data.url);
+ const path = String(data.path || `profiles/${uid}/avatar.jpg`);
 
-// IMPORTANT: update all avatar fields in form state
-setForm(prev => ({
+ setForm(prev => ({
   ...prev,
   photoURL: url,
   avatarUrl: url,
   avatar: { url, path },
   avatarPath: path,
-}));
+ }));
 
-console.log('[Avatar Upload] form updated:', { url, path });
+ if (process.env.NODE_ENV === 'development') {
+  console.log('[Avatar Upload] form updated:', { url, path });
+ }
+} catch (e: unknown) {
+ if (process.env.NODE_ENV === 'development') {
+  console.warn('[Avatar Upload] failed:', e);
+ }
+ alert(mapUploadApiError(e));
+}
 };
 
  function validate(p: MasterProfile): string[] {

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithGoogleCompatible } from '@/lib/auth/googleSignIn';
 // Если у тебя alias "@/lib/..." работает — используй его.
 // Иначе оставь относительный путь, как ниже:
 import { auth, googleProvider } from '@/lib/firebase.client';
@@ -38,7 +39,8 @@ export default function LoginDialog() {
  try {
  setLoading(true);
  setErr(null);
- await signInWithPopup(auth, googleProvider);
+ const result = await signInWithGoogleCompatible(auth, googleProvider);
+ if (result.kind === 'redirect-started') return;
  setOpen(false);
  } catch (e: any) {
  setErr(e?.message ?? 'Google login error');

@@ -1,9 +1,10 @@
 "use client";
 
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, signInWithPopup } from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { db, auth, requireAuth } from "@/lib/firebase";
 import { GoogleAuthProvider } from "firebase/auth";
+import { signInWithGoogleCompatible } from "@/lib/auth/googleSignIn";
 const googleProvider = new GoogleAuthProvider();
 
 export async function signUpWithEmail(email: string, password: string, displayName?: string) {
@@ -28,9 +29,14 @@ export async function signInWithEmail(email: string, password: string) {
 
 export async function signInWithGoogle() {
  if (!googleProvider) throw new Error("Google provider not available");
- const cred = await signInWithPopup(auth, googleProvider);
- await ensureUserDoc(cred.user.uid, cred.user.email ?? "", cred.user.displayName ?? "");
- return cred.user;
+ const result = await signInWithGoogleCompatible(auth, googleProvider);
+ if (result.kind === "redirect-started") return null;
+ await ensureUserDoc(
+  result.credential.user.uid,
+  result.credential.user.email ?? "",
+  result.credential.user.displayName ?? ""
+ );
+ return result.credential.user;
 }
 
 async function ensureUserDoc(uid: string, email: string, displayName: string) {

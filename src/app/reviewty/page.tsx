@@ -821,7 +821,7 @@ export default function ReviewtyPage() {
                   onReset={handleResetFilters}
                 />
               </div>
-              <div className="sticky bottom-0 border-t bg-pink-50 p-4">
+              <div className="sticky bottom-0 border-t bg-pink-50 px-4 pt-4 pb-4-safe">
                 <button
                   type="button"
                   onClick={() => setIsFiltersOpen(false)}

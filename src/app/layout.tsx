@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 import {
   GoogleTagManagerNoscript,
@@ -17,6 +17,7 @@ import ToasterClient from "@/components/system/ToasterClient";
 import { SwRegister } from "@/components/pwa/SwRegister";
 import { InstallAppBanner } from "@/components/pwa/InstallAppBanner";
 import { FaInstagram, FaTiktok, FaFacebook } from "react-icons/fa";
+import { ExternalLink } from "@/components/links/ExternalLink";
 
 const defaultDescription =
   "Find beauty professionals by location, language, services, and real client reviews. Discover trusted beauty masters near you.";
@@ -58,6 +59,12 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -81,15 +88,13 @@ export default function RootLayout({
             <footer className="w-full py-6 text-center text-xs text-gray-500 opacity-70">
               {/* Social Icons */}
               <div className="flex items-center justify-center gap-4 mb-3">
-                <a
+                <ExternalLink
                   href="https://instagram.com/beautyreviewty"
-                  target="_blank"
-                  rel="noopener noreferrer"
                   aria-label="Instagram"
                   className="text-xl text-gray-500 transition hover:text-pink-600"
                 >
                   <FaInstagram />
-                </a>
+                </ExternalLink>
                 <a
                   href="#"
                   target="_blank"
@@ -99,15 +104,13 @@ export default function RootLayout({
                 >
                   <FaTiktok />
                 </a>
-                <a
+                <ExternalLink
                   href="https://www.facebook.com/share/1DpMGgJYKQ/?mibextid=wwXIfr"
-                  target="_blank"
-                  rel="noopener noreferrer"
                   aria-label="Facebook"
                   className="text-xl text-gray-500 transition hover:text-pink-600"
                 >
                   <FaFacebook />
-                </a>
+                </ExternalLink>
               </div>
 
               {/* Contact Email */}

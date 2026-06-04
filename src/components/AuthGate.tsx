@@ -1,8 +1,9 @@
 'use client';
 import { ReactNode } from 'react';
-import { GoogleAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
+import { signInAnonymously } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useAuthUid } from '@/lib/useAuthUid';
+import { signInWithGoogleCompatible } from '@/lib/auth/googleSignIn';
 
 export default function AuthGate({ children }: { children: ReactNode }) {
   const { uid, loading } = useAuthUid();
@@ -17,7 +18,15 @@ export default function AuthGate({ children }: { children: ReactNode }) {
         <div className="flex gap-2">
           <button
             className="rounded border px-3 py-1.5 text-sm"
-            onClick={async () => { try { await signInWithPopup(auth, new GoogleAuthProvider()); } catch (e) { console.error(e); } }}>
+            onClick={async () => {
+              try {
+                await signInWithGoogleCompatible(auth);
+              } catch (e) {
+                if (process.env.NODE_ENV === 'development') {
+                  console.warn('[AuthGate] Google sign-in failed', e);
+                }
+              }
+            }}>
             Sign in with Google
           </button>
           <button

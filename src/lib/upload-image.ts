@@ -1,14 +1,44 @@
 import { getAuth } from 'firebase/auth';
 
+export const UPLOAD_SIGN_IN_MESSAGE =
+  'Please sign in again before uploading a photo.';
+
+/** User-facing message for avatar/API upload failures. */
+export function mapUploadApiError(err: unknown, httpStatus?: number): string {
+  if (httpStatus === 401) return UPLOAD_SIGN_IN_MESSAGE;
+  if (err instanceof Error) {
+    if (err.message === UPLOAD_SIGN_IN_MESSAGE) return err.message;
+    const lower = err.message.toLowerCase();
+    if (
+      lower.includes('unauthorized') ||
+      lower.includes('id token') ||
+      lower.includes('not signed in')
+    ) {
+      return UPLOAD_SIGN_IN_MESSAGE;
+    }
+    return err.message;
+  }
+  return 'Upload failed. Please try again.';
+}
+
+async function requireCurrentUserForUpload() {
+  const auth = getAuth();
+  await auth.authStateReady();
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error(UPLOAD_SIGN_IN_MESSAGE);
+  }
+  return user;
+}
+
 export async function uploadViaApi(params: {
   file: File;
   scope: 'profile' | 'listing';
   id: string; // uid or listingId
   dir?: string; // optional subdir for listing
 }) {
-  const auth = getAuth();
-  const user = auth.currentUser;
-  const token = user ? await user.getIdToken() : null;
+  const user = await requireCurrentUserForUpload();
+  const token = await user.getIdToken();
 
   const form = new FormData();
   form.set('file', params.file);
@@ -19,14 +49,33 @@ export async function uploadViaApi(params: {
   const res = await fetch('/api/upload', {
     method: 'POST',
     headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      Authorization: `Bearer ${token}`,
     },
     body: form,
   });
-  const data = await res.json();
-  if (!data.ok) {
-    console.error('[upload failed]', data);
-    throw new Error(data.message || 'Upload failed');
+  const data = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    error?: string;
+    message?: string;
+    url?: string;
+    path?: string;
+  };
+
+  if (!res.ok || !data.ok) {
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.warn('[uploadViaApi] failed', res.status, data);
+    }
+    if (res.status === 401) {
+      throw new Error(UPLOAD_SIGN_IN_MESSAGE);
+    }
+    throw new Error(
+      typeof data.error === 'string'
+        ? data.error
+        : typeof data.message === 'string'
+          ? data.message
+          : 'Upload failed'
+    );
   }
   console.log('[upload success]', data.url);
   return data as { ok: true; path: string; url: string };

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">BeautyReviewty</string>
+    <string name="title_activity_main">BeautyReviewty</string>
+    <string name="package_name">com.beautyreviewty.app</string>
+    <string name="custom_url_scheme">com.beautyreviewty.app</string>
+</resources>

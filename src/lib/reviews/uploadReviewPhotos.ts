@@ -1,12 +1,14 @@
 import { auth, storage } from '@/lib/firebaseClient';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { prepareReviewPhotoFile } from '@/lib/images/prepareReviewPhoto';
 
 export async function uploadReviewPhotos(files: File[], opts?: { masterId?: string }) {
   const user = auth.currentUser;
   if (!user) throw new Error('Not signed in');
 
   const urls: string[] = [];
-  for (const file of (files ?? []).slice(0, 3)) {
+  for (const raw of (files ?? []).slice(0, 3)) {
+    const file = await prepareReviewPhotoFile(raw);
     const safe = (file.name || 'photo').replace(/[^\w.-]+/g, '_');
     // Путь совместим с правилами из п.1
     const parts = ['reviews'];
@@ -15,8 +17,7 @@ export async function uploadReviewPhotos(files: File[], opts?: { masterId?: stri
     const fullPath = parts.join('/');
 
     const snap = await uploadBytes(ref(storage, fullPath), file, {
-      // мягко проставляем тип; правила его не требуют, чтобы HEIC не резалось
-      contentType: file.type || undefined,
+      contentType: file.type || 'image/jpeg',
     });
     const url = await getDownloadURL(snap.ref);
     urls.push(url);

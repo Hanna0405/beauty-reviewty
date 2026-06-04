@@ -22,6 +22,29 @@
  
  /* smooth rendering */
  --tw-shadow-color: 233 30 99;
+
+ /* iOS/Android safe areas (WebView / notch) */
+ --safe-area-inset-top: env(safe-area-inset-top, 0px);
+ --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+ --safe-area-inset-left: env(safe-area-inset-left, 0px);
+ --safe-area-inset-right: env(safe-area-inset-right, 0px);
+}
+
+@layer utilities {
+  .pt-safe {
+    padding-top: var(--safe-area-inset-top);
+  }
+  .pb-safe {
+    padding-bottom: var(--safe-area-inset-bottom);
+  }
+  /* fixed bottom-4 + home indicator */
+  .fixed-bottom-safe-4 {
+    bottom: calc(1rem + var(--safe-area-inset-bottom));
+  }
+  /* sticky footer with p-4 equivalent + safe area */
+  .pb-4-safe {
+    padding-bottom: calc(1rem + var(--safe-area-inset-bottom));
+  }
 }
 
 /* Тёмная тема (если понадобится) */
@@ -258,6 +281,7 @@ body, p, li, input, select, button {
   background: white;
   border-top: 1px solid var(--pink-light);
   padding: 1rem;
+  padding-bottom: calc(1rem + var(--safe-area-inset-bottom));
   margin: 0 -1rem -1rem -1rem;
   z-index: 10;
  }

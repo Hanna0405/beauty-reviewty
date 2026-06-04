@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { signOut } from "firebase/auth";
 import { requireAuth, requireDb } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 
@@ -48,6 +49,9 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [isAdminAccount, setIsAdminAccount] = useState(false);
 
   // Off days management
   const [newOffDay, setNewOffDay] = useState("");
@@ -126,7 +130,8 @@ export default function SettingsPage() {
           };
 
           setSettings(loaded);
-          
+          setIsAdminAccount(data.role === "admin");
+
           // Sync working hours to local state for form inputs
           if (loaded.workingHours) {
             setStartTime(loaded.workingHours.start || "09:00");
@@ -210,6 +215,42 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleDeleteAccount() {
+    if (!user || isAdminAccount) return;
+
+    setIsDeletingAccount(true);
+    setError(null);
+
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/account/delete", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || "Failed to delete account");
+      }
+
+      setShowDeleteModal(false);
+      await signOut(auth);
+      window.location.href = "/";
+    } catch (err: unknown) {
+      const firebaseErr = err as { code?: string; message?: string };
+      if (firebaseErr?.code === "auth/requires-recent-login") {
+        setError(
+          "For security, please sign out, sign in again, then try deleting your account."
+        );
+      } else {
+        setError(
+          firebaseErr?.message || "Failed to delete account. Please try again."
+        );
+      }
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  }
 
   if (!uid) {
     return (
@@ -497,8 +538,84 @@ export default function SettingsPage() {
               </button>
             </div>
           </form>
+
+          <div className="bg-white rounded-xl shadow-sm border border-red-100 p-5 space-y-3">
+            <h2 className="text-lg font-semibold text-red-900/90">Delete account</h2>
+            <p className="text-sm text-gray-600">
+              Permanently delete your account. This action cannot be undone.
+            </p>
+            <p className="text-xs text-gray-500">
+              Need help? Contact{" "}
+              <a
+                href="mailto:hello@beautyreviewty.app"
+                className="text-pink-600 hover:text-pink-700 hover:underline"
+              >
+                hello@beautyreviewty.app
+              </a>
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowDeleteModal(true)}
+              disabled={isDeletingAccount || isAdminAccount}
+              className="rounded-md border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Delete account
+            </button>
+            {isAdminAccount ? (
+              <p className="text-xs text-gray-500">
+                Admin accounts cannot be deleted here.
+              </p>
+            ) : null}
+          </div>
         </div>
       )}
+
+      {showDeleteModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            aria-label="Close"
+            onClick={() => {
+              if (!isDeletingAccount) setShowDeleteModal(false);
+            }}
+          />
+          <div
+            className="relative w-full max-w-sm rounded-xl bg-white p-5 shadow-lg ring-1 ring-red-100"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-account-title"
+          >
+            <h3
+              id="delete-account-title"
+              className="text-lg font-semibold text-gray-900"
+            >
+              Delete account?
+            </h3>
+            <p className="mt-2 text-sm text-gray-600">
+              This action cannot be undone.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={isDeletingAccount}
+                className="rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={isDeletingAccount}
+                className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {isDeletingAccount ? "Deleting…" : "Delete account"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -10,6 +10,7 @@ import React, {
 import type { User } from "firebase/auth";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { app } from "@/lib/firebase";
+import { getGoogleRedirectResultOnce } from "@/lib/auth/googleSignIn";
 
 const isServer = typeof window === "undefined";
 
@@ -34,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
  useEffect(() => {
  const auth = getAuth(app);
+ void getGoogleRedirectResultOnce(auth);
  const unsub = onAuthStateChanged(auth, (u) => {
  setUser(u ?? null);
  setLoading(false);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { uploadImage } from "@/lib/upload-image";
+import { mapUploadApiError, uploadImage } from "@/lib/upload-image";
 import { convertToUploadableImage } from "@/lib/imageConversion";
 import { compressImage } from "@/lib/imageCompress";
 
@@ -19,12 +19,14 @@ export default function MasterAvatarInput({
   const uploadLockRef = useRef(false);
   const [isUploading, setIsUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   async function handleFile(file: File) {
     // Double-click protection: ref guard at the very top
     if (uploadLockRef.current) return;
     uploadLockRef.current = true;
     setIsUploading(true);
+    setErrorMessage(null);
 
     try {
       // Check if file is already browser-readable (no conversion needed)
@@ -83,23 +85,11 @@ export default function MasterAvatarInput({
       // Upload using server-side API
       const { url } = await uploadImage(uploadFile, filename);
       onUploaded(url);
-    } catch (err: any) {
-      console.error("[MasterAvatarInput] Upload error:", {
-        raw: err,
-        typeof: typeof err,
-        jsonStringified: (() => {
-          try {
-            return JSON.stringify(err);
-          } catch {
-            return "[JSON.stringify failed]";
-          }
-        })(),
-        name: err?.name,
-        message: err?.message,
-        code: err?.code,
-        stack: err?.stack,
-        keys: err && typeof err === "object" ? Object.keys(err) : undefined,
-      });
+    } catch (err: unknown) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn("[MasterAvatarInput] Upload error:", err);
+      }
+      setErrorMessage(mapUploadApiError(err));
       setPreview(null);
     } finally {
       uploadLockRef.current = false;
@@ -150,6 +140,11 @@ export default function MasterAvatarInput({
               Uploading…
             </p>
           )}
+          {errorMessage ? (
+            <p className="text-sm text-red-600 break-words whitespace-normal" role="alert">
+              {errorMessage}
+            </p>
+          ) : null}
           {preview && (
             <button
               type="button"

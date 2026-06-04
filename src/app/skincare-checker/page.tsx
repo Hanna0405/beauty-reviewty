@@ -10,6 +10,11 @@ import {
   shouldShowSkincareLuckyMoment,
 } from "@/lib/skincare/luckyMoment";
 import { currentPathname, trackEvent } from "@/lib/analytics/trackEvent";
+import {
+  prepareOcrSourceFile,
+  PHOTO_PROCESS_ERROR,
+} from "@/lib/images/prepareReviewPhoto";
+import { ExternalLink } from "@/components/links/ExternalLink";
 
 const SKIN_TYPES = [
   "Dry",
@@ -398,15 +403,13 @@ const AlternativeCard = memo(function AlternativeCard({ alt }: { alt: Alternativ
         {alt.priceTier}
       </span>
       {alt.productUrl?.trim() ? (
-        <a
+        <ExternalLink
           href={alt.productUrl}
-          target="_blank"
-          rel="noopener noreferrer"
           onClick={() => trackBetterAlternativeClick(alt)}
           className="mt-2 flex w-full items-center justify-center rounded-md border border-rose-200/60 bg-rose-50/50 py-1.5 text-center text-[11px] font-semibold text-rose-800 shadow-sm hover:bg-rose-100/80"
         >
           View
-        </a>
+        </ExternalLink>
       ) : (
         <button
           type="button"
@@ -419,6 +422,14 @@ const AlternativeCard = memo(function AlternativeCard({ alt }: { alt: Alternativ
     </article>
   );
 });
+
+function AffiliateProductDisclosure() {
+  return (
+    <p className="mt-0.5 text-[9px] leading-snug text-rose-400/70">
+      Some links may be affiliate links.
+    </p>
+  );
+}
 
 function AlternativeCardSkeleton() {
   return (
@@ -642,6 +653,12 @@ export default function SkincareCheckerPage() {
     };
   }, [analysis, alternativesLoading, alternativesError, alternativesItems]);
 
+  const showAffiliateDisclosure = useMemo(
+    () =>
+      alternativesSection.items.some((alt) => Boolean(alt.productUrl?.trim())),
+    [alternativesSection.items]
+  );
+
   const scoreForLine = useMemo(() => {
     if (!lastScoredFor) {
       return null;
@@ -763,9 +780,24 @@ export default function SkincareCheckerPage() {
     ocrInFlightRef.current = true;
 
     try {
-      const optimized = await optimizeImageForOcr(file);
+      let prepared: File;
+      try {
+        prepared = await prepareOcrSourceFile(file);
+      } catch (err) {
+        setOcrErrorText(
+          err instanceof Error ? err.message : PHOTO_PROCESS_ERROR
+        );
+        return;
+      }
+
+      const optimized = await optimizeImageForOcr(prepared);
       const formData = new FormData();
-      formData.append("image", optimized, file.name);
+      const uploadName = prepared.name.replace(/\.[^.]+$/, "") + ".jpg";
+      formData.append(
+        "image",
+        optimized,
+        optimized instanceof File ? optimized.name : uploadName
+      );
 
       const res = await fetch("/api/skincare-ocr", {
         method: "POST",
@@ -788,7 +820,10 @@ export default function SkincareCheckerPage() {
       setErrorText("");
       setOcrErrorText("");
       setOcrNotice(OCR_SUCCESS_MESSAGE);
-    } catch {
+    } catch (err) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn("[skincare-checker] OCR photo pipeline failed", err);
+      }
       setOcrErrorText(OCR_UNREADABLE_MESSAGE);
     } finally {
       setOcrLoading(false);
@@ -1270,6 +1305,7 @@ export default function SkincareCheckerPage() {
 
           <div className="w-full min-w-0 max-w-full">
             <h3 className="text-base font-semibold text-rose-900">Better alternatives</h3>
+            {showAffiliateDisclosure ? <AffiliateProductDisclosure /> : null}
             {alternativesSection.detectedLine ? (
               <p className="mt-1 text-[10px] font-normal leading-snug text-rose-400/90">
                 {alternativesSection.detectedLine}

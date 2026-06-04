@@ -6,11 +6,11 @@ import {
  signInWithEmailAndPassword,
  createUserWithEmailAndPassword,
  GoogleAuthProvider,
- signInWithPopup,
  updateProfile,
  type User,
 } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { signInWithGoogleCompatible } from "@/lib/auth/googleSignIn";
 
 function mapAuthError(e: any): string {
  const c = e?.code ?? "";
@@ -63,11 +63,12 @@ export async function signUpEmail(name: string, email: string, password: string,
 export async function signInGoogle(role: "client"|"master" = "client") {
  const provider = new GoogleAuthProvider();
  try {
- const { user } = await signInWithPopup(requireAuth(), provider);
+ const result = await signInWithGoogleCompatible(requireAuth(), provider);
+ if (result.kind === "redirect-started") return null;
+ const { user } = result.credential;
  await ensureUserDoc(user, role);
  return user;
  } catch (e: any) {
- // If popup blocked, surface mapped error
  throw friendlyAuthError(e);
  }
 }

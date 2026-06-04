@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import Stars from '@/app/masters/components/Stars';
+import { resolveMasterAvatarSrc } from '@/lib/avatar/avatarDisplayUrl';
 
 type Props = { master: any; rating?: number | null; reviewCount?: number | null };
 
@@ -22,10 +23,7 @@ function formatTagList(items?: any[], fallback?: any[]): string {
 }
 
 export default function MasterCard({ master, rating, reviewCount }: Props) {
-  const avatarSrc =
-    typeof master?.avatarUrl === 'string' && master.avatarUrl.trim()
-      ? master.avatarUrl.trim()
-      : null;
+  const avatarSrc = resolveMasterAvatarSrc(master);
 
   return (
     <div className="flex w-full max-w-full min-w-0 gap-3 overflow-hidden rounded-lg border p-3">

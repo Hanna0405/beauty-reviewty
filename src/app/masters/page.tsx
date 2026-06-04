@@ -27,6 +27,10 @@ import {
   isApprovedReviewStatus,
 } from "@/lib/reviews/masterReviewFilters";
 import { filterByCityThenNeighborhood } from "@/lib/neighborhood/filter";
+import {
+  MASTERS_DATA_STALE_KEY,
+  MASTER_AVATAR_UPDATED_EVENT,
+} from "@/lib/profile/persistMasterAvatar";
 
 const MastersMapNoSSR = dynamicImport(() => import('@/components/mapComponents').then(m => m.MastersMap), { ssr: false });
 
@@ -246,6 +250,36 @@ function PageContent() {
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [initialLoad, reloadPublicData]);
+
+  // Re-fetch after avatar update from dashboard (same session navigation)
+  useEffect(() => {
+    if (initialLoad) return;
+
+    const refreshIfStale = () => {
+      try {
+        if (!sessionStorage.getItem(MASTERS_DATA_STALE_KEY)) return;
+        sessionStorage.removeItem(MASTERS_DATA_STALE_KEY);
+        reloadPublicData().catch((error) => {
+          console.warn("[Masters] Refresh after avatar update failed:", error);
+        });
+      } catch {
+        reloadPublicData().catch(() => {});
+      }
+    };
+
+    refreshIfStale();
+
+    const onAvatarUpdated = () => {
+      reloadPublicData().catch((error) => {
+        console.warn("[Masters] Refresh on avatar event failed:", error);
+      });
+    };
+
+    window.addEventListener(MASTER_AVATAR_UPDATED_EVENT, onAvatarUpdated);
+    return () => {
+      window.removeEventListener(MASTER_AVATAR_UPDATED_EVENT, onAvatarUpdated);
+    };
   }, [initialLoad, reloadPublicData]);
 
   const mergeUniqueById = useCallback((prev: any[], next: any[]) => {
@@ -734,7 +768,7 @@ function PageContent() {
                 showName
               />
             </div>
-            <div className="sticky bottom-0 border-t bg-pink-50 p-4">
+            <div className="sticky bottom-0 border-t bg-pink-50 px-4 pt-4 pb-4-safe">
             <button
                 type="button"
                 onClick={() => setShowFiltersMobile(false)}

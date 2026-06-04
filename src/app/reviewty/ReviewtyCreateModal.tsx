@@ -24,6 +24,7 @@ import {
   type MasterSearchOption,
 } from "@/lib/reviewty/masterSearchOptions";
 import { fireConfettiBurst } from "@/lib/ui/confetti";
+import { prepareReviewPhotoFile } from "@/lib/images/prepareReviewPhoto";
 
 function slugifyCityName(name: string) {
   return name
@@ -182,13 +183,15 @@ export default function ReviewtyCreateModal({
 
     for (const file of files) {
       try {
-        const result = await upload(file);
+        const prepared = await prepareReviewPhotoFile(file);
+        const result = await upload(prepared);
         uploadedPhotos.push(result);
         console.log("[upload success]", result.url);
-      } catch (err: any) {
-        console.error("[upload failed]", err);
+      } catch (err: unknown) {
+        if (process.env.NODE_ENV === "development") {
+          console.warn("[ReviewtyCreateModal] photo prepare/upload failed", err);
+        }
         // Continue to next file - don't throw
-        // Individual upload errors are logged but don't abort the review submission
       }
     }
 

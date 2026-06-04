@@ -92,6 +92,7 @@ function mergeMasterWithProfile(item: any, profile: any) {
     displayName: profile?.displayName || profile?.name || item.displayName,
     avatarUrl: profileAvatar,
     photoURL: profileAvatar,
+    avatarUpdatedAt: profile?.avatarUpdatedAt ?? profile?.updatedAt ?? item.avatarUpdatedAt,
     city: profile?.city ?? item.city,
     cityName: profile?.cityName ?? item.cityName,
     services:

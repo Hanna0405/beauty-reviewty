@@ -1,9 +1,6 @@
 "use client";
 
 import {
- GoogleAuthProvider,
- signInWithPopup,
- signInWithRedirect,
  signInWithEmailAndPassword,
  createUserWithEmailAndPassword,
  browserLocalPersistence,
@@ -15,26 +12,13 @@ import {
  User,
 } from "firebase/auth";
 import { auth, googleProvider, requireAuth } from "./firebase.client";
-// При необходимости:
-// googleProvider.setCustomParameters({ prompt: "select_account" });
+import {
+  signInWithGoogleCompatible,
+  type GoogleSignInResult,
+} from "./auth/googleSignIn";
 
-export async function signInWithGoogle(): Promise<void> {
- await setPersistence(auth, browserLocalPersistence);
- try {
- await signInWithPopup(auth, googleProvider);
- } catch (err: any) {
- const code = err?.code ?? "";
- const popupProblem =
- code.includes("popup") ||
- code.includes("blocked") ||
- code.includes("cancelled") ||
- code.includes("unavailable");
- if (popupProblem) {
- await signInWithRedirect(auth, googleProvider);
- return;
- }
- throw err;
- }
+export async function signInWithGoogle(): Promise<GoogleSignInResult> {
+ return signInWithGoogleCompatible(auth, googleProvider);
 }
 
 export async function signInWithEmail(email: string, password: string) {

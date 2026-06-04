@@ -19,10 +19,12 @@ import { Chips } from "./UiChips";
 import MapPreview from "./MapPreview";
 import PublicListingCard from "@/app/master/PublicListingCard";
 import ShareIconButton from "@/components/ShareIconButton";
+import { ExternalLink } from "@/components/links/ExternalLink";
 import Stars from "@/app/masters/components/Stars";
 import { ReviewsSection } from "@/components/ReviewsSection";
 import { mapServerReviewToClient } from "@/lib/reviewty/mapServerReviewToClient";
 import type { ReviewDoc } from "@/lib/reviews/types";
+import { resolveMasterAvatarSrc } from "@/lib/avatar/avatarDisplayUrl";
 
 type Props = {
   id: string;
@@ -318,11 +320,10 @@ export default function MasterProfileClient({
         <div className="flex items-center gap-4">
           {(() => {
             const avatar =
-              master.avatarUrl ||
-              master.photoURL ||
-              master.imageUrl ||
-              master.imageURL ||
-              master.image ||
+              resolveMasterAvatarSrc(master) ||
+              (typeof master.imageUrl === "string" && master.imageUrl.trim()) ||
+              (typeof master.imageURL === "string" && master.imageURL.trim()) ||
+              (typeof master.image === "string" && master.image.trim()) ||
               "";
             return avatar ? (
               <img
@@ -376,34 +377,28 @@ export default function MasterProfileClient({
             </a>
           )}
           {links.whatsapp && (
-            <a
+            <ExternalLink
               href={links.whatsapp}
-              target="_blank"
-              rel="noopener noreferrer"
               className="rounded-lg border px-3 py-1.5 text-sm"
             >
               WhatsApp
-            </a>
+            </ExternalLink>
           )}
           {links.instagram && (
-            <a
+            <ExternalLink
               href={links.instagram}
-              target="_blank"
-              rel="noopener noreferrer"
               className="rounded-lg border px-3 py-1.5 text-sm"
             >
               Instagram
-            </a>
+            </ExternalLink>
           )}
           {links.website && (
-            <a
+            <ExternalLink
               href={links.website}
-              target="_blank"
-              rel="noopener noreferrer"
               className="rounded-lg border px-3 py-1.5 text-sm"
             >
               Website
-            </a>
+            </ExternalLink>
           )}
         </div>
       </div>

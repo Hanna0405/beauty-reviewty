@@ -44,6 +44,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
      return;
    }
 
+   const { getGoogleRedirectResultOnce } = await import("@/lib/auth/googleSignIn");
+   void getGoogleRedirectResultOnce(authInstance);
+
    unsub = onAuthStateChanged(authInstance, (u) => {
      if (mounted) {
        setUser(u);

@@ -15,6 +15,8 @@ import type { TagOption } from "@/types/tags";
 import {
   MASTER_LISTING_NEW_PATH,
 } from "@/lib/masterOnboarding";
+import { withAvatarCacheBust as bustAvatarUrl } from "@/lib/avatar/avatarDisplayUrl";
+import { persistMasterAvatarAfterUpload } from "@/lib/profile/persistMasterAvatar";
 
 type MasterProfile = {
  uid: string;
@@ -169,9 +171,7 @@ function EditProfilePageContent() {
  }
 
  function withAvatarCacheBust(url?: string | null, version?: number | string) {
- if (!url) return "";
- const suffix = `${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(String(version ?? Date.now()))}`;
- return `${url}${suffix}`;
+ return bustAvatarUrl(url, version ?? Date.now());
  }
 
  function validate(p: MasterProfile, cityObj: CityNorm | null, svc: TagOption[], lng: TagOption[]) {
@@ -209,6 +209,7 @@ function EditProfilePageContent() {
  displayName: form.displayName.trim(),
  phone: form.phone?.trim() || "",
  avatarUrl: form.avatarUrl || null,
+ photoURL: form.avatarUrl || null,
  socials: {
  instagram: form.socials?.instagram?.trim() || "",
  facebook: form.socials?.facebook?.trim() || "",
@@ -228,6 +229,7 @@ function EditProfilePageContent() {
   name: form.displayName.trim(),
   displayName: form.displayName.trim(),
   avatarUrl: form.avatarUrl || null,
+  photoURL: form.avatarUrl || null,
   role: "master",
   isMaster: true,
   deleted: false, // Restore soft-deleted profile
@@ -389,9 +391,17 @@ function cleanPayload(data: any): any {
  <MasterAvatarInput
  uid={uid}
  currentUrl={withAvatarCacheBust(form.avatarUrl, avatarDisplayVersion)}
- onUploaded={(url) => {
+ onUploaded={async (url) => {
  setField("avatarUrl", url);
  setAvatarDisplayVersion(Date.now());
+ try {
+  await persistMasterAvatarAfterUpload(uid, url);
+ } catch (err) {
+  if (process.env.NODE_ENV === "development") {
+   console.warn("[Profile Edit] Avatar persist failed:", err);
+  }
+  setError("Avatar uploaded but could not sync to your public profile. Save the form or try again.");
+ }
  }}
  />
 

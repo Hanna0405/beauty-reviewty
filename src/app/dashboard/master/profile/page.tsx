@@ -8,6 +8,8 @@ import { ref, listAll, deleteObject } from "firebase/storage";
 
 import { requireDb, requireStorage } from "@/lib/firebase";
 import { useCurrentUserOrRedirect } from "@/hooks/useCurrentUserOrRedirect";
+import { ExternalLink } from "@/components/links/ExternalLink";
+import { withAvatarCacheBust } from "@/lib/avatar/avatarDisplayUrl";
 
 type MasterProfile = {
  uid: string;
@@ -167,14 +169,12 @@ export default function MasterProfilePage() {
   ? profile.languageNames
   : profile?.languages || [];
 
- const avatarVersion =
-  (profile as any)?.updatedAt?.seconds ||
-  (profile as any)?.updatedAt ||
-  Date.now();
  const avatarDisplayUrl = profile?.avatarUrl
-  ? `${profile.avatarUrl}${profile.avatarUrl.includes("?") ? "&" : "?"}v=${encodeURIComponent(
-      String(avatarVersion)
-    )}`
+  ? withAvatarCacheBust(
+      profile.avatarUrl,
+      (profile as { avatarUpdatedAt?: unknown; updatedAt?: unknown })
+        .avatarUpdatedAt ?? profile.updatedAt
+    )
   : null;
 
  // IMPORTANT: fix 404 — go to /master/{uid}
@@ -294,36 +294,30 @@ export default function MasterProfilePage() {
    </h3>
    <div className="space-y-2 text-sm">
    {profile?.socials?.instagram ? (
-   <a
+   <ExternalLink
    href={profile.socials.instagram}
-   target="_blank"
-   rel="noreferrer"
    className="block text-pink-600 hover:underline"
    >
    Instagram
-   </a>
+   </ExternalLink>
    ) : (
    <p className="text-gray-400 text-sm">No Instagram added</p>
    )}
    {profile?.socials?.facebook ? (
-   <a
+   <ExternalLink
    href={profile.socials.facebook}
-   target="_blank"
-   rel="noreferrer"
    className="block text-pink-600 hover:underline"
    >
    Facebook
-   </a>
+   </ExternalLink>
    ) : null}
    {profile?.socials?.website ? (
-   <a
+   <ExternalLink
    href={profile.socials.website}
-   target="_blank"
-   rel="noreferrer"
    className="block text-pink-600 hover:underline"
    >
    Website
-   </a>
+   </ExternalLink>
    ) : null}
    </div>
   </div>
