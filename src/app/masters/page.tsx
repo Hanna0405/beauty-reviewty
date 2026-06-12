@@ -35,7 +35,101 @@ import {
 const MastersMapNoSSR = dynamicImport(() => import('@/components/mapComponents').then(m => m.MastersMap), { ssr: false });
 
 const MASTERS_PAGE_SIZE = 60;
-const LISTINGS_PAGE_SIZE = 500;
+const LISTINGS_PAGE_SIZE = 60;
+const INITIAL_LOAD_TIMEOUT_MS = 25000;
+
+function withLoadTimeout<T>(
+  promise: Promise<T>,
+  label: string,
+  ms = INITIAL_LOAD_TIMEOUT_MS
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`[Masters] ${label} timed out after ${ms}ms`));
+    }, ms);
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
+type MastersLoadResult = Awaited<ReturnType<typeof fetchMastersOnce>>;
+type ListingsLoadResult = Awaited<ReturnType<typeof fetchListingsOnce>>;
+
+function applyMastersResult(
+  mastersResult: MastersLoadResult,
+  setters: {
+    setAllMasters: (items: any[]) => void;
+    setMastersCursor: (cursor: DocumentData | undefined) => void;
+    setHasMoreMasters: (value: boolean) => void;
+  }
+) {
+  setters.setAllMasters(mastersResult.items);
+  setters.setMastersCursor(mastersResult.nextCursor);
+  setters.setHasMoreMasters(
+    mastersResult.items.length >= MASTERS_PAGE_SIZE &&
+      !!mastersResult.nextCursor
+  );
+}
+
+function applyListingsResult(
+  listingsResult: ListingsLoadResult,
+  setters: {
+    setAllListings: (items: any[]) => void;
+    setListingsCursor: (cursor: DocumentData | undefined) => void;
+    setHasMoreListings: (value: boolean) => void;
+  }
+) {
+  setters.setAllListings(listingsResult.items);
+  setters.setListingsCursor(listingsResult.nextCursor);
+  setters.setHasMoreListings(
+    listingsResult.fetchedCount >= LISTINGS_PAGE_SIZE &&
+      !!listingsResult.nextCursor
+  );
+}
+
+async function loadMastersAndListingsSafely() {
+  const [mastersSettled, listingsSettled] = await Promise.allSettled([
+    withLoadTimeout(fetchMastersOnce({}, MASTERS_PAGE_SIZE), "masters fetch"),
+    withLoadTimeout(fetchListingsOnce({}, LISTINGS_PAGE_SIZE), "listings fetch"),
+  ]);
+
+  const errors: string[] = [];
+  let mastersResult: MastersLoadResult | null = null;
+  let listingsResult: ListingsLoadResult | null = null;
+
+  if (mastersSettled.status === "fulfilled") {
+    mastersResult = mastersSettled.value;
+  } else {
+    console.error("[Masters] Failed to load masters:", mastersSettled.reason);
+    errors.push("masters");
+  }
+
+  if (listingsSettled.status === "fulfilled") {
+    listingsResult = listingsSettled.value;
+  } else {
+    console.error("[Masters] Failed to load listings:", listingsSettled.reason);
+    errors.push("listings");
+  }
+
+  let loadError: string | null = null;
+  if (errors.length === 2) {
+    loadError =
+      "Unable to load masters and listings. Please check your connection and refresh the page.";
+  } else if (errors.includes("masters")) {
+    loadError = "Unable to load masters right now. Listings are shown below.";
+  } else if (errors.includes("listings")) {
+    loadError = "Unable to load listings right now. Masters are shown below.";
+  }
+
+  return { mastersResult, listingsResult, loadError };
+}
 
 function isFirestoreDb(value: unknown): value is Firestore {
   return !!value && typeof value === "object" && "_databaseId" in (value as Record<string, unknown>);
@@ -65,6 +159,7 @@ function PageContent() {
   
   const [loading, setLoading] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true); // Track initial data load
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showMap, setShowMap] = useState(true); // for desktop toggle
   const [showFiltersMobile, setShowFiltersMobile] = useState(false); // mobile-only: filters panel
   const [showMapModal, setShowMapModal] = useState(false); // mobile-only: map modal
@@ -182,21 +277,26 @@ function PageContent() {
   }, [selectedCity]);
 
   const reloadPublicData = useCallback(async () => {
-    const [mastersResult, listingsResult] = await Promise.all([
-      fetchMastersOnce({}, MASTERS_PAGE_SIZE),
-      fetchListingsOnce({}, LISTINGS_PAGE_SIZE),
-    ]);
-    setAllMasters(mastersResult.items);
-    setAllListings(listingsResult.items);
-    setMastersCursor(mastersResult.nextCursor);
-    setListingsCursor(listingsResult.nextCursor);
-    setHasMoreMasters(
-      mastersResult.items.length >= MASTERS_PAGE_SIZE && !!mastersResult.nextCursor
-    );
-    setHasMoreListings(
-      listingsResult.fetchedCount >= LISTINGS_PAGE_SIZE &&
-        !!listingsResult.nextCursor
-    );
+    const { mastersResult, listingsResult, loadError: nextLoadError } =
+      await loadMastersAndListingsSafely();
+
+    if (mastersResult) {
+      applyMastersResult(mastersResult, {
+        setAllMasters,
+        setMastersCursor,
+        setHasMoreMasters,
+      });
+    }
+
+    if (listingsResult) {
+      applyListingsResult(listingsResult, {
+        setAllListings,
+        setListingsCursor,
+        setHasMoreListings,
+      });
+    }
+
+    setLoadError(nextLoadError);
   }, []);
 
   // Initial data load on mount (first batch only)
@@ -204,39 +304,56 @@ function PageContent() {
     let alive = true;
     (async () => {
       setLoading(true);
+      setLoadError(null);
       try {
-        const [mastersResult, listingsResult] = await Promise.all([
-          fetchMastersOnce({}, MASTERS_PAGE_SIZE),
-          fetchListingsOnce({}, LISTINGS_PAGE_SIZE),
-        ]);
+        const { mastersResult, listingsResult, loadError: nextLoadError } =
+          await loadMastersAndListingsSafely();
         if (!alive) return;
-        setAllMasters(mastersResult.items);
-        setAllListings(listingsResult.items);
-        setMastersCursor(mastersResult.nextCursor);
-        setListingsCursor(listingsResult.nextCursor);
-        setHasMoreMasters(
-          mastersResult.items.length >= MASTERS_PAGE_SIZE &&
-            !!mastersResult.nextCursor
-        );
-        setHasMoreListings(
-          listingsResult.fetchedCount >= LISTINGS_PAGE_SIZE &&
-            !!listingsResult.nextCursor
-        );
-        setInitialLoad(false);
+
+        if (mastersResult) {
+          applyMastersResult(mastersResult, {
+            setAllMasters,
+            setMastersCursor,
+            setHasMoreMasters,
+          });
+        } else {
+          setAllMasters([]);
+          setHasMoreMasters(false);
+        }
+
+        if (listingsResult) {
+          applyListingsResult(listingsResult, {
+            setAllListings,
+            setListingsCursor,
+            setHasMoreListings,
+          });
+        } else {
+          setAllListings([]);
+          setHasMoreListings(false);
+        }
+
+        setLoadError(nextLoadError);
       } catch (error) {
-        console.warn('[Masters] Initial load error:', error);
+        console.error("[Masters] Initial load error:", error);
         if (alive) {
           setAllMasters([]);
           setAllListings([]);
           setHasMoreMasters(false);
           setHasMoreListings(false);
-          setInitialLoad(false);
+          setLoadError(
+            "Unable to load masters and listings. Please check your connection and refresh the page."
+          );
         }
       } finally {
-        if (alive) setLoading(false);
+        if (alive) {
+          setInitialLoad(false);
+          setLoading(false);
+        }
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, []);
 
   // Refresh when user returns to the tab (keeps public view in sync with dashboard)
@@ -668,10 +785,19 @@ function PageContent() {
           </div>
 
           {/* Results */}
+          {loadError ? (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {loadError}
+            </div>
+          ) : null}
           {loading ? (
             <div className="py-8 text-center">Loading…</div>
           ) : !hasResults ? (
-            <div className="py-8 text-center text-gray-500">No matches for selected filters.</div>
+            <div className="py-8 text-center text-gray-500">
+              {loadError
+                ? "No content could be loaded."
+                : "No matches for selected filters."}
+            </div>
           ) : (
             <div className="min-w-0 w-full max-w-full space-y-10">
               {/* Masters Section */}

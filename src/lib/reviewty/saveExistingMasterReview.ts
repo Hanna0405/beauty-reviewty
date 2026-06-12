@@ -68,6 +68,22 @@ export async function saveExistingMasterReview(
     collection: REVIEWS_COLLECTION,
   });
 
+  try {
+    await fetch("/api/reviewty/ensure-master-card", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        masterId,
+        masterName,
+        masterCity: selectedMaster.city || "",
+        masterServices: selectedMaster.services || [],
+        profileId: selectedMaster.profileId || masterId,
+      }),
+    });
+  } catch (err) {
+    console.error("[Reviewty] ensure-master-card API failed:", err);
+  }
+
   void triggerReviewNotificationEmail({
     masterUid: String(selectedMaster.uid || masterId).trim(),
     profilePathId: String(selectedMaster.profileId || masterId).trim(),
