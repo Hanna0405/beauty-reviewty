@@ -26,6 +26,7 @@ import {
 import { sortFeedCards } from "@/lib/reviewty/mapReviewToFeedCard";
 import { buildMasterPublicCardId } from "@/lib/reviewty/publicCardIds";
 import { isApprovedMasterReviewForFeed } from "@/lib/reviews/masterReviewFilters";
+import { dedupeMasterReviews } from "@/lib/reviews/dedupeMasterReviews";
 
 // Helper function to calculate stats from reviews
 function calcStats(reviews: any[]) {
@@ -461,7 +462,7 @@ export default function ReviewtyPage() {
 
       // Calculate stats for each card and merge into items
       const itemsWithStats = items.map((card) => {
-        const cardReviews = reviewsByCardId.get(card.id) || [];
+        const cardReviews = dedupeMasterReviews(reviewsByCardId.get(card.id) || []);
         const stats = calcStats(cardReviews);
 
         return {
