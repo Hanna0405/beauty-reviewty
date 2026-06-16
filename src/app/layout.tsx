@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
 
 import {
+  GoogleTagManagerLoader,
   GoogleTagManagerNoscript,
-  GoogleTagManagerScript,
-} from "@/components/analytics/GoogleTagManager";
+} from "@/components/analytics/GoogleTagManagerLoader";
+import { CapacitorStartup } from "@/components/capacitor/CapacitorStartup";
 
 import { AuthProvider } from "@/context/AuthContext";
 
@@ -72,11 +73,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head>
-        <GoogleTagManagerScript />
-      </head>
       <body>
         <GoogleTagManagerNoscript />
+        <GoogleTagManagerLoader />
+        <CapacitorStartup />
         <SwRegister />
         <InstallAppBanner />
         <AuthProvider>

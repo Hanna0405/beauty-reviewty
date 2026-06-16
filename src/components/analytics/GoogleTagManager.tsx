@@ -6,30 +6,22 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
 })(window,document,'script','dataLayer','${GTM_ID}');`;
 
-/**
- * Official GTM snippet as a native <script> in <head>.
- * Avoids next/script __next_s deferral so gtm.js runs on first HTML parse.
- */
-export function GoogleTagManagerScript() {
-  return (
-    <script
-      id="gtm-base"
-      dangerouslySetInnerHTML={{ __html: GTM_HEAD_SNIPPET }}
-    />
-  );
-}
+let gtmInjected = false;
 
-/** Official GTM noscript fallback — place immediately after opening <body>. */
-export function GoogleTagManagerNoscript() {
-  return (
-    <noscript>
-      <iframe
-        src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
-        height="0"
-        width="0"
-        style={{ display: "none", visibility: "hidden" }}
-        title="Google Tag Manager"
-      />
-    </noscript>
-  );
+/** Inject the official GTM bootstrap snippet once (safe to call repeatedly). */
+export function injectGoogleTagManager(): void {
+  if (typeof document === "undefined" || gtmInjected) {
+    return;
+  }
+
+  if (document.getElementById("gtm-base")) {
+    gtmInjected = true;
+    return;
+  }
+
+  const script = document.createElement("script");
+  script.id = "gtm-base";
+  script.text = GTM_HEAD_SNIPPET;
+  document.head.appendChild(script);
+  gtmInjected = true;
 }

@@ -2,9 +2,15 @@
 
 import { useEffect } from 'react';
 
+import { isCapacitorNativePlatform } from '@/lib/capacitor/platform';
+
 export function SwRegister() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    if (isCapacitorNativePlatform()) {
+      return;
+    }
 
     if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
       navigator.serviceWorker
