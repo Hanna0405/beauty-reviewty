@@ -1,11 +1,14 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import { getAdminDb } from "@/lib/firebaseAdmins";
 import PublicCardReviewFormClient from "@/components/reviewty/PublicCardReviewFormClient";
 import PhotoGallery from "@/components/reviewty/PhotoGallery";
 import { normalizePhotos } from "@/components/reviewty/getPhotoUrl";
 import PublicCardReviews from "@/components/review/PublicCardReviews";
+import { dedupeMasterReviews } from "@/lib/reviews/dedupeMasterReviews";
+import { resolveCardMasterProfileId } from "@/lib/reviewty/resolveCardMasterProfileId";
 import { loadPublicCard } from "./loadPublicCard";
 import { buildReviewtyPageMetadata } from "./buildReviewtyMetadata";
 
@@ -145,7 +148,9 @@ export default async function PublicCardPage({
     }
 
     // filter and sort
-    const filtered = all.filter((r) => r.rating);
+    const filtered = dedupeMasterReviews(
+      all.filter((r) => r.rating)
+    );
     filtered.sort((a, b) => {
       const ta = a.createdAt?.toMillis
         ? a.createdAt.toMillis()
@@ -165,55 +170,103 @@ export default async function PublicCardPage({
 
   // Get listingId from card data
   const listingId = data.listingId || data.masterListingId || data.listing?.id;
+  const masterProfileId = resolveCardMasterProfileId(data, cardId);
   const { reviews, avg, count } = await loadAllReviews(slug, listingId);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 space-y-6">
       {/* HEADER: name / rating / review count / location / badges */}
       <section className="bg-pink-50 border border-pink-100 rounded-lg p-4 shadow-sm">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-xl font-semibold text-gray-900 flex flex-wrap items-center gap-2">
-            {card.masterName}
-          </h1>
+        {masterProfileId ? (
+          <Link
+            href={`/master/${encodeURIComponent(masterProfileId)}`}
+            className="block no-underline text-inherit cursor-pointer hover:bg-pink-100/60 rounded-md -m-1 p-1 transition-colors"
+          >
+            <div className="flex flex-col gap-2">
+              <h1 className="text-xl font-semibold text-gray-900 flex flex-wrap items-center gap-2 hover:text-pink-700">
+                {card.masterName}
+              </h1>
 
-          <div className="flex flex-wrap items-center gap-2 text-sm text-gray-700">
-            <div className="flex items-center gap-2">
-              <span>{avg.toFixed(1)}</span>
-              <span className="text-sm text-gray-500">
-                • {count} review{count === 1 ? "" : "s"}
-              </span>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-gray-700">
+                <div className="flex items-center gap-2">
+                  <span>{avg.toFixed(1)}</span>
+                  <span className="text-sm text-gray-500">
+                    · {count} review{count === 1 ? "" : "s"}
+                  </span>
+                </div>
+
+                {card.cityDisplay && (
+                  <>
+                    <span className="text-gray-500">•</span>
+                    <span className="text-gray-700">{card.cityDisplay}</span>
+                  </>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2 text-xs">
+                {card.serviceKeys.map((srv, i) => (
+                  <span
+                    key={`srv-${i}`}
+                    className="inline-block rounded-full bg-pink-100 text-pink-800 border border-pink-200 px-2 py-0.5"
+                  >
+                    {srv}
+                  </span>
+                ))}
+
+                {card.languageKeys.map((lang, i) => (
+                  <span
+                    key={`lang-${i}`}
+                    className="inline-block rounded-full bg-gray-100 text-gray-700 border border-gray-200 px-2 py-0.5"
+                  >
+                    {lang}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </Link>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <h1 className="text-xl font-semibold text-gray-900 flex flex-wrap items-center gap-2">
+              {card.masterName}
+            </h1>
+
+            <div className="flex flex-wrap items-center gap-2 text-sm text-gray-700">
+              <div className="flex items-center gap-2">
+                <span>{avg.toFixed(1)}</span>
+                <span className="text-sm text-gray-500">
+                  · {count} review{count === 1 ? "" : "s"}
+                </span>
+              </div>
+
+              {card.cityDisplay && (
+                <>
+                  <span className="text-gray-500">•</span>
+                  <span className="text-gray-700">{card.cityDisplay}</span>
+                </>
+              )}
             </div>
 
-            {card.cityDisplay && (
-              <>
-                <span className="text-gray-500">•</span>
-                <span className="text-gray-700">{card.cityDisplay}</span>
-              </>
-            )}
-          </div>
+            <div className="flex flex-wrap gap-2 text-xs">
+              {card.serviceKeys.map((srv, i) => (
+                <span
+                  key={`srv-${i}`}
+                  className="inline-block rounded-full bg-pink-100 text-pink-800 border border-pink-200 px-2 py-0.5"
+                >
+                  {srv}
+                </span>
+              ))}
 
-          <div className="flex flex-wrap gap-2 text-xs">
-            {/* service pills */}
-            {card.serviceKeys.map((srv, i) => (
-              <span
-                key={`srv-${i}`}
-                className="inline-block rounded-full bg-pink-100 text-pink-800 border border-pink-200 px-2 py-0.5"
-              >
-                {srv}
-              </span>
-            ))}
-
-            {/* language pills */}
-            {card.languageKeys.map((lang, i) => (
-              <span
-                key={`lang-${i}`}
-                className="inline-block rounded-full bg-gray-100 text-gray-700 border border-gray-200 px-2 py-0.5"
-              >
-                {lang}
-              </span>
-            ))}
+              {card.languageKeys.map((lang, i) => (
+                <span
+                  key={`lang-${i}`}
+                  className="inline-block rounded-full bg-gray-100 text-gray-700 border border-gray-200 px-2 py-0.5"
+                >
+                  {lang}
+                </span>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </section>
 
       {/* REVIEW TEXT */}

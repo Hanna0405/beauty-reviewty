@@ -5,6 +5,7 @@ import { stripUndefined } from '@/lib/object-helpers';
 import { getMasterProfileId } from '@/lib/listings/getMasterProfileId';
 import type { ListingLike } from '@/lib/listings/getMasterProfileId';
 import { notifyMasterOfNewReview } from '@/lib/reviews/notifyMasterOfNewReview';
+import { ensurePublicCardForMasterServer } from '@/lib/reviewty/ensurePublicCardForMaster.server';
 
 type ReviewPhoto = { url: string; path: string };
 type ReviewSubjectType = 'master' | 'listing';
@@ -275,6 +276,32 @@ export async function POST(req: Request) {
         } catch (err) {
           console.warn('[api/reviews/create] master subcollection write failed', err);
         }
+
+        try {
+          await ensurePublicCardForMasterServer(
+            {
+              masterId: String(reviewPayload.masterId),
+              masterName: String(reviewPayload.masterName || 'Master'),
+              masterCity: String(reviewPayload.masterCity || ''),
+              masterServices: Array.isArray(reviewPayload.masterServices)
+                ? (reviewPayload.masterServices as string[])
+                : [],
+              masterLanguages: Array.isArray(reviewPayload.masterLanguages)
+                ? (reviewPayload.masterLanguages as string[])
+                : [],
+              profileId: String(reviewPayload.profileId || reviewPayload.masterId),
+              reviewId: id,
+              rating,
+              text: textStr,
+              photos: sanitizedPhotos,
+              authorUid,
+              authorName: decoded.name || 'Verified client',
+            },
+            { mirrorReview: false }
+          );
+        } catch (cardErr) {
+          console.error('[api/reviews/create] ensurePublicCardForMaster failed (update)', cardErr);
+        }
       }
 
       console.log('[api/reviews/create] updated review', { id, masterId: reviewPayload.masterId });
@@ -307,6 +334,32 @@ export async function POST(req: Request) {
       } catch (err) {
         console.warn('[api/reviews/create] master subcollection write failed', err);
       }
+
+        try {
+          await ensurePublicCardForMasterServer(
+            {
+              masterId: resolvedMasterId,
+              masterName: String(reviewPayload.masterName || 'Master'),
+              masterCity: String(reviewPayload.masterCity || ''),
+              masterServices: Array.isArray(reviewPayload.masterServices)
+                ? (reviewPayload.masterServices as string[])
+                : [],
+              masterLanguages: Array.isArray(reviewPayload.masterLanguages)
+                ? (reviewPayload.masterLanguages as string[])
+                : [],
+              profileId: String(reviewPayload.profileId || resolvedMasterId),
+              reviewId: doc.id,
+              rating,
+              text: textStr,
+              photos: sanitizedPhotos,
+              authorUid,
+              authorName: decoded.name || 'Verified client',
+            },
+            { mirrorReview: false }
+          );
+        } catch (cardErr) {
+          console.error('[api/reviews/create] ensurePublicCardForMaster failed', cardErr);
+        }
     }
 
     if (resolvedMasterId) {

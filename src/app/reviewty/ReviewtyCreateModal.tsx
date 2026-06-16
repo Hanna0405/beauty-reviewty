@@ -408,12 +408,12 @@ export default function ReviewtyCreateModal({
 
       if (mode === "listing" && listingId) {
         const selectedMaster = listingOpts.find((o) => o.id === listingId) || null;
-
+        
         if (!selectedMaster) {
           alert("Master not found");
           return;
         }
-
+        
         console.log("[Reviewty] Existing master submit — selected", {
           id: selectedMaster.id,
           uid: selectedMaster.uid,

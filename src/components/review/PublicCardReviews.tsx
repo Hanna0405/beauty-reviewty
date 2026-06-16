@@ -9,14 +9,17 @@ import {
   limit,
   onSnapshot,
 } from "firebase/firestore";
+import { dedupeMasterReviews } from "@/lib/reviews/dedupeMasterReviews";
 
 type Props = { publicCardSlug: string };
 
 type Review = {
+  id?: string;
   rating: number;
   text?: string;
   photos?: string[];
   authorName?: string;
+  authorUid?: string;
   createdAt?: { toDate: () => Date } | null;
 };
 
@@ -41,7 +44,7 @@ export default function PublicCardReviews({ publicCardSlug }: Props) {
           const tb = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
           return tb - ta;
         });
-        setItems(rows);
+        setItems(dedupeMasterReviews(rows));
         setLoading(false);
       });
       return () => unsub();
@@ -61,7 +64,7 @@ export default function PublicCardReviews({ publicCardSlug }: Props) {
       ) : (
         <ul className="space-y-5">
           {items.map((r, i) => (
-            <li key={i} className="border rounded-md p-3">
+            <li key={r.id || i} className="border rounded-md p-3">
               {/* stars */}
               <div className="text-lg">
                 <span className="text-yellow-400">

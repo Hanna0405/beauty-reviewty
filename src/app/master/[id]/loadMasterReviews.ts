@@ -9,33 +9,7 @@ import type {
   ListingReview,
   ListingReviewsData,
 } from "@/app/masters/[id]/loadListingReviews";
-
-function dedupeReviews(reviews: ListingReview[]): ListingReview[] {
-  const unique: ListingReview[] = [];
-  const seenIds = new Set<string>();
-  const seenSignatures = new Set<string>();
-
-  for (const review of reviews) {
-    const reviewId = review.id;
-    const signature = [
-      String(review.authorUid || ""),
-      String(review.rating || ""),
-      String(review.text || "").trim(),
-    ].join("|");
-
-    if (reviewId) {
-      if (seenIds.has(reviewId)) continue;
-      seenIds.add(reviewId);
-    } else if (signature && seenSignatures.has(signature)) {
-      continue;
-    }
-
-    if (signature) seenSignatures.add(signature);
-    unique.push(review);
-  }
-
-  return unique;
-}
+import { dedupeMasterReviews } from "@/lib/reviews/dedupeMasterReviews";
 
 function reviewTimestampMs(review: ListingReview): number {
   const createdAt = review.createdAt as
@@ -54,6 +28,7 @@ export const loadMasterReviews = cache(
     profileDocId?: string
   ): Promise<ListingReviewsData> => {
     const merged: ListingReview[] = [];
+    let rootMasterReviewCount = 0;
 
     try {
       const db = getAdminDb();
@@ -84,6 +59,7 @@ export const loadMasterReviews = cache(
           for (const docSnap of snap.docs) {
             const data = docSnap.data() as Record<string, unknown>;
             if (!isApprovedMasterReviewForProfile(data, idVariants)) continue;
+            rootMasterReviewCount += 1;
             merged.push(
               serializeFirestoreDoc({
                 id: docSnap.id,
@@ -126,33 +102,39 @@ export const loadMasterReviews = cache(
         }
       }
 
-      try {
-        const subSnap = await db
-          .collection("masters")
-          .doc(masterId)
-          .collection("reviews")
-          .orderBy("createdAt", "desc")
-          .get();
-        for (const docSnap of subSnap.docs) {
-          const data = docSnap.data() as Record<string, unknown>;
-          if (!isApprovedReviewStatus(data)) continue;
-          merged.push(
-            serializeFirestoreDoc({
-              id: docSnap.id,
-              ...data,
-              masterId,
-            }) as ListingReview
+      // Legacy subcollection mirrors root reviews with different doc ids — skip when root exists.
+      if (rootMasterReviewCount === 0) {
+        try {
+          const subSnap = await db
+            .collection("masters")
+            .doc(masterId)
+            .collection("reviews")
+            .orderBy("createdAt", "desc")
+            .get();
+          for (const docSnap of subSnap.docs) {
+            const data = docSnap.data() as Record<string, unknown>;
+            if (!isApprovedReviewStatus(data)) continue;
+            merged.push(
+              serializeFirestoreDoc({
+                id: docSnap.id,
+                ...data,
+                masterId,
+              }) as ListingReview
+            );
+          }
+        } catch (error) {
+          console.warn(
+            "[master/[id]] Failed to load master subcollection reviews:",
+            error
           );
         }
-      } catch (error) {
-        console.warn("[master/[id]] Failed to load master subcollection reviews:", error);
       }
     } catch (error) {
       console.warn("[master/[id]] Failed to load reviews:", error);
       return { reviews: [], avgRating: 0, totalReviews: 0 };
     }
 
-    const uniqueReviews = dedupeReviews(merged);
+    const uniqueReviews = dedupeMasterReviews(merged);
     const totalReviews = uniqueReviews.length;
     const avgRating =
       totalReviews > 0

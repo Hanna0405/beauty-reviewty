@@ -47,5 +47,11 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>BeautyReviewty uses the camera to photograph skincare product ingredient labels for Check Skincare.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>BeautyReviewty accesses your photo library so you can choose ingredient label photos for Check Skincare.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>BeautyReviewty may save photos to your library when you choose to save images from Check Skincare.</string>
 </dict>
 </plist>

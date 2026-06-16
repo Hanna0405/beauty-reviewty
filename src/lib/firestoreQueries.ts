@@ -279,29 +279,44 @@ export async function fetchMastersOnce(
   });
 
   // Visibility + merge latest profile fields (avatar, name, city, tags)
+  const PROFILE_BATCH_SIZE = 20;
   const visibilityFiltered: any[] = [];
-  for (const item of items) {
-    const masterUid =
-      item.uid || item.userId || item.ownerId || item.userUID || item.id;
-    if (!masterUid) {
-      visibilityFiltered.push(item);
-      continue;
-    }
-    try {
-      const profileSnap = await getDoc(doc(db, "profiles", masterUid));
-      if (!profileSnap.exists()) {
-        continue;
+  for (let i = 0; i < items.length; i += PROFILE_BATCH_SIZE) {
+    const batch = items.slice(i, i + PROFILE_BATCH_SIZE);
+    const batchResults = await Promise.all(
+      batch.map(async (item) => {
+        const masterUid =
+          item.uid || item.userId || item.ownerId || item.userUID || item.id;
+        if (!masterUid) {
+          return { include: true, item };
+        }
+        try {
+          const profileSnap = await getDoc(doc(db, "profiles", masterUid));
+          if (!profileSnap.exists()) {
+            return { include: false, item: null };
+          }
+          const profile = profileSnap.data() as any;
+          if (!isProfilePublic(profile)) {
+            return { include: false, item: null };
+          }
+          return {
+            include: true,
+            item: mergeMasterWithProfile(item, profile),
+          };
+        } catch (error) {
+          console.warn(
+            "[fetchMastersOnce] Error loading profile for master:",
+            masterUid,
+            error
+          );
+          return { include: true, item };
+        }
+      })
+    );
+    for (const result of batchResults) {
+      if (result.include && result.item) {
+        visibilityFiltered.push(result.item);
       }
-      const profile = profileSnap.data() as any;
-      if (!isProfilePublic(profile)) continue;
-      visibilityFiltered.push(mergeMasterWithProfile(item, profile));
-    } catch (error) {
-      console.warn(
-        "[fetchMastersOnce] Error loading profile for master:",
-        masterUid,
-        error
-      );
-      visibilityFiltered.push(item);
     }
   }
 

@@ -22,6 +22,7 @@ type PublicReviewCardProps = {
   masterServices?: string[];
   authorName?: string;
   createdAt?: any;
+  avatarUrl?: string;
   profileHref?: string | null;
 };
 
@@ -42,6 +43,7 @@ export default function PublicReviewCard({
   masterServices,
   authorName,
   createdAt,
+  avatarUrl,
   profileHref,
 }: PublicReviewCardProps) {
   // Compute final slug from candidates
@@ -73,9 +75,18 @@ export default function PublicReviewCard({
         {createdAt && <span>· {createdAt.toDate().toLocaleDateString()}</span>}
       </div>
 
-      {/* Master Name */}
-      <div className="font-medium text-gray-900">
-        {masterDisplay || masterName || "Unknown master"}
+      {/* Master Name + optional avatar */}
+      <div className="flex items-center gap-3">
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            alt=""
+            className="h-10 w-10 shrink-0 rounded-full object-cover border border-pink-100"
+          />
+        ) : null}
+        <div className="font-medium text-gray-900 min-w-0">
+          {masterDisplay || masterName || "Unknown master"}
+        </div>
       </div>
 
       {/* Review Text */}

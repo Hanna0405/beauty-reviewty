@@ -117,10 +117,10 @@ export default function RootLayout({
               <div className="mb-3">
                 <span>Contact us: </span>
                 <a
-                  href="mailto:hello@beautyreviewty.app"
+                  href="mailto:support@beautyreviewty.com"
                   className="hover:underline"
                 >
-                  hello@beautyreviewty.app
+                  support@beautyreviewty.com
                 </a>
               </div>
 

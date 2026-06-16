@@ -5,6 +5,8 @@ import Link from "next/link";
 import { db } from "@/lib/firebase/client";
 import {
   collection,
+  doc,
+  getDoc,
   getDocs,
   limit,
   orderBy,
@@ -17,10 +19,14 @@ import Filters, { type ReviewtyFilters } from "./Filters";
 import { SERVICE_OPTIONS, LANGUAGE_OPTIONS } from "@/constants/catalog";
 import PublicReviewCard from "@/components/reviewty/PublicReviewCard";
 import {
-  mapReviewDocToFeedCard,
-  sortFeedCards,
-} from "@/lib/reviewty/mapReviewToFeedCard";
+  aggregateMasterReviewsToProfileCards,
+  collectCoveredMasterIds,
+  type RawMasterReviewDoc,
+} from "@/lib/reviewty/aggregateMasterProfileCards";
+import { sortFeedCards } from "@/lib/reviewty/mapReviewToFeedCard";
+import { buildMasterPublicCardId } from "@/lib/reviewty/publicCardIds";
 import { isApprovedMasterReviewForFeed } from "@/lib/reviews/masterReviewFilters";
+import { dedupeMasterReviews } from "@/lib/reviews/dedupeMasterReviews";
 
 // Helper function to calculate stats from reviews
 function calcStats(reviews: any[]) {
@@ -58,6 +64,7 @@ type ReviewDoc = {
   masterSlug?: string;
   masterKey?: string;
   source?: string;
+  avatarUrl?: string;
   computedRating?: number | null;
   computedReviewsCount?: number;
   // Additional service fields for new public cards
@@ -77,6 +84,42 @@ type ReviewDoc = {
 };
 
 const PAGE_SIZE = 20;
+
+async function attachProfileAvatars(cards: ReviewDoc[]): Promise<ReviewDoc[]> {
+  const masterIds = [
+    ...new Set(
+      cards
+        .filter((c) => c.source === "master-profile" && c.masterId)
+        .map((c) => String(c.masterId))
+    ),
+  ];
+  if (!masterIds.length) return cards;
+
+  const avatarByMaster = new Map<string, string>();
+  await Promise.all(
+    masterIds.map(async (masterId) => {
+      try {
+        const snap = await getDoc(doc(db, "profiles", masterId));
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const url =
+          (typeof data.avatarUrl === "string" && data.avatarUrl) ||
+          (typeof data.photoURL === "string" && data.photoURL) ||
+          "";
+        if (url) avatarByMaster.set(masterId, url);
+      } catch (err) {
+        console.warn("[reviewty] failed to load profile avatar:", masterId, err);
+      }
+    })
+  );
+
+  return cards.map((card) => {
+    if (card.masterId && avatarByMaster.has(card.masterId)) {
+      return { ...card, avatarUrl: avatarByMaster.get(card.masterId) };
+    }
+    return card;
+  });
+}
 
 // Strict service matching helpers (pure functions, NO React hooks)
 type ServiceOption =
@@ -243,15 +286,22 @@ export default function ReviewtyPage() {
       );
       const snap = await getDocs(q);
 
-      const items: ReviewDoc[] = snap.docs.map((d) => {
-        const data = d.data() as any;
+      const rawPublicCardDocs = snap.docs.map((d) => ({
+        id: d.id,
+        data: d.data() as Record<string, unknown>,
+      }));
+      const existingPublicCardIds = new Set(rawPublicCardDocs.map((c) => c.id));
+      const coveredMasterIds = collectCoveredMasterIds(rawPublicCardDocs);
+
+      const items: ReviewDoc[] = rawPublicCardDocs.map(({ id, data: rawData }) => {
+        const data = rawData as any;
 
         // Read computed rating fields with fallback
         const displayedRating = data.avgRating ?? data.rating ?? 0;
         const displayedCount = data.totalReviews ?? 1;
 
         return {
-          id: d.id,
+          id,
           slug: data.slug || "",
           masterName: data.masterName || "",
           masterDisplay: data.masterName || "",
@@ -265,13 +315,15 @@ export default function ReviewtyPage() {
           authorName: data.authorName || "Verified client",
           authorUid: data.authorUid || null,
           masterRef: data.masterRef,
-          masterId: d.id,
+          masterId: String(data.masterId || data.masterUid || id),
           masterCity: data.city?.formatted || data.cityName || "",
           masterServices:
-            data.services?.map((s: any) => s.name || s.key || s) || [],
-          masterLanguages: data.languages || [],
+            data.services?.map((s: any) => s.name || s.key || s) ||
+            data.serviceNames ||
+            [],
+          masterLanguages: data.languages || data.languageNames || [],
           masterKeywords: data.masterKeywords || [],
-          masterSlug: data.slug || "",
+          masterSlug: id,
           masterKey: data.masterKey,
           source: data.source || "publicCard",
           // Preserve service fields from new public cards
@@ -346,30 +398,18 @@ export default function ReviewtyPage() {
         }
       }
 
-      // Calculate stats for each card and merge into items
-      const itemsWithStats = items.map((card) => {
-        const cardReviews = reviewsByCardId.get(card.id) || [];
-        const stats = calcStats(cardReviews);
+      const rawMasterReviews: RawMasterReviewDoc[] = [];
+      const seenReviewIds = new Set<string>();
 
-        return {
-          ...card,
-          computedRating: stats.avg ?? card.rating ?? null,
-          computedReviewsCount: stats.count ?? card.totalReviews ?? 0,
-        };
-      });
-
-      const masterReviewMap = new Map<string, ReviewDoc>();
-
-      const addMasterReviewDoc = (
-        docSnap: { id: string; data: () => Record<string, unknown> }
-      ) => {
+      const addMasterReviewDoc = (docSnap: {
+        id: string;
+        data: () => Record<string, unknown>;
+      }) => {
+        if (seenReviewIds.has(docSnap.id)) return;
         const data = docSnap.data();
         if (!isApprovedMasterReviewForFeed(data)) return;
-        if (masterReviewMap.has(docSnap.id)) return;
-        masterReviewMap.set(
-          docSnap.id,
-          mapReviewDocToFeedCard(docSnap.id, data) as ReviewDoc
-        );
+        seenReviewIds.add(docSnap.id);
+        rawMasterReviews.push({ id: docSnap.id, data });
       };
 
       const masterQueries = [
@@ -395,7 +435,6 @@ export default function ReviewtyPage() {
         }
       }
 
-      // Fallback: recent reviews with masterId (no composite index required)
       try {
         const recentSnap = await getDocs(
           query(collection(db, "reviews"), limit(300))
@@ -405,13 +444,82 @@ export default function ReviewtyPage() {
         console.warn("[reviewty] failed to load recent master reviews", err);
       }
 
-      const masterFeedItems = sortFeedCards(
-        Array.from(masterReviewMap.values()),
-        (item) => (item as ReviewDoc & { _sortMs?: number })._sortMs ?? 0
-      );
+      // Attach unlinked master reviews to existing master_* publicCards for accurate stats
+      for (const { data } of rawMasterReviews) {
+        const masterId = String(
+          data.masterId || data.subjectId || data.profileId || ""
+        ).trim();
+        if (!masterId) continue;
+        const cardId = buildMasterPublicCardId(masterId);
+        if (!existingPublicCardIds.has(cardId)) continue;
+        const publicCardId = data.publicCardId
+          ? String(data.publicCardId).trim()
+          : "";
+        if (publicCardId === cardId) continue;
+        if (!reviewsByCardId.has(cardId)) reviewsByCardId.set(cardId, []);
+        reviewsByCardId.get(cardId)!.push(data);
+      }
+
+      // Calculate stats for each card and merge into items
+      const itemsWithStats = items.map((card) => {
+        const cardReviews = dedupeMasterReviews(reviewsByCardId.get(card.id) || []);
+        const stats = calcStats(cardReviews);
+
+        return {
+          ...card,
+          computedRating: stats.avg ?? card.rating ?? null,
+          computedReviewsCount: stats.count ?? card.totalReviews ?? 0,
+        };
+      });
+
+      const masterProfileCards = aggregateMasterReviewsToProfileCards(
+        rawMasterReviews,
+        {
+          excludeMasterIds: coveredMasterIds,
+          existingPublicCardIds,
+        }
+      ) as ReviewDoc[];
+
+      const bootstrappedCards: ReviewDoc[] = [];
+      const remainingProfileCards: ReviewDoc[] = [];
+
+      for (const card of masterProfileCards) {
+        if (existingPublicCardIds.has(card.id)) {
+          remainingProfileCards.push(card);
+          continue;
+        }
+        try {
+          const res = await fetch("/api/reviewty/ensure-master-card", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              masterId: card.masterId,
+              masterName: card.masterName,
+              masterCity: card.masterCity,
+              masterServices: card.masterServices,
+              masterLanguages: card.masterLanguages,
+              profileId: card.masterId,
+            }),
+          });
+          if (!res.ok) {
+            remainingProfileCards.push(card);
+            continue;
+          }
+          existingPublicCardIds.add(card.id);
+          coveredMasterIds.add(String(card.masterId));
+          bootstrappedCards.push({
+            ...card,
+            source: "publicCard",
+            masterSlug: card.id,
+          });
+        } catch (err) {
+          console.warn("[reviewty] ensure-master-card failed:", card.masterId, err);
+          remainingProfileCards.push(card);
+        }
+      }
 
       const combined = sortFeedCards(
-        [...itemsWithStats, ...masterFeedItems],
+        [...itemsWithStats, ...bootstrappedCards, ...remainingProfileCards],
         (item) => {
           const withSort = item as ReviewDoc & { _sortMs?: number };
           if (typeof withSort._sortMs === "number") return withSort._sortMs;
@@ -423,7 +531,7 @@ export default function ReviewtyPage() {
         }
       );
 
-      setPublicCards(combined);
+      setPublicCards(await attachProfileAvatars(combined));
     } catch (err) {
       console.error("[reviewty] failed to load reviews", err);
     } finally {
@@ -759,12 +867,8 @@ export default function ReviewtyPage() {
                       masterServices={review.masterServices}
                       authorName={review.authorName}
                       createdAt={review.createdAt}
-                      profileHref={
-                        review.masterId &&
-                        review.source !== "publicCard"
-                          ? `/master/${review.masterId}`
-                          : null
-                      }
+                      avatarUrl={review.avatarUrl}
+                      profileHref={`/reviewty/${review.id}`}
                     />
                   </li>
                 );
