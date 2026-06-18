@@ -11,6 +11,7 @@ import { useGoogleRedirectResult } from '@/lib/auth/useGoogleRedirectResult';
 import { auth } from '@/lib/firebase.client';
 import type { UserRole } from '@/types';
 import { masterProfileEditUrl } from '@/lib/masterOnboarding';
+import { useShowGoogleSignIn } from '@/lib/capacitor/useShowGoogleSignIn';
 
 export default function AuthPage() {
 const router = useRouter();
@@ -23,6 +24,7 @@ const [name, setName] = useState('');
 const [password, setPassword] = useState('');
 const [busy, setBusy] = useState(false);
 const [err, setErr] = useState<string | null>(null);
+const showGoogleSignIn = useShowGoogleSignIn();
 
 useGoogleRedirectResult(auth, useCallback(async () => {
  setBusy(true);
@@ -178,11 +180,15 @@ className="mt-2 w-full border rounded px-3 py-2 font-semibold"
 </button>
 </form>
 
+{showGoogleSignIn ? (
+<>
 <div className="my-4 text-center text-sm text-gray-500">or</div>
 
 <button onClick={handleGoogle} disabled={busy} className="w-full border rounded px-3 py-2">
 {busy ? 'Please wait…' : 'Continue with Google'}
 </button>
+</>
+) : null}
 </div>
 );
 }

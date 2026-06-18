@@ -1,8 +1,18 @@
+"use client";
+
 import React from "react";
+
+import { useShowGoogleSignIn } from "@/lib/capacitor/useShowGoogleSignIn";
 
 export function GoogleButton({ onClick, disabled }: {
 onClick: () => void; disabled?: boolean;
 }) {
+const showGoogleSignIn = useShowGoogleSignIn();
+
+if (!showGoogleSignIn) {
+  return null;
+}
+
 return (
 <button
 type="button"

@@ -17,6 +17,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { getMasterPostAuthRedirect } from '@/lib/masterOnboarding';
 import { signInWithGoogleCompatible } from '@/lib/auth/googleSignIn';
 import { useGoogleRedirectResult } from '@/lib/auth/useGoogleRedirectResult';
+import { useShowGoogleSignIn } from '@/lib/capacitor/useShowGoogleSignIn';
 
 export default function LoginPage() {
  const router = useRouter();
@@ -38,6 +39,7 @@ export default function LoginPage() {
  const [resetEmail, setResetEmail] = useState('');
  const [resetLoading, setResetLoading] = useState(false);
  const [resetSuccess, setResetSuccess] = useState(false);
+ const showGoogleSignIn = useShowGoogleSignIn();
 
  // Initialize Recaptcha
  useEffect(() => {
@@ -330,6 +332,8 @@ export default function LoginPage() {
  {/* Divider */}
  {!showForgotPassword && (
  <>
+ {showGoogleSignIn ? (
+ <>
  <div className="my-4 sm:my-6 flex items-center">
  <div className="flex-1 border-t border-gray-300"></div>
  <span className="px-3 text-sm text-gray-500">or</span>
@@ -351,6 +355,8 @@ export default function LoginPage() {
  </svg>
  Continue with Google
  </button>
+ </>
+ ) : null}
 
  {/* Phone Sign-in Section */}
  <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-200">

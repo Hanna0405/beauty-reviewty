@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { signInWithGoogleCompatible } from '@/lib/auth/googleSignIn';
+import { useShowGoogleSignIn } from '@/lib/capacitor/useShowGoogleSignIn';
 // Если у тебя alias "@/lib/..." работает — используй его.
 // Иначе оставь относительный путь, как ниже:
 import { auth, googleProvider } from '@/lib/firebase.client';
@@ -13,6 +14,7 @@ export default function LoginDialog() {
  const [pass, setPass] = useState('');
  const [err, setErr] = useState<string | null>(null);
  const [loading, setLoading] = useState(false);
+ const showGoogleSignIn = useShowGoogleSignIn();
 
  const handleEmailLogin = async () => {
  if (!auth) {
@@ -99,6 +101,7 @@ export default function LoginDialog() {
  {loading ? 'Loading…' : 'Login with Email'}
  </button>
 
+ {showGoogleSignIn ? (
  <button
  onClick={handleGoogleLogin}
  disabled={loading}
@@ -106,6 +109,7 @@ export default function LoginDialog() {
  >
  {loading ? 'Loading…' : 'Login with Google'}
  </button>
+ ) : null}
 
  {err && <div className="mt-3 text-sm text-red-600">{err}</div>}
 

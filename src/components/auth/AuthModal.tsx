@@ -7,6 +7,7 @@ import { requireAuth, requireDb } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { getMasterPostAuthRedirect } from "@/lib/masterOnboarding";
 import { useRouter } from "next/navigation";
+import { useShowGoogleSignIn } from "@/lib/capacitor/useShowGoogleSignIn";
 
 type Props = { open: boolean; onClose: () => void };
 
@@ -18,6 +19,7 @@ export default function AuthModal({ open, onClose }: Props) {
  const [name, setName] = useState("");
  const [loading, setLoading] = useState(false);
  const router = useRouter();
+ const showGoogleSignIn = useShowGoogleSignIn();
 
  useEffect(() => {
  if (!open) {
@@ -217,6 +219,8 @@ export default function AuthModal({ open, onClose }: Props) {
  {loading ? "Please wait..." : mode === "login" ? "Log in" : "Register"}
  </button>
 
+ {showGoogleSignIn ? (
+ <>
  <div className="text-center text-sm text-gray-600">or</div>
 
  <button
@@ -227,6 +231,8 @@ export default function AuthModal({ open, onClose }: Props) {
  >
  Continue with Google
  </button>
+ </>
+ ) : null}
 
  <p className="text-xs text-gray-500 text-center">
  You are signing in as <b>{tab.toUpperCase()}</b>

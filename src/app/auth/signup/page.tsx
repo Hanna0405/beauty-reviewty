@@ -16,6 +16,7 @@ import { ensureUserDoc } from "@/lib/users";
 import { masterProfileEditUrl } from "@/lib/masterOnboarding";
 import { signInWithGoogleCompatible } from "@/lib/auth/googleSignIn";
 import { useGoogleRedirectResult } from "@/lib/auth/useGoogleRedirectResult";
+import { useShowGoogleSignIn } from "@/lib/capacitor/useShowGoogleSignIn";
 
 type Role = "master" | "client";
 
@@ -32,6 +33,7 @@ export default function SignupPage() {
  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
  const [phoneLoading, setPhoneLoading] = useState(false);
  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
+ const showGoogleSignIn = useShowGoogleSignIn();
 
  // Initialize Recaptcha
  useEffect(() => {
@@ -226,6 +228,8 @@ export default function SignupPage() {
  </button>
  </form>
 
+ {showGoogleSignIn ? (
+ <>
  {/* Divider */}
  <div className="my-4 sm:my-6 flex items-center">
  <div className="flex-1 border-t border-gray-300"></div>
@@ -248,6 +252,8 @@ export default function SignupPage() {
  </svg>
  Continue with Google
  </button>
+ </>
+ ) : null}
 
  {/* Phone Sign-in Section */}
  <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-200">
