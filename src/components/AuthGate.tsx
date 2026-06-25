@@ -3,12 +3,9 @@ import { ReactNode } from 'react';
 import { signInAnonymously } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useAuthUid } from '@/lib/useAuthUid';
-import { signInWithGoogleCompatible } from '@/lib/auth/googleSignIn';
-import { useShowGoogleSignIn } from '@/lib/capacitor/useShowGoogleSignIn';
 
 export default function AuthGate({ children }: { children: ReactNode }) {
   const { uid, loading } = useAuthUid();
-  const showGoogleSignIn = useShowGoogleSignIn();
 
   if (loading) {
     return <div className="p-6 text-sm text-gray-600">Loading session…</div>;
@@ -18,21 +15,6 @@ export default function AuthGate({ children }: { children: ReactNode }) {
       <div className="p-6">
         <div className="mb-3 text-sm text-gray-700">Not signed in</div>
         <div className="flex gap-2">
-          {showGoogleSignIn ? (
-            <button
-              className="rounded border px-3 py-1.5 text-sm"
-              onClick={async () => {
-                try {
-                  await signInWithGoogleCompatible(auth);
-                } catch (e) {
-                  if (process.env.NODE_ENV === 'development') {
-                    console.warn('[AuthGate] Google sign-in failed', e);
-                  }
-                }
-              }}>
-              Sign in with Google
-            </button>
-          ) : null}
           <button
             className="rounded border px-3 py-1.5 text-sm"
             onClick={async () => { try { await signInAnonymously(auth); } catch (e) { console.error(e); } }}>

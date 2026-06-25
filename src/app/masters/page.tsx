@@ -683,6 +683,32 @@ function PageContent() {
     return filtered;
   }, [enhancedListings, effectiveCitySlug, effectiveNeighborhoodKey, selectedServiceKeys, selectedLanguageKeys, minRating]);
   
+  const hasActiveFilters = useMemo(
+    () =>
+      selectedServiceKeys.length > 0 ||
+      selectedLanguageKeys.length > 0 ||
+      !!effectiveCitySlug ||
+      !!effectiveNeighborhoodKey ||
+      (minRating != null && minRating > 0) ||
+      !!name?.trim(),
+    [
+      selectedServiceKeys,
+      selectedLanguageKeys,
+      effectiveCitySlug,
+      effectiveNeighborhoodKey,
+      minRating,
+      name,
+    ]
+  );
+
+  const mastersSectionHeading = hasActiveFilters
+    ? `${filteredMastersFinal.length} Masters Found`
+    : "Masters";
+
+  const listingsSectionHeading = hasActiveFilters
+    ? `${filteredListingsWithRatings.length} Listings Found`
+    : "Listings";
+
   const hasResults = filteredMastersFinal.length > 0 || filteredListingsWithRatings.length > 0;
   
   // Combine all items for map markers
@@ -803,7 +829,7 @@ function PageContent() {
               {/* Masters Section */}
               {filteredMastersFinal.length > 0 && (
                 <section className="min-w-0 w-full max-w-full">
-                  <h2 className="text-base font-semibold mb-3">Masters ({filteredMastersFinal.length})</h2>
+                  <h2 className="text-base font-semibold mb-3">{mastersSectionHeading}</h2>
                   <div className="grid w-full min-w-0 grid-cols-1 gap-3 md:grid-cols-2">
                     {filteredMastersFinal.map(m => {
                       const ratingData = lookupMasterRating(masterRatings, m);
@@ -835,7 +861,7 @@ function PageContent() {
               {/* Listings Section */}
               {filteredListingsWithRatings.length > 0 && (
                 <section className="min-w-0 w-full max-w-full">
-                  <h2 className="text-base font-semibold mb-3">Listings ({filteredListingsWithRatings.length})</h2>
+                  <h2 className="text-base font-semibold mb-3">{listingsSectionHeading}</h2>
                   <div className="grid w-full min-w-0 grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
                     {filteredListingsWithRatings.map((l, i) => (
                       <ListingCard key={l.id || l._id || `listing-${i}`} item={l} />

@@ -2,12 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
-import { signInWithGoogle } from "@/lib/auth-helpers";
 import { requireAuth, requireDb } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { getMasterPostAuthRedirect } from "@/lib/masterOnboarding";
 import { useRouter } from "next/navigation";
-import { useShowGoogleSignIn } from "@/lib/capacitor/useShowGoogleSignIn";
 
 type Props = { open: boolean; onClose: () => void };
 
@@ -19,7 +17,6 @@ export default function AuthModal({ open, onClose }: Props) {
  const [name, setName] = useState("");
  const [loading, setLoading] = useState(false);
  const router = useRouter();
- const showGoogleSignIn = useShowGoogleSignIn();
 
  useEffect(() => {
  if (!open) {
@@ -99,30 +96,6 @@ export default function AuthModal({ open, onClose }: Props) {
  } catch (e) {
  alert("Register error");
  console.error(e);
- } finally {
- setLoading(false);
- }
- }
-
- async function doGoogle() {
- setLoading(true);
- try {
- const result = await signInWithGoogle();
- if (result.kind === "redirect-started") return;
- const auth = requireAuth();
- const fbUser = auth.currentUser;
- const db = requireDb();
- if (tab === "master" && fbUser) {
-  await ensureUserDoc(fbUser.uid, "master", fbUser.displayName || name);
-  const dest = await getMasterPostAuthRedirect(db, fbUser.uid, "master");
-  router.push(dest);
- } else {
-  router.push("/");
- }
- onClose();
- } catch (e) {
- console.error("Google sign-in error:", e);
- alert("Google sign-in failed. Please try again.");
  } finally {
  setLoading(false);
  }
@@ -218,21 +191,6 @@ export default function AuthModal({ open, onClose }: Props) {
  >
  {loading ? "Please wait..." : mode === "login" ? "Log in" : "Register"}
  </button>
-
- {showGoogleSignIn ? (
- <>
- <div className="text-center text-sm text-gray-600">or</div>
-
- <button
- onClick={doGoogle}
- type="button"
- className="w-full rounded-md border py-2"
- disabled={loading}
- >
- Continue with Google
- </button>
- </>
- ) : null}
 
  <p className="text-xs text-gray-500 text-center">
  You are signing in as <b>{tab.toUpperCase()}</b>

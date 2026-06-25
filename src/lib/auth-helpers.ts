@@ -11,15 +11,7 @@ import {
  getIdToken,
  User,
 } from "firebase/auth";
-import { auth, googleProvider, requireAuth } from "./firebase.client";
-import {
-  signInWithGoogleCompatible,
-  type GoogleSignInResult,
-} from "./auth/googleSignIn";
-
-export async function signInWithGoogle(): Promise<GoogleSignInResult> {
- return signInWithGoogleCompatible(auth, googleProvider);
-}
+import { requireAuth } from "./firebase.client";
 
 export async function signInWithEmail(email: string, password: string) {
  await setPersistence(requireAuth(), browserLocalPersistence);

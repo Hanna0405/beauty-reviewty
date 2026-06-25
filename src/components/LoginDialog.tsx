@@ -2,11 +2,7 @@
 
 import { useState } from 'react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { signInWithGoogleCompatible } from '@/lib/auth/googleSignIn';
-import { useShowGoogleSignIn } from '@/lib/capacitor/useShowGoogleSignIn';
-// Если у тебя alias "@/lib/..." работает — используй его.
-// Иначе оставь относительный путь, как ниже:
-import { auth, googleProvider } from '@/lib/firebase.client';
+import { auth } from '@/lib/firebase.client';
 
 export default function LoginDialog() {
  const [open, setOpen] = useState(false);
@@ -14,7 +10,6 @@ export default function LoginDialog() {
  const [pass, setPass] = useState('');
  const [err, setErr] = useState<string | null>(null);
  const [loading, setLoading] = useState(false);
- const showGoogleSignIn = useShowGoogleSignIn();
 
  const handleEmailLogin = async () => {
  if (!auth) {
@@ -28,24 +23,6 @@ export default function LoginDialog() {
  setOpen(false);
  } catch (e: any) {
  setErr(e?.message ?? 'Login error');
- } finally {
- setLoading(false);
- }
- };
-
- const handleGoogleLogin = async () => {
- if (!auth || !googleProvider) {
- setErr('Authentication is not configured. Please check Firebase settings.');
- return;
- }
- try {
- setLoading(true);
- setErr(null);
- const result = await signInWithGoogleCompatible(auth, googleProvider);
- if (result.kind === 'redirect-started') return;
- setOpen(false);
- } catch (e: any) {
- setErr(e?.message ?? 'Google login error');
  } finally {
  setLoading(false);
  }
@@ -100,16 +77,6 @@ export default function LoginDialog() {
  >
  {loading ? 'Loading…' : 'Login with Email'}
  </button>
-
- {showGoogleSignIn ? (
- <button
- onClick={handleGoogleLogin}
- disabled={loading}
- className="mt-2 w-full rounded bg-gray-800 px-4 py-2 text-white hover:bg-gray-900 disabled:opacity-50"
- >
- {loading ? 'Loading…' : 'Login with Google'}
- </button>
- ) : null}
 
  {err && <div className="mt-3 text-sm text-red-600">{err}</div>}
 

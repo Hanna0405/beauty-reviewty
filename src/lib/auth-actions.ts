@@ -3,9 +3,6 @@
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { db, auth, requireAuth } from "@/lib/firebase";
-import { GoogleAuthProvider } from "firebase/auth";
-import { signInWithGoogleCompatible } from "@/lib/auth/googleSignIn";
-const googleProvider = new GoogleAuthProvider();
 
 export async function signUpWithEmail(email: string, password: string, displayName?: string) {
  const cred = await createUserWithEmailAndPassword(auth, email, password);
@@ -25,18 +22,6 @@ export async function signInWithEmail(email: string, password: string) {
  const cred = await signInWithEmailAndPassword(auth, email, password);
  await ensureUserDoc(cred.user.uid, cred.user.email ?? email, cred.user.displayName ?? "");
  return cred.user;
-}
-
-export async function signInWithGoogle() {
- if (!googleProvider) throw new Error("Google provider not available");
- const result = await signInWithGoogleCompatible(auth, googleProvider);
- if (result.kind === "redirect-started") return null;
- await ensureUserDoc(
-  result.credential.user.uid,
-  result.credential.user.email ?? "",
-  result.credential.user.displayName ?? ""
- );
- return result.credential.user;
 }
 
 async function ensureUserDoc(uid: string, email: string, displayName: string) {

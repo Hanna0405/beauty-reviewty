@@ -5,12 +5,10 @@ import { requireAuth, requireDb } from "@/lib/firebase/client";
 import {
  signInWithEmailAndPassword,
  createUserWithEmailAndPassword,
- GoogleAuthProvider,
  updateProfile,
  type User,
 } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { signInWithGoogleCompatible } from "@/lib/auth/googleSignIn";
 
 function mapAuthError(e: any): string {
  const c = e?.code ?? "";
@@ -58,17 +56,4 @@ export async function signUpEmail(name: string, email: string, password: string,
  if (name) await updateProfile(user, { displayName: name });
  await ensureUserDoc(user, role);
  return user;
-}
-
-export async function signInGoogle(role: "client"|"master" = "client") {
- const provider = new GoogleAuthProvider();
- try {
- const result = await signInWithGoogleCompatible(requireAuth(), provider);
- if (result.kind === "redirect-started") return null;
- const { user } = result.credential;
- await ensureUserDoc(user, role);
- return user;
- } catch (e: any) {
- throw friendlyAuthError(e);
- }
 }

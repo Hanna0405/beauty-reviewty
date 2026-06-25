@@ -255,6 +255,17 @@ function PageContent() {
     return true;
   });
 
+  const hasActiveFilters =
+    selectedServiceKeys.length > 0 ||
+    selectedLanguageKeys.length > 0 ||
+    !!(cityKey || urlCity) ||
+    !!effectiveNeighborhoodKey ||
+    (minRating != null && minRating > 0);
+
+  const listingsSectionHeading = hasActiveFilters
+    ? `${filteredListingsWithRatings.length} Listings Found`
+    : "Listings";
+
   // Reset pagination when filters change
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
@@ -388,6 +399,7 @@ function PageContent() {
             <div className="py-8 text-center text-gray-500">No listings match your filters.</div>
           ) : (
             <>
+              <h2 className="text-base font-semibold mb-3">{listingsSectionHeading}</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
                 {filteredListingsWithRatings.slice(0, visibleCount).map(l => <ListingCard key={l.id} item={l} />)}
               </div>

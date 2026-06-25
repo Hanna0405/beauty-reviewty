@@ -1,17 +1,13 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
 signUpEmail,
 signInEmail,
 } from '@/lib/authClient';
-import { signInWithGoogle } from '@/lib/auth-helpers';
-import { useGoogleRedirectResult } from '@/lib/auth/useGoogleRedirectResult';
-import { auth } from '@/lib/firebase.client';
 import type { UserRole } from '@/types';
 import { masterProfileEditUrl } from '@/lib/masterOnboarding';
-import { useShowGoogleSignIn } from '@/lib/capacitor/useShowGoogleSignIn';
 
 export default function AuthPage() {
 const router = useRouter();
@@ -24,20 +20,6 @@ const [name, setName] = useState('');
 const [password, setPassword] = useState('');
 const [busy, setBusy] = useState(false);
 const [err, setErr] = useState<string | null>(null);
-const showGoogleSignIn = useShowGoogleSignIn();
-
-useGoogleRedirectResult(auth, useCallback(async () => {
- setBusy(true);
- setErr(null);
- try {
-  router.push('/dashboard');
- } catch (e: unknown) {
-  const message = e instanceof Error ? e.message : 'Google sign-in failed';
-  setErr(message);
- } finally {
-  setBusy(false);
- }
-}, [router]));
 
 const goToDashboard = (r: UserRole | null) => {
 if (r === 'master') router.replace(masterProfileEditUrl(true));
@@ -50,33 +32,16 @@ setBusy(true);
 setErr(null);
 try {
 if (mode === 'signup') {
-const user = await signUpEmail(name.trim(), email.trim(), password, role);
+await signUpEmail(name.trim(), email.trim(), password, role);
 goToDashboard(role);
 } else {
-const user = await signInEmail(email.trim(), password);
+await signInEmail(email.trim(), password);
 // Note: getUserRole is not available, using default role
 const r = 'client' as UserRole;
 goToDashboard(r ?? 'client');
 }
 } catch (e: any) {
 setErr(e.message ?? 'Something went wrong');
-} finally {
-setBusy(false);
-}
-}
-
-async function handleGoogle() {
-setBusy(true);
-setErr(null);
-try {
-const result = await signInWithGoogle();
-if (result.kind === "redirect-started") return;
-router.push("/dashboard");
-} catch (e: unknown) {
-if (process.env.NODE_ENV === "development") {
- console.warn("Google sign-in error:", e);
-}
-setErr("Google sign-in failed. Please try again.");
 } finally {
 setBusy(false);
 }
@@ -179,16 +144,6 @@ className="mt-2 w-full border rounded px-3 py-2 font-semibold"
 {busy ? 'Please wait…' : mode === 'signup' ? 'Create account' : 'Log in'}
 </button>
 </form>
-
-{showGoogleSignIn ? (
-<>
-<div className="my-4 text-center text-sm text-gray-500">or</div>
-
-<button onClick={handleGoogle} disabled={busy} className="w-full border rounded px-3 py-2">
-{busy ? 'Please wait…' : 'Continue with Google'}
-</button>
-</>
-) : null}
 </div>
 );
 }
