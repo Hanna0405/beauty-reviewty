@@ -17,6 +17,7 @@ import AppHeader from "@/components/layout/AppHeader";
 import ToasterClient from "@/components/system/ToasterClient";
 import { SwRegister } from "@/components/pwa/SwRegister";
 import { InstallAppBanner } from "@/components/pwa/InstallAppBanner";
+import { AppDownloadBanner } from "@/components/AppDownloadBanner";
 import { FaInstagram, FaTiktok, FaFacebook } from "react-icons/fa";
 import { ExternalLink } from "@/components/links/ExternalLink";
 
@@ -58,6 +59,9 @@ export const metadata: Metadata = {
       { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
     ],
   },
+  other: {
+    "p:domain_verify": "c3e969f13ab0ef73f6b14ff345f57b8e",
+  },
 };
 
 export const viewport: Viewport = {
@@ -79,6 +83,7 @@ export default function RootLayout({
         <CapacitorStartup />
         <SwRegister />
         <InstallAppBanner />
+        <AppDownloadBanner />
         <AuthProvider>
           <Providers>
             <header className="relative z-50 border-b">
