@@ -199,11 +199,11 @@ export default function MastersRealtime() {
   }, [filtered]);
 
   return (
-    <section className="container mx-auto px-4 my-6 md:my-8 flex flex-col gap-5">
+    <section className="container mx-auto w-full max-w-full min-w-0 overflow-x-hidden px-4 my-6 md:my-8 flex flex-col gap-5">
       {/* Filters row */}
-      <div className="rounded-2xl border border-rose-100 bg-white/90 shadow-sm p-4 flex flex-col md:flex-row md:items-center gap-3 md:gap-4">
+      <div className="rounded-2xl border border-rose-100 bg-white/90 shadow-sm p-4 flex flex-col md:flex-row md:items-center gap-3 md:gap-4 min-w-0">
         {/* City */}
-        <div className="min-w-[240px]">
+        <div className="w-full min-w-0 md:min-w-[240px]">
           <CityAutocomplete
             value={city}
             onChange={setCity}
@@ -213,7 +213,7 @@ export default function MastersRealtime() {
         </div>
 
         {/* Service */}
-        <div className="min-w-[220px]">
+        <div className="w-full min-w-0 md:min-w-[220px]">
           <ServiceAutocomplete
             value={selectedServices}
             onChange={setSelectedServices}
@@ -223,7 +223,7 @@ export default function MastersRealtime() {
         </div>
 
         {/* Language */}
-        <div className="min-w-[200px]">
+        <div className="w-full min-w-0 md:min-w-[200px]">
           <LanguageAutocomplete
             value={selectedLanguages}
             onChange={setSelectedLanguages}
@@ -233,7 +233,7 @@ export default function MastersRealtime() {
         </div>
 
         {/* Min rating */}
-        <div className="min-w-[160px]">
+        <div className="w-full min-w-0 md:min-w-[160px]">
           <label className="text-xs text-rose-600/80 block mb-1">Min rating</label>
           <select
             value={minRating}

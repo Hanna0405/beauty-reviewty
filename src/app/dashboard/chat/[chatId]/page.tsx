@@ -131,7 +131,7 @@ export default function BookingChatPage() {
   }
 
   return (
-    <div className="p-4 max-w-2xl mx-auto">
+    <div className="p-4 max-w-2xl mx-auto w-full min-w-0 overflow-x-hidden">
       <div className="mb-3">
         <button
           onClick={() => router.push("/dashboard/master/bookings")}
@@ -140,14 +140,14 @@ export default function BookingChatPage() {
           ← Back to bookings
         </button>
       </div>
-      <div className="bg-white/80 rounded-lg border flex flex-col h-[70vh]">
-        <div className="px-4 py-3 border-b flex items-center justify-between">
-          <div className="font-semibold">Chat</div>
-          <div className="text-xs text-gray-400">
+      <div className="bg-white/80 rounded-lg border flex flex-col h-[70vh] min-w-0 max-w-full">
+        <div className="px-4 py-3 border-b flex items-center justify-between gap-2 min-w-0">
+          <div className="font-semibold shrink-0">Chat</div>
+          <div className="text-xs text-gray-400 min-w-0 break-anywhere">
             {bookingId ? `booking: ${bookingId.slice(0, 6)}…` : ""}
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 flex flex-col gap-2 min-w-0">
           {messages.length === 0 ? (
             <div className="text-sm text-gray-400">No messages yet</div>
           ) : (
@@ -156,10 +156,10 @@ export default function BookingChatPage() {
               return (
                 <div
                   key={msg.id}
-                  className={`flex flex-col ${isMine ? "items-end" : "items-start"}`}
+                  className={`flex flex-col min-w-0 ${isMine ? "items-end" : "items-start"}`}
                 >
                   <div
-                    className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm ${
+                    className={`max-w-[75%] min-w-0 px-3 py-2 rounded-2xl text-sm break-anywhere ${
                       isMine
                         ? "bg-pink-400 text-white"
                         : "bg-gray-100 text-gray-900"
@@ -175,16 +175,16 @@ export default function BookingChatPage() {
             })
           )}
         </div>
-        <div className="p-3 border-t flex gap-2">
+        <div className="p-3 border-t flex gap-2 min-w-0">
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Сообщение..."
-            className="flex-1 rounded-full border px-3 py-2 text-sm outline-none"
+            className="flex-1 min-w-0 rounded-full border px-3 py-2 text-sm outline-none"
           />
           <button
             onClick={handleSend}
-            className="px-4 py-2 rounded-full bg-pink-400 text-white text-sm"
+            className="px-4 py-2 rounded-full bg-pink-400 text-white text-sm shrink-0"
           >
             Send
           </button>

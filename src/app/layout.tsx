@@ -86,7 +86,7 @@ export default function RootLayout({
         <AppDownloadBanner />
         <AuthProvider>
           <Providers>
-            <header className="relative z-50 border-b">
+            <header className="relative z-50 w-full max-w-full min-w-0 border-b">
               <AppHeader />
             </header>
             {children}

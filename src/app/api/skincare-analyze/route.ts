@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { computePersonalizedScore } from "./scoring";
+import {
+  chipStringArray,
+  normalizeSuitabilityChips,
+} from "@/lib/skincare/suitabilityChips";
 
 type ScoreExplanation = {
   skinFit: string;
@@ -30,6 +34,9 @@ type SkincareAnalyzeResponse = {
   statusText: string;
   bestFor: string[];
   notIdealFor: string[];
+  /** Canonical suitability chips (same values as bestFor / notIdealFor). */
+  goodFor: string[];
+  beCareful: string[];
   productType: ProductType;
   productTypeConfidence: ProductTypeConfidence;
   scoreExplanation?: ScoreExplanation;
@@ -55,13 +62,6 @@ function shortChip(s: string): string {
   const t = s.trim();
   if (t.length <= CHIP_MAX_LEN) return t;
   return `${t.slice(0, CHIP_MAX_LEN - 1)}…`;
-}
-
-function chipStringArray(v: unknown, maxItems: number): string[] {
-  return (Array.isArray(v) ? v : [])
-    .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
-    .slice(0, maxItems)
-    .map((s) => shortChip(s));
 }
 
 const NOTE_MAX = 160;
@@ -176,11 +176,16 @@ function productTypeFromUserOverride(raw: string): ProductType | null {
   return map[r] ?? null;
 }
 
-function sanitizeFastAnalysis(input: unknown): {
+function sanitizeFastAnalysis(
+  input: unknown,
+  ctx: { skinType: string; skinGoals: string[] }
+): {
   summary: string;
   statusText: string;
   bestFor: string[];
   notIdealFor: string[];
+  goodFor: string[];
+  beCareful: string[];
   disclaimer: string;
   productType: ProductType;
   productTypeConfidence: ProductTypeConfidence;
@@ -188,6 +193,16 @@ function sanitizeFastAnalysis(input: unknown): {
 } {
   const x = (input ?? {}) as Record<string, unknown>;
   const se = sanitizeScoreExplanation(x);
+  const productType = sanitizeProductType(x.productType);
+  const suitability = normalizeSuitabilityChips(x, {
+    skinType: ctx.skinType,
+    skinGoals: ctx.skinGoals,
+    productType,
+    summary: typeof x.summary === "string" ? x.summary : undefined,
+    statusText: typeof x.statusText === "string" ? x.statusText : undefined,
+    scoreExplanation: se,
+  });
+
   return {
     summary:
       typeof x.summary === "string" && x.summary.trim()
@@ -197,13 +212,15 @@ function sanitizeFastAnalysis(input: unknown): {
       typeof x.statusText === "string" && x.statusText.trim()
         ? x.statusText.trim()
         : "Balanced overview",
-    bestFor: chipStringArray(x.bestFor, 3),
-    notIdealFor: chipStringArray(x.notIdealFor, 3),
+    bestFor: suitability.bestFor,
+    notIdealFor: suitability.notIdealFor,
+    goodFor: suitability.goodFor,
+    beCareful: suitability.beCareful,
     disclaimer:
       typeof x.disclaimer === "string" && x.disclaimer.trim()
         ? x.disclaimer.trim()
         : "AI skincare analysis is for educational purposes only and does not replace advice from a dermatologist or qualified professional.",
-    productType: sanitizeProductType(x.productType),
+    productType,
     productTypeConfidence: sanitizeProductTypeConfidence(
       x.productTypeConfidence
     ),
@@ -337,7 +354,11 @@ function buildFallbackAnalysis(
     bestFor: skinType
       ? [shortChip(`${skinType} skin`)]
       : chipStringArray(["Check ingredient fit"], 1),
-    notIdealFor: [],
+    notIdealFor: chipStringArray(["Patch-test first"], 1),
+    goodFor: skinType
+      ? [shortChip(`${skinType} skin`)]
+      : chipStringArray(["Check ingredient fit"], 1),
+    beCareful: chipStringArray(["Patch-test first"], 1),
     productType,
     productTypeConfidence,
     scoreExplanation: {
@@ -431,7 +452,7 @@ export async function POST(request: Request) {
       }
 
       const parsed = extractJsonObject(content) as Record<string, unknown>;
-      partial = sanitizeFastAnalysis(parsed);
+      partial = sanitizeFastAnalysis(parsed, { skinType, skinGoals });
     } catch (openAiError) {
       logSkincareAnalyzeError(
         `OpenAI request failed (model=${SKINCARE_ANALYZE_MODEL})`,
@@ -468,6 +489,8 @@ export async function POST(request: Request) {
       statusText: partial.statusText,
       bestFor: partial.bestFor,
       notIdealFor: partial.notIdealFor,
+      goodFor: partial.goodFor,
+      beCareful: partial.beCareful,
       productType,
       productTypeConfidence,
       disclaimer: partial.disclaimer,

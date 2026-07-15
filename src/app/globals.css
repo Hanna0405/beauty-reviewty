@@ -61,9 +61,33 @@
  (шрифты подключаются в layout.tsx через next/font)
  Poppins -> body, Playfair -> заголовки
  ========================= */
-html, body {
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  overflow-x: hidden;
   @apply bg-white text-gray-900;
   scroll-behavior: smooth;
+}
+
+img,
+video,
+iframe,
+canvas {
+  max-width: 100%;
+}
+
+/* Long IDs / unbroken strings in chat and booking UI */
+.break-anywhere {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* Soft page bg tint that matches brand */
@@ -282,7 +306,11 @@ body, p, li, input, select, button {
   border-top: 1px solid var(--pink-light);
   padding: 1rem;
   padding-bottom: calc(1rem + var(--safe-area-inset-bottom));
-  margin: 0 -1rem -1rem -1rem;
+  margin-top: 0;
+  margin-bottom: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   z-index: 10;
  }
  

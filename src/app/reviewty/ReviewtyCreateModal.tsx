@@ -470,7 +470,7 @@ export default function ReviewtyCreateModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-      <div className="w-full max-w-xl rounded-xl bg-white p-6 space-y-4 md:w-[600px] max-md:w-[calc(100vw-2rem)] max-md:max-w-[calc(100vw-2rem)] max-md:overflow-y-auto max-md:box-border">
+      <div className="w-full max-w-xl rounded-xl bg-white p-6 space-y-4 md:w-[600px] max-md:w-full max-md:max-w-full max-md:overflow-y-auto max-md:box-border">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold">Add review</h3>
           <button

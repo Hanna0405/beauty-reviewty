@@ -15,6 +15,7 @@ import {
   PHOTO_PROCESS_ERROR,
 } from "@/lib/images/prepareReviewPhoto";
 import { ExternalLink } from "@/components/links/ExternalLink";
+import { normalizeSuitabilityChips } from "@/lib/skincare/suitabilityChips";
 
 const SKIN_TYPES = [
   "Dry",
@@ -75,6 +76,8 @@ type AnalysisResult = {
   statusText: string;
   bestFor: string[];
   notIdealFor: string[];
+  goodFor: string[];
+  beCareful: string[];
   disclaimer: string;
   productType?: ProductType;
   productTypeConfidence?: ProductTypeConfidence;
@@ -82,6 +85,73 @@ type AnalysisResult = {
   why?: string[];
   ingredientsToNotice?: { name: string; note: string }[];
 };
+
+function normalizeAnalysisResult(raw: unknown): AnalysisResult {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const suitability = normalizeSuitabilityChips(r, {
+    productType: typeof r.productType === "string" ? r.productType : undefined,
+    summary: typeof r.summary === "string" ? r.summary : undefined,
+    statusText: typeof r.statusText === "string" ? r.statusText : undefined,
+    scoreExplanation:
+      r.scoreExplanation && typeof r.scoreExplanation === "object"
+        ? (r.scoreExplanation as AnalysisResult["scoreExplanation"])
+        : undefined,
+    why: Array.isArray(r.why) ? (r.why as string[]) : undefined,
+    ingredientsToNotice: Array.isArray(r.ingredientsToNotice)
+      ? (r.ingredientsToNotice as AnalysisResult["ingredientsToNotice"])
+      : undefined,
+  });
+
+  const score =
+    typeof r.score === "number" && Number.isFinite(r.score) ? r.score : 6;
+  const status = normalizeStatus(r.status);
+
+  return {
+    score,
+    scoreLabel:
+      r.scoreLabel === "Very good" ||
+      r.scoreLabel === "Good" ||
+      r.scoreLabel === "Okay" ||
+      r.scoreLabel === "Not ideal"
+        ? r.scoreLabel
+        : scoreToLabel(score),
+    summary:
+      typeof r.summary === "string" && r.summary.trim()
+        ? r.summary.trim()
+        : "This ingredient list has mixed strengths and trade-offs.",
+    status,
+    statusText:
+      typeof r.statusText === "string" && r.statusText.trim()
+        ? r.statusText.trim()
+        : "Balanced overview",
+    bestFor: suitability.bestFor,
+    notIdealFor: suitability.notIdealFor,
+    goodFor: suitability.goodFor,
+    beCareful: suitability.beCareful,
+    disclaimer:
+      typeof r.disclaimer === "string" && r.disclaimer.trim()
+        ? r.disclaimer.trim()
+        : "AI skincare analysis is for educational purposes only and does not replace advice from a dermatologist or qualified professional.",
+    productType:
+      typeof r.productType === "string"
+        ? (r.productType as ProductType)
+        : undefined,
+    productTypeConfidence:
+      r.productTypeConfidence === "high" ||
+      r.productTypeConfidence === "medium" ||
+      r.productTypeConfidence === "low"
+        ? r.productTypeConfidence
+        : undefined,
+    scoreExplanation:
+      r.scoreExplanation && typeof r.scoreExplanation === "object"
+        ? (r.scoreExplanation as ScoreExplanation)
+        : undefined,
+    why: Array.isArray(r.why) ? (r.why as string[]) : undefined,
+    ingredientsToNotice: Array.isArray(r.ingredientsToNotice)
+      ? (r.ingredientsToNotice as AnalysisResult["ingredientsToNotice"])
+      : undefined,
+  };
+}
 
 const demoResult: AnalysisResult = {
   status: "not_ideal",
@@ -96,6 +166,8 @@ const demoResult: AnalysisResult = {
   ],
   bestFor: ["Normal to combination skin", "Humid climates"],
   notIdealFor: ["Sensitive skin", "Very dry skin"],
+  goodFor: ["Normal to combination skin", "Humid climates"],
+  beCareful: ["Sensitive skin", "Very dry skin"],
   ingredientsToNotice: [
     { name: "Fragrance", note: "Can trigger irritation in reactive skin." },
     { name: "Alcohol Denat", note: "May feel lightweight but can be drying." },
@@ -516,11 +588,19 @@ export default function SkincareCheckerPage() {
   );
   const labelLine = useMemo(() => shortLabel(shownResult), [shownResult]);
 
-  const bestForItems = (shownResult.bestFor ?? [])
+  const bestForItems = (
+    shownResult.goodFor?.length
+      ? shownResult.goodFor
+      : shownResult.bestFor ?? []
+  )
     .filter((x) => Boolean(x && String(x).trim()))
     .slice(0, 3)
     .map((x) => truncateText(String(x), 28));
-  const notIdealItems = (shownResult.notIdealFor ?? [])
+  const notIdealItems = (
+    shownResult.beCareful?.length
+      ? shownResult.beCareful
+      : shownResult.notIdealFor ?? []
+  )
     .filter((x) => Boolean(x && String(x).trim()))
     .slice(0, 3)
     .map((x) => truncateText(String(x), 28));
@@ -870,7 +950,7 @@ export default function SkincareCheckerPage() {
         throw new Error(safeMessage);
       }
 
-      const result = data as AnalysisResult;
+      const result = normalizeAnalysisResult(data);
       setAnalysis(result);
       setWhyScoreOpen(false);
       setLastScoredFor({

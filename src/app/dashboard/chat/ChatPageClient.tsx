@@ -59,14 +59,14 @@ export default function ChatPageClient() {
   }
 
   return (
-    <div className="grid md:grid-cols-3 gap-4 p-6">
-      <div className="border rounded-xl bg-white shadow-sm p-3">
+    <div className="grid w-full min-w-0 max-w-full md:grid-cols-3 gap-4 p-4 sm:p-6 overflow-x-hidden">
+      <div className="border rounded-xl bg-white shadow-sm p-3 min-w-0">
         <div className="font-semibold mb-2">My chats</div>
         <ul className="space-y-2">
           {chats.map(c=>(
-            <li key={c.id}>
+            <li key={c.id} className="min-w-0">
               <button
-                className={`w-full text-left underline hover:text-pink-600 ${chatId===c.id?"font-semibold text-pink-600":""}`}
+                className={`w-full min-w-0 text-left underline hover:text-pink-600 break-anywhere ${chatId===c.id?"font-semibold text-pink-600":""}`}
                 onClick={()=>{ setChatId(c.id); refreshMessages(c.id); }}
               >
                 {c.lastMessage ? c.lastMessage.slice(0,40) : "New chat"} • {c.updatedAt?._seconds ? new Date(c.updatedAt._seconds*1000).toLocaleString() : ""}
@@ -75,28 +75,28 @@ export default function ChatPageClient() {
           ))}
         </ul>
       </div>
-      <div className="md:col-span-2 border rounded-xl bg-white shadow-sm p-3 flex flex-col">
+      <div className="md:col-span-2 border rounded-xl bg-white shadow-sm p-3 flex flex-col min-w-0">
         <div className="font-semibold mb-2">Chat</div>
-        <div className="flex-1 overflow-auto border rounded-lg p-3 space-y-3 bg-gray-50">
+        <div className="flex-1 overflow-auto border rounded-lg p-3 space-y-3 bg-gray-50 min-w-0">
           {messages.map(m=>(
-            <div key={m.id} className={`flex gap-2 ${m.senderId===user?.uid?"justify-end":"justify-start"}`}>
-              <div className={`max-w-[80%] inline-block px-3 py-2 rounded-2xl shadow-sm ${m.senderId===user?.uid?"bg-pink-100":"bg-white border"}`}>
-                <div className="text-sm whitespace-pre-wrap break-words leading-6">{m.text}</div>
+            <div key={m.id} className={`flex gap-2 min-w-0 ${m.senderId===user?.uid?"justify-end":"justify-start"}`}>
+              <div className={`max-w-[80%] min-w-0 inline-block px-3 py-2 rounded-2xl shadow-sm ${m.senderId===user?.uid?"bg-pink-100":"bg-white border"}`}>
+                <div className="text-sm whitespace-pre-wrap break-anywhere leading-6">{m.text}</div>
                 <div className="text-[11px] opacity-60 mt-1 text-right">{m.createdAt?._seconds ? new Date(m.createdAt._seconds*1000).toLocaleString() : ""}</div>
               </div>
             </div>
           ))}
           <div ref={scrollRef} />
         </div>
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3 flex gap-2 min-w-0">
           <input
             value={text}
             onChange={e=>setText(e.target.value)}
-            className="input input-bordered w-full rounded-lg"
+            className="input input-bordered w-full min-w-0 rounded-lg"
             placeholder="Type a message..."
             onKeyDown={(e)=>{ if (e.key==="Enter") onSend(); }}
           />
-          <button className="btn btn-primary rounded-lg" onClick={onSend}>Send</button>
+          <button className="btn btn-primary rounded-lg shrink-0" onClick={onSend}>Send</button>
         </div>
       </div>
     </div>
